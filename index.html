@@ -1,0 +1,2846 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>LS25 Hof-Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+    :root {
+        /* Primitive */
+        --ink-950: #14160E;
+        --ink-900: #1B1E14;
+        --ink-800: #262A1B;
+        --ink-700: #33381F;
+        --paper-100: #ECE7D8;
+        --paper-400: #A9A48C;
+        --wheat-500: #C9A227;
+        --wheat-600: #A9871F;
+        --moss-500: #5C7A52;
+        --moss-400: #7B9970;
+        --rust-500: #A85539;
+        --rust-600: #8E4630;
+
+        /* Semantisch */
+        --bg: var(--ink-950);
+        --panel: var(--ink-900);
+        --border: var(--ink-700);
+        --text: var(--paper-100);
+        --muted: var(--paper-400);
+        --accent: var(--wheat-500);
+        --accent-hover: var(--wheat-600);
+        --secondary: var(--moss-500);
+        --danger: var(--rust-500);
+        --danger-hover: var(--rust-600);
+
+        --font-display: 'Space Grotesk', sans-serif;
+        --font-body: 'Inter', system-ui, sans-serif;
+        --font-mono: 'IBM Plex Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    html {
+        background: var(--ink-950);
+    }
+    body {
+        font-family: var(--font-body);
+        min-height: 100vh;
+        background:
+            radial-gradient(ellipse 900px 500px at 15% -10%, #23281a 0%, transparent 60%),
+            var(--bg);
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        color: var(--text);
+        margin: 0;
+        padding: 32px 40px 60px;
+    }
+
+    .masthead {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 4px;
+        border-bottom: 2px solid var(--accent);
+        padding-bottom: 16px;
+    }
+    .seal { flex-shrink: 0; }
+    .seal svg { display: block; }
+    .masthead-text { flex: 1; min-width: 0; }
+    .masthead .mark {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        color: var(--ink-950);
+        background: var(--accent);
+        padding: 3px 7px;
+        border-radius: 3px;
+        text-transform: uppercase;
+        font-weight: 500;
+        display: inline-block;
+        margin-bottom: 6px;
+    }
+    .masthead-sub {
+        color: var(--muted);
+        font-size: 12px;
+        font-family: var(--font-mono);
+        margin-top: 3px;
+    }
+    h1 {
+        font-family: var(--font-display);
+        font-size: 22px;
+        font-weight: 600;
+        margin: 0;
+        letter-spacing: -0.01em;
+    }
+    .subtitle {
+        color: var(--muted);
+        margin: 10px 0 24px;
+        font-size: 13px;
+        font-family: var(--font-mono);
+    }
+
+    .toolbar {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 22px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    button {
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--border);
+        padding: 9px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: var(--font-body);
+        font-weight: 500;
+        transition: border-color .12s, background .12s;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--ink-950);
+        font-weight: 600;
+    }
+    button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    button.danger { color: var(--rust-500); }
+    button.danger:hover { border-color: var(--danger); background: rgba(168,85,57,0.08); }
+    button.small { padding: 4px 9px; font-size: 12px; }
+
+    input, select {
+        background: var(--ink-950);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 7px 9px;
+        border-radius: 4px;
+        font-size: 13px;
+        font-family: var(--font-body);
+        width: 100%;
+    }
+    input:focus, select:focus, button:focus-visible {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(201,162,39,0.18);
+    }
+    select { cursor: pointer; font-family: var(--font-mono); font-size: 12px; }
+    #filterInput { font-family: var(--font-body); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { color: var(--muted); font-weight: 500; text-align: left; font-size: 11px;
+         text-transform: uppercase; letter-spacing: 0.06em; padding: 0 8px 8px; }
+    td { padding: 6px 8px; }
+    tr + tr td { border-top: 1px solid var(--ink-800); }
+    td.group-col { width: 240px; }
+    td.actions { width: 36px; text-align: center; }
+    td.check-col { width: 26px; text-align: center; }
+    td.check-col input { width: auto; cursor: pointer; }
+
+    #bulkBar {
+        align-items: center;
+        gap: 10px;
+        background: var(--panel);
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        padding: 10px 14px;
+        margin-bottom: 14px;
+        font-size: 13px;
+    }
+    .bulk-count {
+        font-family: var(--font-mono);
+        color: var(--accent);
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    #bulkBar select { width: auto; flex: 0 0 auto; }
+
+    .id-tag {
+        display: inline-block;
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        color: var(--moss-400);
+        background: var(--ink-950);
+        border: 1px solid var(--ink-700);
+        padding: 3px 8px 3px 8px;
+        border-radius: 3px 3px 3px 0;
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+    }
+
+    .parcel {
+        margin-bottom: 20px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        background: linear-gradient(180deg, rgba(92,122,82,0.05), transparent 40px);
+    }
+    .parcel-header {
+        background: var(--panel);
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-left: 3px solid var(--secondary);
+        cursor: pointer;
+        user-select: none;
+    }
+    .parcel-header .chevron {
+        font-family: var(--font-mono);
+        color: var(--muted);
+        font-size: 12px;
+        width: 12px;
+        text-align: center;
+        transition: transform .15s;
+        flex-shrink: 0;
+    }
+    .parcel.collapsed .chevron { transform: rotate(-90deg); }
+    .parcel.collapsed .parcel-body { display: none; }
+    .parcel-header .flur-no {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+        white-space: nowrap;
+    }
+    .parcel-header input {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 14.5px;
+        border: none;
+        background: transparent;
+        padding: 3px 5px;
+        flex: 1;
+    }
+    .parcel-header input:focus { background: var(--ink-950); border-radius: 4px; box-shadow: none; }
+    .parcel-count {
+        color: var(--ink-950);
+        background: var(--moss-500);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        white-space: nowrap;
+        font-weight: 500;
+    }
+    .parcel-body { padding: 10px 16px 14px; }
+    .empty-note { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; font-style: italic; }
+
+    .status { margin-top: 16px; font-size: 13px; min-height: 20px; font-family: var(--font-mono); }
+    .status.ok { color: var(--moss-400); }
+    .status.err { color: var(--rust-500); }
+
+    /* Auswahlmaske */
+    #pickerScreen {
+        max-width: 620px;
+        margin: 40px auto 0;
+    }
+    .picker-intro { color: var(--muted); font-size: 13px; margin-bottom: 20px; font-family: var(--font-mono); }
+    .save-card {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--secondary);
+        border-radius: 8px;
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: border-color .12s, transform .1s;
+    }
+    .save-card:hover { border-color: var(--accent); transform: translateX(2px); }
+    .save-card.disabled { opacity: 0.45; cursor: not-allowed; border-left-color: var(--border); }
+    .save-card.disabled:hover { border-color: var(--border); transform: none; }
+    .save-card .folder-tag {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+        background: var(--ink-950);
+        border: 1px solid var(--ink-700);
+        padding: 3px 7px;
+        border-radius: 3px;
+        white-space: nowrap;
+    }
+    .save-card .info { flex: 1; }
+    .save-card .name { font-family: var(--font-display); font-weight: 600; font-size: 14.5px; }
+    .save-card .meta { color: var(--muted); font-size: 12px; font-family: var(--font-mono); margin-top: 2px; }
+    .save-card .badge-missing {
+        font-size: 11px;
+        color: var(--rust-500);
+        font-family: var(--font-mono);
+        white-space: nowrap;
+    }
+
+    /* Toast */
+    #toastContainer {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        z-index: 100;
+    }
+    .toast {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        padding: 12px 18px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+        animation: toastIn .18s ease-out;
+        max-width: 340px;
+    }
+    .toast.ok { border-color: var(--moss-500); color: var(--moss-400); }
+    .toast.err { border-color: var(--rust-500); color: var(--rust-500); }
+    .toast.fading { animation: toastOut .25s ease-in forwards; }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+    }
+    .modal-box {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px 22px;
+        width: 560px;
+        max-height: 70vh;
+        display: flex;
+        flex-direction: column;
+    }
+    .modal-box h2 {
+        font-family: var(--font-display);
+        font-size: 16px;
+        margin: 0 0 4px;
+    }
+    .modal-sub { color: var(--muted); font-size: 12px; font-family: var(--font-mono); margin-bottom: 14px; }
+    .modal-list { overflow-y: auto; flex: 1; }
+    .backup-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--ink-800);
+        font-size: 13px;
+    }
+    .backup-row .ts { font-family: var(--font-mono); flex: 1; }
+    .backup-row .size { font-family: var(--font-mono); color: var(--muted); font-size: 11px; }
+    .modal-close { margin-top: 14px; text-align: right; }
+
+    /* Tabs */
+    .tabbar {
+        display: flex;
+        gap: 4px;
+        flex-shrink: 0;
+        align-self: flex-end;
+    }
+    .tab-btn {
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        padding: 8px 4px 12px;
+        margin-left: 22px;
+        color: var(--muted);
+        font-weight: 600;
+    }
+    .tab-btn:hover { border-color: var(--border); color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-color: var(--accent); }
+
+    .header-actions {
+        flex-shrink: 0;
+        align-self: center;
+        margin-left: 18px;
+    }
+    .header-actions button {
+        padding: 9px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    /* Kartenansicht */
+    .map-wrap {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--ink-950);
+        height: 70vh;
+        min-height: 420px;
+    }
+    #mapCanvas { display: block; width: 100%; height: 100%; cursor: grab; }
+    #mapCanvas.dragging { cursor: grabbing; }
+    #mapCanvas.mode-draw { cursor: crosshair; }
+    #mapCanvas.mode-delete { cursor: default; }
+    #mapCanvas.mode-disconnect { cursor: default; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button:disabled:hover { border-color: var(--border); }
+    .map-hint {
+        color: var(--muted);
+        font-size: 12px;
+        font-family: var(--font-mono);
+        margin-left: auto;
+        white-space: nowrap;
+    }
+    .map-hint-bar {
+        color: var(--muted);
+        font-size: 12px;
+        font-family: var(--font-mono);
+        margin-top: 10px;
+    }
+    .mode-switch {
+        display: flex;
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    .mode-btn {
+        border: none;
+        border-radius: 0;
+        border-right: 1px solid var(--border);
+        background: var(--panel);
+    }
+    .mode-btn:last-child { border-right: none; }
+    .mode-btn.active {
+        background: var(--secondary);
+        color: var(--ink-950);
+        font-weight: 700;
+    }
+    .mode-btn.active.delete-active { background: var(--rust-500); }
+
+    /* Hof-Übersicht */
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 14px;
+    }
+    .stat-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--secondary);
+        border-radius: 8px;
+        padding: 16px 18px;
+    }
+    .stat-card.stat-highlight { border-left-color: var(--accent); }
+    .stat-label {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 8px;
+    }
+    .stat-value {
+        font-family: var(--font-display);
+        font-size: 24px;
+        font-weight: 600;
+    }
+    .stat-value.stat-warn { color: var(--rust-500); }
+    .stat-sub {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--moss-400);
+        margin-top: 4px;
+    }
+
+    /* Schnellzugriff (Hof-Übersicht) */
+    .quick-section {
+        margin-top: 24px;
+    }
+    .quick-section h3 {
+        font-family: var(--font-display);
+        font-size: 14px;
+        font-weight: 600;
+        margin: 0 0 10px;
+        color: var(--muted);
+    }
+    .quick-list { display: flex; flex-direction: column; gap: 6px; }
+    .quick-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 6px;
+        padding: 9px 14px;
+        font-size: 13px;
+        cursor: pointer;
+    }
+    .quick-row:hover { border-color: var(--accent); }
+    .quick-row .quick-title { font-weight: 600; flex: 1; }
+    .quick-row .quick-meta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+    .quick-all-good {
+        color: var(--moss-400);
+        font-size: 13px;
+        font-style: italic;
+        padding: 8px 0;
+    }
+
+    /* Overflow-Menü ("⋯ Mehr") für überfüllte Toolbars */
+    .toolbar-more { position: relative; display: inline-block; }
+    .more-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        margin-top: 6px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        z-index: 60;
+        min-width: 210px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .more-menu button { text-align: left; justify-content: flex-start; width: 100%; }
+    .more-menu select { margin-top: 2px; }
+
+    /* Legende */
+    .legend-line {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+        margin: -10px 0 16px;
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .legend-swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+
+    /* Feld-Dashboard */
+    #fieldsContainer {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 12px;
+    }
+    .field-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--secondary);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .field-card.field-ready { border-left-color: var(--accent); }
+    .field-card-header {
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        border-bottom: 1px solid var(--ink-800);
+    }
+    .field-name { font-family: var(--font-display); font-weight: 600; font-size: 14px; flex: 1; }
+    .field-fruit {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+        background: var(--ink-950);
+        border: 1px solid var(--ink-700);
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+    .field-status {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+    }
+    .field-status-ready { color: var(--ink-950); background: var(--accent); padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+    .field-card-body { padding: 10px 14px 12px; }
+    .field-meta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+    .field-steps { display: flex; flex-direction: column; gap: 5px; }
+    .field-step { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+    .field-step input { width: auto; cursor: pointer; }
+    .field-step:has(input:checked) span { text-decoration: line-through; color: var(--muted); }
+
+    /* Fuhrpark */
+    #vehiclesContainer {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+    }
+    .vehicle-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 14px;
+    }
+    .vehicle-card.needs-attention { border-left-color: var(--rust-500); }
+    .vehicle-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .vehicle-name { font-family: var(--font-display); font-weight: 600; font-size: 14px; flex: 1; }
+    .vehicle-type-badge {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--muted);
+        background: var(--ink-950);
+        border: 1px solid var(--ink-700);
+        padding: 2px 6px;
+        border-radius: 3px;
+        white-space: nowrap;
+    }
+    .vehicle-meta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+    .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+    .bar-label { width: 70px; flex-shrink: 0; color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+    .bar-track { flex: 1; height: 8px; background: var(--ink-950); border-radius: 4px; overflow: hidden; border: 1px solid var(--ink-700); }
+    .bar-fill { height: 100%; border-radius: 4px; }
+    .bar-fill.ok { background: var(--moss-500); }
+    .bar-fill.warn { background: var(--wheat-500); }
+    .bar-fill.bad { background: var(--rust-500); }
+    .bar-value { width: 38px; text-align: right; font-family: var(--font-mono); font-size: 11px; }
+
+    /* Markt */
+    #marketContainer {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+    }
+    .market-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--secondary);
+        border-radius: 8px;
+        padding: 12px 14px;
+    }
+    .market-card.own-crop { border-left-color: var(--accent); }
+    .market-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .market-name { font-family: var(--font-display); font-weight: 600; font-size: 14px; flex: 1; }
+    .market-current-price { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+    .market-trend-inline { font-size: 13px; margin-left: 4px; }
+    .market-trend-inline.up { color: var(--moss-400); }
+    .market-trend-inline.down { color: var(--rust-500); }
+    .market-detail-row {
+        display: flex;
+        justify-content: space-between;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 5px;
+    }
+    .market-range-track {
+        height: 6px;
+        background: var(--ink-950);
+        border: 1px solid var(--ink-700);
+        border-radius: 3px;
+        position: relative;
+        margin: 6px 0 4px;
+    }
+    .market-range-marker {
+        position: absolute;
+        top: -3px;
+        width: 2px;
+        height: 12px;
+        background: var(--wheat-500);
+    }
+    .market-own-badge {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--ink-950);
+        background: var(--accent);
+        padding: 2px 6px;
+        border-radius: 8px;
+        white-space: nowrap;
+    }
+
+    /* Verträge */
+    #missionsContainer { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+    .mission-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--secondary);
+        border-radius: 6px;
+        padding: 9px 14px;
+        font-size: 13px;
+    }
+    .mission-row.urgent { border-left-color: var(--rust-500); }
+    .mission-type { font-family: var(--font-display); font-weight: 600; width: 160px; flex-shrink: 0; }
+    .mission-field { font-family: var(--font-mono); font-size: 12px; color: var(--muted); width: 80px; flex-shrink: 0; }
+    .mission-detail { flex: 1; font-size: 12px; color: var(--text); }
+    .mission-days {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+        white-space: nowrap;
+    }
+    .mission-days.urgent { color: var(--rust-500); font-weight: 600; }
+    .mission-extra { font-family: var(--font-mono); font-size: 11px; color: var(--moss-400); white-space: nowrap; }
+    .mission-reward { font-family: var(--font-mono); font-size: 12px; color: var(--wheat-500); font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+    <div id="toastContainer"></div>
+    <div id="modalContainer"></div>
+
+    <div id="pickerScreen" style="display:none">
+        <div class="masthead">
+            <div class="seal">
+                <svg width="38" height="38" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 3 L33 8 V19 C33 29 26.5 35.5 20 38 C13.5 35.5 7 29 7 19 V8 Z" stroke="#C9A227" stroke-width="1.6"/>
+                    <line x1="20" y1="12" x2="20" y2="31" stroke="#5C7A52" stroke-width="1.3"/>
+                    <path d="M20 15 L15.3 12.2 M20 15 L24.7 12.2 M20 19 L15.3 16.2 M20 19 L24.7 16.2 M20 23 L15.3 20.2 M20 23 L24.7 20.2 M20 27 L15.8 24.6 M20 27 L24.2 24.6" stroke="#5C7A52" stroke-width="1.1" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="masthead-text">
+                <span class="mark">LS25 · HOF-DASHBOARD</span>
+                <h1>Spielstand auswählen</h1>
+            </div>
+        </div>
+        <div class="picker-intro" id="pickerIntro">Suche Spielstände …</div>
+        <div id="savegameList"></div>
+    </div>
+
+    <div id="mainScreen" style="display:none">
+        <div class="masthead">
+            <div class="seal">
+                <svg width="38" height="38" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 3 L33 8 V19 C33 29 26.5 35.5 20 38 C13.5 35.5 7 29 7 19 V8 Z" stroke="#C9A227" stroke-width="1.6"/>
+                    <line x1="20" y1="12" x2="20" y2="31" stroke="#5C7A52" stroke-width="1.3"/>
+                    <path d="M20 15 L15.3 12.2 M20 15 L24.7 12.2 M20 19 L15.3 16.2 M20 19 L24.7 16.2 M20 23 L15.3 20.2 M20 23 L24.7 20.2 M20 27 L15.8 24.6 M20 27 L24.2 24.6" stroke="#5C7A52" stroke-width="1.1" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="masthead-text">
+                <span class="mark">LS25 · HOF-DASHBOARD</span>
+                <h1 id="farmHeading">Lade …</h1>
+                <div class="masthead-sub" id="farmSub"></div>
+            </div>
+            <div class="tabbar">
+                <button class="tab-btn active" id="tabBtnHome" onclick="switchTab('home')">🏠 Übersicht</button>
+                <button class="tab-btn" id="tabBtnFields" onclick="switchTab('fields')">🌾 Felder</button>
+                <button class="tab-btn" id="tabBtnMarkers" onclick="switchTab('markers')">📋 Marker</button>
+                <button class="tab-btn" id="tabBtnMap" onclick="switchTab('map')">🗺️ Karte</button>
+                <button class="tab-btn" id="tabBtnVehicles" onclick="switchTab('vehicles')">🚜 Fuhrpark</button>
+                <button class="tab-btn" id="tabBtnMarket" onclick="switchTab('market')">💰 Markt</button>
+                <button class="tab-btn" id="tabBtnMissions" onclick="switchTab('missions')">🤝 Verträge</button>
+            </div>
+            <div class="header-actions">
+                <button onclick="switchSavegame()">⇄ Spielstand wechseln</button>
+            </div>
+        </div>
+        <div class="subtitle" id="mapInfo">Lade …</div>
+
+        <div id="tabHome" style="display:block">
+            <div class="toolbar">
+                <button onclick="loadFarmOverview()">↻ Aktualisieren</button>
+            </div>
+            <div class="stat-grid" id="statGrid">
+                <div class="empty-note">Lade Hof-Übersicht …</div>
+            </div>
+            <div id="quickAccessContainer"></div>
+        </div>
+
+        <div id="tabFields" style="display:none">
+            <div class="toolbar">
+                <button onclick="loadFieldsData()">↻ Aktualisieren</button>
+                <input type="text" id="fieldFilterInput" placeholder="Filtern nach Fruchtart oder Feldnummer …" style="width:280px" oninput="renderFields()">
+            </div>
+            <div id="fieldsContainer"></div>
+        </div>
+
+        <div id="tabMarkers" style="display:none">
+            <div class="toolbar">
+                <button class="primary" onclick="saveMarkers()">💾 Speichern</button>
+                <button onclick="addRow()">➕ Marker hinzufügen</button>
+                <div class="toolbar-more">
+                    <button onclick="toggleMoreMenu('markerMoreMenu')">⋯ Mehr</button>
+                    <div class="more-menu" id="markerMoreMenu" style="display:none">
+                        <button onclick="createGroup(); closeAllMoreMenus()">📁 Neue Gruppe anlegen</button>
+                        <button id="toggleAllGroupsBtn" onclick="toggleAllGroups(); closeAllMoreMenus()">⤢ Ausklappen</button>
+                        <button onclick="openBackupPanel(); closeAllMoreMenus()">🕓 Backups</button>
+                        <button onclick="exportJson(); closeAllMoreMenus()">⬇ Export</button>
+                        <button onclick="document.getElementById('importFileInput').click(); closeAllMoreMenus()">⬆ Import</button>
+                    </div>
+                </div>
+                <input type="file" id="importFileInput" accept="application/json" style="display:none" onchange="importJson(this)">
+                <input type="text" id="filterInput" placeholder="Filtern nach Name oder Gruppe …" style="width:260px" oninput="renderTable()">
+                <button onclick="reloadOrDiscard()" style="margin-left:auto">↻ Neu laden</button>
+            </div>
+
+            <div id="bulkBar" style="display:none"></div>
+
+            <div id="groupsContainer"></div>
+
+            <div class="status" id="status"></div>
+        </div>
+
+        <div id="tabMap" style="display:none">
+            <div class="toolbar">
+                <button class="primary" onclick="saveCourse()">💾 Route speichern</button>
+                <div class="mode-switch">
+                    <button class="mode-btn active" id="modeBtnView" onclick="setEditMode('view')">👁 Ansehen</button>
+                    <button class="mode-btn" id="modeBtnDraw" onclick="setEditMode('draw')">✏️ Route zeichnen</button>
+                    <button class="mode-btn" id="modeBtnDisconnect" onclick="setEditMode('disconnect')">🔗✕ Trennen</button>
+                    <button class="mode-btn" id="modeBtnDelete" onclick="setEditMode('delete')">🗑️ Löschen</button>
+                </div>
+                <button onclick="mapResetView()">⤢ Alle anzeigen</button>
+                <select id="mapJumpSelect" style="width:220px" onchange="mapJumpToMarker(this.value)">
+                    <option value="">— Zu Marker springen —</option>
+                </select>
+                <div class="toolbar-more">
+                    <button onclick="toggleMoreMenu('mapMoreMenu')">⋯ Mehr</button>
+                    <div class="more-menu" id="mapMoreMenu" style="display:none">
+                        <button onclick="undoCourseEdit()" id="undoBtn" disabled>↺ Rückgängig</button>
+                        <button onclick="markSelectedAsMarker(); closeAllMoreMenus()">📍 Als Marker anlegen</button>
+                        <button onclick="checkConnectivity(); closeAllMoreMenus()">🔍 Stränge prüfen</button>
+                        <select id="mapCalibration" onchange="mapRedraw()">
+                            <option value="normal">Ausrichtung: Normal</option>
+                            <option value="flipz">Ausrichtung: Z gespiegelt</option>
+                            <option value="flipx">Ausrichtung: X gespiegelt</option>
+                            <option value="swap">Ausrichtung: X/Z vertauscht</option>
+                        </select>
+                        <input type="file" id="terrainFileInput" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="uploadTerrainImage(this)">
+                        <button onclick="document.getElementById('terrainFileInput').click(); closeAllMoreMenus()">🖼️ Hintergrundbild hochladen</button>
+                        <button id="removeTerrainBtn" onclick="removeTerrainImage(); closeAllMoreMenus()" disabled>🗑️ Hintergrundbild entfernen</button>
+                        <div style="padding:4px 4px 2px; display:flex; flex-direction:column; gap:4px;">
+                            <span style="font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em;">Bild-Ausrichtung (manuell)</span>
+                            <div style="display:flex; gap:4px;">
+                                <input type="number" id="terrainOffsetX" step="1" value="0" title="Versatz X in Metern" style="width:33%" onchange="updateTerrainAlignFromInputs()">
+                                <input type="number" id="terrainOffsetZ" step="1" value="0" title="Versatz Z in Metern" style="width:33%" onchange="updateTerrainAlignFromInputs()">
+                                <input type="number" id="terrainScale" step="0.01" value="1" title="Skalierungsfaktor" style="width:34%" onchange="updateTerrainAlignFromInputs()">
+                            </div>
+                        </div>
+                        <button onclick="resetTerrainAlign()">↺ Ausrichtung zurücksetzen</button>
+                    </div>
+                </div>
+            </div>
+            <div class="map-wrap">
+                <canvas id="mapCanvas"></canvas>
+
+            </div>
+            <div class="status" id="mapStatus"></div>
+            <div class="map-hint-bar" id="mapHintBar">Scrollen = Zoom · Ziehen (leerer Bereich) = Karte verschieben</div>
+        </div>
+
+        <div id="tabVehicles" style="display:none">
+            <div class="toolbar">
+                <button onclick="loadVehiclesData()">↻ Aktualisieren</button>
+                <input type="text" id="vehicleFilterInput" placeholder="Filtern nach Marke/Modell …" style="width:280px" oninput="renderVehicles()">
+                <select id="vehicleSortSelect" style="width:220px; margin-left:auto" onchange="renderVehicles()">
+                    <option value="wear">Sortieren: Verschleiß (höchster zuerst)</option>
+                    <option value="dirt">Sortieren: Dreckgrad</option>
+                    <option value="hours">Sortieren: Betriebsstunden</option>
+                    <option value="price">Sortieren: Wert</option>
+                    <option value="name">Sortieren: Name (A-Z)</option>
+                </select>
+            </div>
+            <div class="legend-line">
+                <span><span class="legend-swatch" style="background:var(--rust-500)"></span>Roter Rahmen = Verschleiß oder Dreck über 50%, Wartung/Wäsche empfohlen</span>
+                <span>🚜 Fahrzeug · 🚛 Anhänger · 🔧 Anbaugerät</span>
+            </div>
+            <div class="stat-grid" id="vehicleStatGrid"></div>
+            <div id="vehiclesContainer"></div>
+        </div>
+
+        <div id="tabMarket" style="display:none">
+            <div class="toolbar">
+                <button onclick="loadMarketData()">↻ Aktualisieren</button>
+                <input type="text" id="marketFilterInput" placeholder="Filtern nach Kultur …" style="width:280px" oninput="renderMarket()">
+                <span class="map-hint" id="marketPeriodLabel"></span>
+            </div>
+            <div class="legend-line">Preise je Kultur für den aktuellen Zeitpunkt im Jahresverlauf · Preise schwanken saisonal · gelber Strich zeigt, wo der aktuelle Preis innerhalb der Jahresspanne liegt</div>
+            <div id="marketContainer"></div>
+        </div>
+
+        <div id="tabMissions" style="display:none">
+            <div class="toolbar">
+                <button onclick="loadMissionsData()">↻ Aktualisieren</button>
+                <span class="map-hint">Belohnung wird im Spiel dynamisch berechnet – im Spielstand nicht hinterlegt</span>
+            </div>
+            <div id="missionsContainer"></div>
+        </div>
+    </div>
+
+
+<script>
+let markers = [];
+let knownGroups = [];
+let collapsedGroups = new Set();
+let selectedUids = new Set();
+let originalSnapshot = null;
+let uidCounter = 0;
+let currentFolder = null;
+let hasAutoDrive = false;
+let activeTab = 'home';
+const UNGROUPED = '(ohne Gruppe)';
+
+function applyAutoDriveTabVisibility() {
+    document.getElementById('tabBtnMarkers').style.display = hasAutoDrive ? '' : 'none';
+    document.getElementById('tabBtnMap').style.display = hasAutoDrive ? '' : 'none';
+    if (!hasAutoDrive && (activeTab === 'markers' || activeTab === 'map')) {
+        switchTab('home');
+    }
+}
+
+function switchTab(tab) {
+    if (activeTab === 'map' && tab !== 'map' && typeof isCourseDirty === 'function' && isCourseDirty()) {
+        showConfirmModal(
+            'Ungespeicherte Änderungen an der Route gehen verloren, wenn du den Tab wechselst. Trotzdem wechseln?',
+            () => performSwitchTab(tab),
+            'Trotzdem wechseln'
+        );
+        return;
+    }
+    performSwitchTab(tab);
+}
+
+function performSwitchTab(tab) {
+    if ((tab === 'markers' || tab === 'map') && !hasAutoDrive) return; // Sicherheitsnetz, sollte über die Tabbar nicht erreichbar sein
+    activeTab = tab;
+    document.getElementById('tabHome').style.display = tab === 'home' ? 'block' : 'none';
+    document.getElementById('tabFields').style.display = tab === 'fields' ? 'block' : 'none';
+    document.getElementById('tabMarkers').style.display = tab === 'markers' ? 'block' : 'none';
+    document.getElementById('tabMap').style.display = tab === 'map' ? 'block' : 'none';
+    document.getElementById('tabVehicles').style.display = tab === 'vehicles' ? 'block' : 'none';
+    document.getElementById('tabMarket').style.display = tab === 'market' ? 'block' : 'none';
+    document.getElementById('tabMissions').style.display = tab === 'missions' ? 'block' : 'none';
+    document.getElementById('tabBtnHome').classList.toggle('active', tab === 'home');
+    document.getElementById('tabBtnFields').classList.toggle('active', tab === 'fields');
+    document.getElementById('tabBtnMarkers').classList.toggle('active', tab === 'markers');
+    document.getElementById('tabBtnMap').classList.toggle('active', tab === 'map');
+    document.getElementById('tabBtnVehicles').classList.toggle('active', tab === 'vehicles');
+    document.getElementById('tabBtnMarket').classList.toggle('active', tab === 'market');
+    document.getElementById('tabBtnMissions').classList.toggle('active', tab === 'missions');
+    if (tab === 'map') {
+        ensureMapLoaded();
+    } else if (tab === 'home') {
+        loadFarmOverview();
+    } else if (tab === 'fields') {
+        loadFieldsData();
+    } else if (tab === 'vehicles') {
+        loadVehiclesData();
+    } else if (tab === 'market') {
+        loadMarketData();
+    } else if (tab === 'missions') {
+        loadMissionsData();
+    }
+}
+
+// =================================================================
+// Hof-Übersicht
+// =================================================================
+const SEASON_LABELS = { SPRING: 'Frühling', SUMMER: 'Sommer', AUTUMN: 'Herbst', WINTER: 'Winter' };
+
+async function loadFarmOverview() {
+    const grid = document.getElementById('statGrid');
+    grid.innerHTML = '<div class="empty-note">Lade Hof-Übersicht …</div>';
+    const res = await fetch('api.php?action=farm_overview');
+    const data = await res.json();
+    if (data.error) { grid.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
+
+    document.getElementById('farmHeading').textContent = data.farmName || 'Unbenannter Hof';
+    document.getElementById('farmSub').textContent = data.manager
+        ? `Bewirtschaftet von ${data.manager} · ${data.mapTitle}`
+        : data.mapTitle;
+
+    const money = data.money !== null ? Math.round(data.money).toLocaleString('de-DE') + ' €' : '–';
+    const loan = data.loan !== null ? Math.round(data.loan).toLocaleString('de-DE') + ' €' : '–';
+    const season = SEASON_LABELS[data.season] || data.season || '–';
+
+    grid.innerHTML = `
+        <div class="stat-card">
+            <div class="stat-label">Kontostand</div>
+            <div class="stat-value">${money}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Kredit</div>
+            <div class="stat-value ${data.loan > 0 ? 'stat-warn' : ''}">${loan}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Spieltag</div>
+            <div class="stat-value">Tag ${data.currentDay}</div>
+            <div class="stat-sub">${season}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Spielzeit</div>
+            <div class="stat-value">${data.playTimeHours ?? '–'} h</div>
+        </div>
+        <div class="stat-card ${data.harvestReadyCount > 0 ? 'stat-highlight' : ''}">
+            <div class="stat-label">Felder erntereif</div>
+            <div class="stat-value">${data.harvestReadyCount} / ${data.fieldCount}</div>
+            ${data.harvestReadyCount > 0 ? '<div class="stat-sub">→ Feld-Tab öffnen</div>' : ''}
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Fuhrpark</div>
+            <div class="stat-value">${data.vehicleCount} Fahrzeuge</div>
+        </div>
+    `;
+
+    renderQuickAccess(data);
+}
+
+function renderQuickAccess(data) {
+    const container = document.getElementById('quickAccessContainer');
+    const sections = [];
+
+    if (data.harvestReadyFields && data.harvestReadyFields.length > 0) {
+        sections.push(`
+            <div class="quick-section">
+                <h3>🌾 Bereit zur Ernte</h3>
+                <div class="quick-list">
+                    ${data.harvestReadyFields.map(f => `
+                        <div class="quick-row" onclick="switchTab('fields')">
+                            <span class="quick-title">Feld ${escapeHtml(f.id)}</span>
+                            <span class="quick-meta">${escapeHtml(f.fruitTypeLabel)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `);
+    }
+
+    if (data.vehiclesNeedingAttention && data.vehiclesNeedingAttention.length > 0) {
+        sections.push(`
+            <div class="quick-section">
+                <h3>🚜 Fahrzeuge mit Wartungs-/Waschbedarf</h3>
+                <div class="quick-list">
+                    ${data.vehiclesNeedingAttention.map(v => `
+                        <div class="quick-row" onclick="switchTab('vehicles')">
+                            <span class="quick-title">${escapeHtml(v.name)}</span>
+                            <span class="quick-meta">Verschleiß ${(v.wear * 100).toFixed(0)}% · Dreck ${(v.dirt * 100).toFixed(0)}%</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `);
+    }
+
+    if (data.missionsTotalCount > 0) {
+        sections.push(`
+            <div class="quick-section">
+                <h3>🤝 Verträge</h3>
+                <div class="quick-list">
+                    <div class="quick-row" onclick="switchTab('missions')">
+                        <span class="quick-title">${data.missionsTodayCount} von ${data.missionsTotalCount} Verträgen laufen heute ab</span>
+                        <span class="quick-meta">→ Vertrags-Tab öffnen</span>
+                    </div>
+                </div>
+            </div>
+        `);
+    }
+
+    if (sections.length === 0) {
+        container.innerHTML = '<div class="quick-section"><div class="quick-all-good">✓ Aktuell nichts Dringendes – alles im grünen Bereich.</div></div>';
+        return;
+    }
+
+    container.innerHTML = sections.join('');
+}
+
+// =================================================================
+// Feld-Dashboard
+// =================================================================
+let fieldsCache = [];
+const GROUND_TYPE_LABELS = {
+    HARVEST_READY: 'Erntereif',
+    SOWN: 'Gesät',
+    CULTIVATED: 'Bearbeitet',
+    PLOWED: 'Gepflügt',
+    GRASS: 'Wiese/Weide',
+    STUBBLE_CULTIVATED: 'Stoppelbearbeitet',
+};
+
+function fieldChecklistKey(fieldId, step) {
+    return `fieldCheck_${currentFolder}_${fieldId}_${step}`;
+}
+
+async function loadFieldsData() {
+    const container = document.getElementById('fieldsContainer');
+    container.innerHTML = '<div class="empty-note">Lade Felddaten …</div>';
+    const res = await fetch('api.php?action=fields_data');
+    const data = await res.json();
+    if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
+    fieldsCache = data.fields;
+    renderFields();
+}
+
+function renderFields() {
+    const filter = document.getElementById('fieldFilterInput').value.toLowerCase();
+    const container = document.getElementById('fieldsContainer');
+
+    const sorted = fieldsCache.slice().sort((a, b) => {
+        const aReady = a.groundType === 'HARVEST_READY' ? 0 : 1;
+        const bReady = b.groundType === 'HARVEST_READY' ? 0 : 1;
+        if (aReady !== bReady) return aReady - bReady;
+        return parseInt(a.id) - parseInt(b.id);
+    });
+
+    if (sorted.length === 0) {
+        container.innerHTML = '<div class="empty-note">Keine eigenen Felder in diesem Spielstand gefunden.</div>';
+        return;
+    }
+
+    const visible = sorted.filter(f => {
+        if (!filter) return true;
+        return f.fruitTypeLabel.toLowerCase().includes(filter) ||
+               f.fruitType.toLowerCase().includes(filter) ||
+               f.id.includes(filter);
+    });
+
+    if (visible.length === 0) {
+        container.innerHTML = '<div class="empty-note">Keine Treffer.</div>';
+        return;
+    }
+
+    container.innerHTML = visible.map(f => {
+        const ready = f.groundType === 'HARVEST_READY';
+        const groundLabel = GROUND_TYPE_LABELS[f.groundType] || f.groundType;
+        const stepsHtml = f.steps.map(step => {
+            const key = fieldChecklistKey(f.id, step);
+            const checked = localStorage.getItem(key) === '1' ? 'checked' : '';
+            return `
+                <label class="field-step">
+                    <input type="checkbox" ${checked} onchange="toggleFieldStep('${escapeAttr(key)}', this)">
+                    <span>${escapeHtml(step)}</span>
+                </label>
+            `;
+        }).join('');
+
+        return `
+            <div class="field-card ${ready ? 'field-ready' : ''}">
+                <div class="field-card-header">
+                    <span class="field-name">Feld ${escapeHtml(f.id)}</span>
+                    <span class="field-fruit">${escapeHtml(f.fruitTypeLabel)}</span>
+                    <span class="field-status ${ready ? 'field-status-ready' : ''}">${escapeHtml(groundLabel)}</span>
+                </div>
+                <div class="field-card-body">
+                    <div class="field-meta">Wachstumsstufe ${f.growthState}/9 · Unkraut ${f.weedState} · Kalk ${f.limeLevel} · Pflug ${f.plowLevel}</div>
+                    <div class="field-steps">${stepsHtml || '<span class="field-meta">Keine offenen Schritte erkannt.</span>'}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function toggleFieldStep(key, input) {
+    if (input.checked) localStorage.setItem(key, '1');
+    else localStorage.removeItem(key);
+}
+
+// =================================================================
+// Fuhrpark-Dashboard
+// =================================================================
+let vehiclesCache = [];
+
+function barClass(value) {
+    if (value > 0.7) return 'bad';
+    if (value > 0.4) return 'warn';
+    return 'ok';
+}
+
+async function loadVehiclesData() {
+    const container = document.getElementById('vehiclesContainer');
+    container.innerHTML = '<div class="empty-note">Lade Fuhrpark …</div>';
+    const res = await fetch('api.php?action=vehicles_data');
+    const data = await res.json();
+    if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
+    vehiclesCache = data.vehicles;
+
+    document.getElementById('vehicleStatGrid').innerHTML = `
+        <div class="stat-card">
+            <div class="stat-label">Fahrzeuge</div>
+            <div class="stat-value">${data.totalCount}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Gesamtwert</div>
+            <div class="stat-value">${Math.round(data.totalValue).toLocaleString('de-DE')} €</div>
+        </div>
+        <div class="stat-card ${data.needsRepairCount > 0 ? 'stat-highlight' : ''}">
+            <div class="stat-label">Wartung empfohlen</div>
+            <div class="stat-value ${data.needsRepairCount > 0 ? 'stat-warn' : ''}">${data.needsRepairCount}</div>
+        </div>
+        <div class="stat-card ${data.needsWashCount > 0 ? 'stat-highlight' : ''}">
+            <div class="stat-label">Waschen empfohlen</div>
+            <div class="stat-value">${data.needsWashCount}</div>
+        </div>
+    `;
+    renderVehicles();
+}
+
+const VEHICLE_TYPE_ICON = { VEHICLE: '🚜 Fahrzeug', TRAILER: '🚛 Anhänger', IMPLEMENT: '🔧 Anbaugerät' };
+
+function renderVehicles() {
+    const filter = document.getElementById('vehicleFilterInput').value.toLowerCase();
+    const sortBy = document.getElementById('vehicleSortSelect').value;
+    const container = document.getElementById('vehiclesContainer');
+
+    const sorted = vehiclesCache.slice().sort((a, b) => {
+        if (sortBy === 'name') return a.name.localeCompare(b.name, 'de');
+        if (sortBy === 'price') return b.price - a.price;
+        if (sortBy === 'hours') return b.operatingHours - a.operatingHours;
+        if (sortBy === 'dirt') return b.dirt - a.dirt;
+        return b.wear - a.wear;
+    });
+
+    const visible = sorted.filter(v => !filter || v.name.toLowerCase().includes(filter));
+
+    if (visible.length === 0) {
+        container.innerHTML = '<div class="empty-note">Keine Fahrzeuge gefunden.</div>';
+        return;
+    }
+
+    container.innerHTML = visible.map(v => {
+        const needsAttention = v.wear > 0.5 || v.dirt > 0.5;
+        return `
+            <div class="vehicle-card ${needsAttention ? 'needs-attention' : ''}">
+                <div class="vehicle-card-header">
+                    <span class="vehicle-name">${escapeHtml(v.name)}</span>
+                    <span class="vehicle-type-badge">${VEHICLE_TYPE_ICON[v.vehicleType] || v.vehicleType}</span>
+                </div>
+                <div class="vehicle-meta">${Math.round(v.price).toLocaleString('de-DE')} € · ${v.operatingHours} Bh</div>
+                <div class="bar-row">
+                    <span class="bar-label">Verschleiß</span>
+                    <div class="bar-track"><div class="bar-fill ${barClass(v.wear)}" style="width:${(v.wear * 100).toFixed(0)}%"></div></div>
+                    <span class="bar-value">${(v.wear * 100).toFixed(0)}%</span>
+                </div>
+                <div class="bar-row">
+                    <span class="bar-label">Dreck</span>
+                    <div class="bar-track"><div class="bar-fill ${barClass(v.dirt)}" style="width:${(v.dirt * 100).toFixed(0)}%"></div></div>
+                    <span class="bar-value">${(v.dirt * 100).toFixed(0)}%</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// =================================================================
+// Marktpreise / Verkaufsplaner
+// =================================================================
+let marketCache = [];
+
+async function loadMarketData() {
+    const container = document.getElementById('marketContainer');
+    container.innerHTML = '<div class="empty-note">Lade Marktpreise …</div>';
+    const res = await fetch('api.php?action=market_data');
+    const data = await res.json();
+    if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
+    marketCache = data.market;
+    document.getElementById('marketPeriodLabel').textContent = `Aktuelle Saisonperiode: ${data.currentPeriodLabel}`;
+    renderMarket();
+}
+
+function renderMarket() {
+    const filter = document.getElementById('marketFilterInput').value.toLowerCase();
+    const container = document.getElementById('marketContainer');
+
+    const sorted = marketCache.slice().sort((a, b) => {
+        if (a.isOwnCrop !== b.isOwnCrop) return a.isOwnCrop ? -1 : 1;
+        return b.currentPrice - a.currentPrice;
+    });
+    const visible = sorted.filter(m => !filter || m.label.toLowerCase().includes(filter));
+
+    if (visible.length === 0) {
+        container.innerHTML = '<div class="empty-note">Keine Treffer.</div>';
+        return;
+    }
+
+    container.innerHTML = visible.map(m => {
+        const span = m.maxPrice - m.minPrice || 1;
+        const markerPos = ((m.currentPrice - m.minPrice) / span) * 100;
+        const trendArrow = m.trend === 'up' ? '▲ steigt' : (m.trend === 'down' ? '▼ fällt' : '– stabil');
+        return `
+            <div class="market-card ${m.isOwnCrop ? 'own-crop' : ''}">
+                <div class="market-card-header">
+                    <span class="market-name">${escapeHtml(m.label)}</span>
+                    ${m.isOwnCrop ? '<span class="market-own-badge">eigene Kultur</span>' : ''}
+                </div>
+                <div>
+                    <span class="market-current-price">${m.currentPrice.toLocaleString('de-DE')} €</span>
+                    <span class="market-trend-inline ${m.trend}">${trendArrow}</span>
+                </div>
+                <div class="market-detail-row"><span>Preis pro Einheit, aktuelle Saisonperiode</span></div>
+                <div class="market-range-track" title="Spanne über das ganze Jahr: ${m.minPrice}–${m.maxPrice} €">
+                    <div class="market-range-marker" style="left:${markerPos.toFixed(0)}%"></div>
+                </div>
+                <div class="market-detail-row">
+                    <span>Preisspanne im Jahr: ${m.minPrice}–${m.maxPrice} €</span>
+                </div>
+                <div class="market-detail-row">
+                    <span>Bester Verkaufszeitpunkt: ${escapeHtml(m.bestPeriodLabel)}${m.isAtBest ? ' (jetzt!)' : ''}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// =================================================================
+// Vertrags-Feed
+// =================================================================
+async function loadMissionsData() {
+    const container = document.getElementById('missionsContainer');
+    container.innerHTML = '<div class="empty-note">Lade Verträge …</div>';
+    const res = await fetch('api.php?action=missions_data');
+    const data = await res.json();
+    if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
+
+    if (data.missions.length === 0) {
+        container.innerHTML = '<div class="empty-note">Keine aktiven Verträge gefunden.</div>';
+        return;
+    }
+
+    container.innerHTML = data.missions.map(m => {
+        const urgent = m.daysLeft === 0;
+        const cropInfo = m.fieldCrop ? `<span class="mission-extra">Aktuell auf dem Feld: ${escapeHtml(m.fieldCrop)}</span>` : '';
+        const rewardInfo = m.reward > 0 ? `<span class="mission-reward">${Math.round(m.reward).toLocaleString('de-DE')} €</span>` : '';
+        return `
+            <div class="mission-row ${urgent ? 'urgent' : ''}">
+                <span class="mission-type">${escapeHtml(m.typeLabel)}</span>
+                <span class="mission-field">Feld ${escapeHtml(m.fieldId || '–')}</span>
+                <span class="mission-detail">${escapeHtml(m.detail || '')} ${cropInfo}</span>
+                ${rewardInfo}
+                <span class="mission-days ${urgent ? 'urgent' : ''}">${urgent ? 'läuft heute ab' : `noch ${m.daysLeft} Tag(e)`}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+function markersSnapshot() {
+    return JSON.stringify(markers.map(m => ({ id: m.id, name: m.name, group: m.group })));
+}
+
+function isDirty() {
+    return originalSnapshot !== null && markersSnapshot() !== originalSnapshot;
+}
+
+function confirmDiscardIfDirty(actionLabel, onProceed) {
+    const courseDirty = typeof isCourseDirty === 'function' && isCourseDirty();
+    if (!isDirty() && !courseDirty) { onProceed(); return; }
+    const what = `${isDirty() ? 'Marker' : ''}${isDirty() && courseDirty ? ' + ' : ''}${courseDirty ? 'Route' : ''}`;
+    showConfirmModal(
+        `Du hast ungespeicherte Änderungen (${what}). ${actionLabel} und Änderungen verwerfen?`,
+        onProceed,
+        actionLabel
+    );
+}
+
+let farmOverviewInterval = null;
+const FARM_OVERVIEW_REFRESH_MS = 30000;
+
+function startFarmOverviewAutoRefresh() {
+    stopFarmOverviewAutoRefresh();
+    farmOverviewInterval = setInterval(() => {
+        loadFarmOverview();
+    }, FARM_OVERVIEW_REFRESH_MS);
+}
+
+function stopFarmOverviewAutoRefresh() {
+    if (farmOverviewInterval) {
+        clearInterval(farmOverviewInterval);
+        farmOverviewInterval = null;
+    }
+}
+
+async function init() {
+    const res = await fetch('api.php?action=current_savegame');
+    const data = await res.json();
+    if (data.folder) {
+        currentFolder = data.folder;
+        hasAutoDrive = !!data.hasAutoDrive;
+        showMainScreen();
+        applyAutoDriveTabVisibility();
+        loadFarmOverview();
+        startFarmOverviewAutoRefresh();
+        if (hasAutoDrive) {
+            loadMarkers();
+        } else {
+            document.getElementById('mapInfo').textContent = 'Kein AutoDrive in diesem Spielstand aktiv – Marker & Karte nicht verfügbar.';
+        }
+    } else {
+        showPickerScreen();
+    }
+}
+
+function showPickerScreen() {
+    stopFarmOverviewAutoRefresh();
+    document.getElementById('pickerScreen').style.display = 'block';
+    document.getElementById('mainScreen').style.display = 'none';
+    loadSavegameList();
+}
+
+function showMainScreen() {
+    document.getElementById('pickerScreen').style.display = 'none';
+    document.getElementById('mainScreen').style.display = 'block';
+}
+
+async function loadSavegameList() {
+    const introEl = document.getElementById('pickerIntro');
+    const listEl = document.getElementById('savegameList');
+    introEl.textContent = 'Suche Spielstände …';
+    listEl.innerHTML = '';
+
+    const res = await fetch('api.php?action=list_savegames');
+    const data = await res.json();
+
+    if (!data.savegames || data.savegames.length === 0) {
+        introEl.textContent = `Keine Spielstände gefunden in: ${data.baseDir || '(unbekannt)'}`;
+        return;
+    }
+
+    introEl.textContent = `${data.savegames.length} Spielstände gefunden in ${data.baseDir} — bitte auswählen:`;
+
+    listEl.innerHTML = data.savegames.map(sg => `
+        <div class="save-card" onclick="selectSavegame('${sg.folder}')">
+            <span class="folder-tag">${sg.folder}</span>
+            <div class="info">
+                <div class="name">${escapeHtml(sg.farmName || sg.savegameName)}</div>
+                <div class="meta">${escapeHtml(sg.mapTitle)}${sg.manager ? ' · ' + escapeHtml(sg.manager) : ''} · zuletzt gespeichert ${escapeHtml(sg.saveDate)}</div>
+            </div>
+            ${sg.hasAutoDrive ? '' : '<span class="badge-missing">Kein AutoDrive</span>'}
+        </div>
+    `).join('');
+}
+
+async function selectSavegame(folder) {
+    const res = await fetch('api.php?action=select_savegame', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder })
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, 'err'); return; }
+    currentFolder = folder;
+    hasAutoDrive = !!data.hasAutoDrive;
+    points = new Map(); // Kartendaten für neuen Spielstand neu laden
+    undoStack = [];
+    orphanHighlightIds = null;
+    terrainImg = null; // Hintergrundbild gehört zum vorherigen Spielstand, neu laden
+    terrainImgTried = false;
+    showMainScreen();
+    applyAutoDriveTabVisibility();
+    switchTab('home');
+    loadFarmOverview();
+    startFarmOverviewAutoRefresh();
+    if (hasAutoDrive) {
+        loadMarkers();
+    } else {
+        document.getElementById('mapInfo').textContent = 'Kein AutoDrive in diesem Spielstand aktiv – Marker & Karte nicht verfügbar.';
+        showToast('Spielstand ohne AutoDrive – Marker/Karte-Tab ausgeblendet.', 'ok');
+    }
+}
+
+function switchSavegame() {
+    confirmDiscardIfDirty('Spielstand wechseln', showPickerScreen);
+}
+
+async function loadMarkers() {
+    setStatus('Lade Marker …', '');
+    const res = await fetch('api.php?action=markers');
+    const data = await res.json();
+    if (data.error === 'no_savegame_selected') { showPickerScreen(); return; }
+    if (data.error === 'no_autodrive') {
+        document.getElementById('mapInfo').textContent = 'Kein AutoDrive in diesem Spielstand aktiv – Marker & Karte nicht verfügbar.';
+        return;
+    }
+    if (data.error) { setStatus(data.error, 'err'); return; }
+    markers = data.markers;
+    markers.forEach(m => { m.uid = 'm' + (uidCounter++); });
+    selectedUids.clear();
+    knownGroups = [...data.groups].sort((a, b) => a.localeCompare(b, 'de', {numeric: true}));
+    collapsedGroups = new Set([...knownGroups, UNGROUPED]); // Gruppen beim Laden standardmäßig eingeklappt
+
+    document.getElementById('mapInfo').textContent =
+        `KARTE: ${data.mapName.toUpperCase()} · ${markers.length} MARKER · ${knownGroups.length} GRUPPEN`;
+    originalSnapshot = markersSnapshot();
+    renderTable();
+    if (points.size > 0) populateMapJumpList();
+    setStatus('', '');
+}
+
+function reloadOrDiscard() {
+    if (!isDirty()) { loadMarkers(); return; }
+    showConfirmModal('Es gibt ungespeicherte Änderungen. Trotzdem neu laden und verwerfen?', loadMarkers, 'Neu laden');
+}
+
+// =================================================================
+// Kartenansicht
+// =================================================================
+let points = new Map();      // id(string) -> {x,y,z,out:Set<string>, flags:number}
+let courseBounds = null;     // { minX, maxX, minZ, maxZ }
+let edgesList = [];          // [[idA, idB], ...] dedupliziert, für Rendering
+let courseOriginalSnapshot = null;
+let nextNewId = null;
+let terrainImg = null;       // Image-Objekt, null falls kein Hintergrund verfügbar
+let terrainImgTried = false;
+let mapView = { centerX: 0, centerZ: 0, scale: 1 };
+let mapDragging = false;     // Karte wird verschoben (Klick auf leeren Bereich)
+let mapDraggingPoint = null; // id des gerade per Maus verschobenen Wegpunkts
+let mapMouseDownPos = null;
+let mapLastMouse = null;
+let mapCanvasEl = null;
+let mapCtx = null;
+let editMode = 'view';       // 'view' | 'draw' | 'delete'
+let chainSelection = null;   // id des zuletzt gesetzten Punkts beim Routenzeichnen
+let disconnectSelection = null; // erster ausgewählter Punkt im Trennen-Modus
+let lastClickedPointId = null;  // zuletzt angeklickter Punkt, für "Als Marker anlegen"
+let dragOriginalPos = null;     // Position eines Punkts vor dem Ziehen, für Undo
+let orphanHighlightIds = null;  // Set von IDs isolierter Stränge (nach Konnektivitätsprüfung)
+let undoStack = [];          // Liste von Schritten, jeder Schritt = Array von Einzel-Operationen
+const UNDO_STACK_LIMIT = 50;
+const DRAG_THRESHOLD_PX = 4;
+const POINT_HIT_RADIUS_PX = 10;
+const SNAP_RADIUS_PX = 22; // großzügigerer Radius beim Setzen neuer Punkte, um an bestehende anzudocken
+
+async function ensureMapLoaded() {
+    if (!mapCanvasEl) {
+        mapCanvasEl = document.getElementById('mapCanvas');
+        mapCtx = mapCanvasEl.getContext('2d');
+        mapCanvasEl.addEventListener('wheel', mapOnWheel, { passive: false });
+        mapCanvasEl.addEventListener('mousedown', mapOnMouseDown);
+        window.addEventListener('mousemove', mapOnMouseMove);
+        window.addEventListener('mouseup', mapOnMouseUp);
+        window.addEventListener('resize', () => { sizeMapCanvas(); mapRedraw(); });
+    }
+
+    if (points.size === 0) {
+        document.getElementById('mapStatus').textContent = 'Lade Kursdaten …';
+        const res = await fetch('api.php?action=course_data');
+        const data = await res.json();
+        if (data.error) {
+            document.getElementById('mapStatus').textContent = 'Fehler: ' + data.error;
+            return;
+        }
+
+        points = new Map();
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        let maxId = 0;
+        for (let i = 0; i < data.ids.length; i++) {
+            const id = data.ids[i];
+            points.set(id, {
+                x: data.x[i], y: data.y[i], z: data.z[i],
+                out: new Set(data.out[i]),
+                flags: parseInt(data.flags[i]) || 0,
+            });
+            if (data.x[i] < minX) minX = data.x[i];
+            if (data.x[i] > maxX) maxX = data.x[i];
+            if (data.z[i] < minZ) minZ = data.z[i];
+            if (data.z[i] > maxZ) maxZ = data.z[i];
+            const numId = parseInt(id);
+            if (numId > maxId) maxId = numId;
+        }
+        courseBounds = { minX, maxX, minZ, maxZ };
+        nextNewId = maxId + 1;
+        undoStack = [];
+        orphanHighlightIds = null;
+        updateUndoButton();
+
+        rebuildEdgesList();
+        courseOriginalSnapshot = courseSnapshot();
+        document.getElementById('mapStatus').textContent =
+            `${points.size} Wegpunkte · ${edgesList.length} Verbindungen`;
+
+        populateMapJumpList();
+        loadTerrainImage();
+        mapResetView();
+    }
+
+    sizeMapCanvas();
+    mapRedraw();
+}
+
+function courseSnapshot() {
+    // Kompakte Prüfsumme für Dirty-Tracking (vollständige Serialisierung wäre bei
+    // 30k Punkten unnötig teuer bei jeder Prüfung)
+    const parts = [];
+    for (const [id, p] of points) {
+        parts.push(id + ':' + p.x.toFixed(2) + ',' + p.z.toFixed(2) + ',' + [...p.out].sort().join('|'));
+    }
+    return parts.length + '#' + parts.join(';');
+}
+
+function isCourseDirty() {
+    return courseOriginalSnapshot !== null && courseSnapshot() !== courseOriginalSnapshot;
+}
+
+function rebuildEdgesList() {
+    edgesList = [];
+    for (const [id, p] of points) {
+        for (const targetId of p.out) {
+            if (!points.has(targetId)) continue;
+            if (Number(targetId) > Number(id)) {
+                edgesList.push([id, targetId]);
+            } else if (Number(targetId) < Number(id) && !points.get(targetId).out.has(id)) {
+                // einseitige Verbindung (nur in eine Richtung) trotzdem einmal zeichnen
+                edgesList.push([targetId, id]);
+            }
+        }
+    }
+}
+
+function setEditMode(mode) {
+    if (mode !== 'draw') chainSelection = null;
+    if (mode !== 'disconnect') disconnectSelection = null;
+    editMode = mode;
+    document.getElementById('modeBtnView').classList.toggle('active', mode === 'view');
+    document.getElementById('modeBtnDraw').classList.toggle('active', mode === 'draw');
+    document.getElementById('modeBtnDisconnect').classList.toggle('active', mode === 'disconnect');
+    document.getElementById('modeBtnDelete').classList.toggle('active', mode === 'delete');
+    document.getElementById('modeBtnDelete').classList.toggle('delete-active', mode === 'delete');
+    mapCanvasEl.classList.toggle('mode-draw', mode === 'draw');
+    mapCanvasEl.classList.toggle('mode-delete', mode === 'delete');
+    mapCanvasEl.classList.toggle('mode-disconnect', mode === 'disconnect');
+
+    const hintBar = document.getElementById('mapHintBar');
+    if (mode === 'view') {
+        hintBar.textContent = 'Scrollen = Zoom · Ziehen = Karte verschieben';
+    } else if (mode === 'draw') {
+        hintBar.textContent = 'Klick = Punkt setzen/verbinden (fortlaufende Kette) · Klick auf bestehenden Punkt = andocken · vorhandenen Punkt ziehen = verschieben · Esc = Kette beenden';
+    } else if (mode === 'disconnect') {
+        hintBar.textContent = 'Zwei verbundene Punkte nacheinander anklicken = Verbindung zwischen ihnen entfernen (Punkte bleiben erhalten) · Esc = Auswahl zurücksetzen';
+    } else if (mode === 'delete') {
+        hintBar.textContent = 'Klick auf einen Wegpunkt = löschen (inkl. aller Verbindungen)';
+    }
+    mapRedraw();
+}
+
+function populateMapJumpList() {
+    const select = document.getElementById('mapJumpSelect');
+    select.innerHTML = '<option value="">— Zu Marker springen —</option>' +
+        markers.slice().sort((a, b) => a.name.localeCompare(b.name, 'de', {numeric: true}))
+            .map(m => `<option value="${parseInt(m.id)}">${escapeHtml(m.name)}</option>`).join('');
+}
+
+function loadTerrainImage(force) {
+    if ((terrainImgTried && !force) || !currentFolder) return;
+    terrainImgTried = true;
+    const img = new Image();
+    img.onload = () => { terrainImg = img; updateTerrainButtons(); populateTerrainAlignInputs(); mapRedraw(); };
+    img.onerror = () => { terrainImg = null; updateTerrainButtons(); }; // kein Hintergrundbild vorhanden – Karte funktioniert trotzdem
+    img.src = `assets/terrain_${currentFolder}.png?t=${Date.now()}`; // Cache-Busting, da Dateiname nach Upload gleich bleibt
+}
+
+function updateTerrainButtons() {
+    const removeBtn = document.getElementById('removeTerrainBtn');
+    if (removeBtn) removeBtn.disabled = !terrainImg;
+}
+
+// -----------------------------------------------------------------
+// Hintergrundbild hochladen/entfernen + manuelle Ausrichtung
+// Ausrichtung (Versatz X/Z, Skalierung) wird je Spielstand in localStorage
+// gemerkt, da die automatische Wegpunkt-Bounding-Box nicht immer exakt zum
+// eingefärbten Screenshot passt (z. B. wenn der Screenshot nicht die komplette
+// Kartengröße zeigt).
+// -----------------------------------------------------------------
+function terrainAlignKey() {
+    return `terrainAlign_${currentFolder}`;
+}
+
+function getTerrainAlign() {
+    try {
+        const raw = localStorage.getItem(terrainAlignKey());
+        if (raw) return JSON.parse(raw);
+    } catch (e) { /* korrupter Wert -> Standard verwenden */ }
+    return { offsetX: 0, offsetZ: 0, scale: 1 };
+}
+
+function saveTerrainAlign(align) {
+    localStorage.setItem(terrainAlignKey(), JSON.stringify(align));
+}
+
+function populateTerrainAlignInputs() {
+    const align = getTerrainAlign();
+    const ox = document.getElementById('terrainOffsetX');
+    const oz = document.getElementById('terrainOffsetZ');
+    const sc = document.getElementById('terrainScale');
+    if (ox) ox.value = align.offsetX;
+    if (oz) oz.value = align.offsetZ;
+    if (sc) sc.value = align.scale;
+}
+
+function updateTerrainAlignFromInputs() {
+    const align = {
+        offsetX: parseFloat(document.getElementById('terrainOffsetX').value) || 0,
+        offsetZ: parseFloat(document.getElementById('terrainOffsetZ').value) || 0,
+        scale: parseFloat(document.getElementById('terrainScale').value) || 1,
+    };
+    saveTerrainAlign(align);
+    mapRedraw();
+}
+
+function resetTerrainAlign() {
+    saveTerrainAlign({ offsetX: 0, offsetZ: 0, scale: 1 });
+    populateTerrainAlignInputs();
+    mapRedraw();
+}
+
+function uploadTerrainImage(input) {
+    const file = input.files[0];
+    input.value = ''; // erlaubt erneutes Auswählen derselben Datei später
+    if (!file) return;
+    if (!currentFolder) { showToast('Kein Spielstand ausgewählt.', 'err'); return; }
+    if (!file.type.startsWith('image/')) { showToast('Bitte eine Bilddatei auswählen.', 'err'); return; }
+    if (file.size > 25 * 1024 * 1024) { showToast('Datei zu groß (maximal 25 MB).', 'err'); return; }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    document.getElementById('mapStatus').textContent = 'Hintergrundbild wird hochgeladen …';
+    fetch('api.php?action=upload_terrain', { method: 'POST', body: formData })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                showToast(data.error, 'err');
+                document.getElementById('mapStatus').textContent = '';
+                return;
+            }
+            loadTerrainImage(true);
+            showToast(`Hintergrundbild gespeichert (${data.width}×${data.height}px)`, 'ok');
+            document.getElementById('mapStatus').textContent = '';
+        })
+        .catch(() => {
+            showToast('Upload fehlgeschlagen.', 'err');
+            document.getElementById('mapStatus').textContent = '';
+        });
+}
+
+function removeTerrainImage() {
+    if (!terrainImg) return;
+    showConfirmModal('Hintergrundbild für diesen Spielstand entfernen?', async () => {
+        const res = await fetch('api.php?action=delete_terrain', { method: 'POST' });
+        const data = await res.json();
+        if (data.error) { showToast(data.error, 'err'); return; }
+        terrainImg = null;
+        terrainImgTried = true;
+        updateTerrainButtons();
+        mapRedraw();
+        showToast('Hintergrundbild entfernt', 'ok');
+    }, 'Entfernen');
+}
+
+function sizeMapCanvas() {
+    if (!mapCanvasEl) return;
+    const rect = mapCanvasEl.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    mapCanvasEl.width = Math.max(1, Math.round(rect.width * dpr));
+    mapCanvasEl.height = Math.max(1, Math.round(rect.height * dpr));
+    mapCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function mapResetView() {
+    if (!courseBounds || !mapCanvasEl) return;
+    const rect = mapCanvasEl.parentElement.getBoundingClientRect();
+    const worldW = Math.max(1, courseBounds.maxX - courseBounds.minX);
+    const worldH = Math.max(1, courseBounds.maxZ - courseBounds.minZ);
+    const padding = 0.92;
+    const scale = Math.min(rect.width / worldW, rect.height / worldH) * padding;
+    mapView.scale = scale;
+    mapView.centerX = (courseBounds.minX + courseBounds.maxX) / 2;
+    mapView.centerZ = (courseBounds.minZ + courseBounds.maxZ) / 2;
+    mapRedraw();
+}
+
+function worldToCanvas(x, z) {
+    const rect = mapCanvasEl.getBoundingClientRect();
+    return [
+        rect.width / 2 + (x - mapView.centerX) * mapView.scale,
+        rect.height / 2 + (z - mapView.centerZ) * mapView.scale,
+    ];
+}
+
+function canvasToWorld(cx, cy) {
+    const rect = mapCanvasEl.getBoundingClientRect();
+    return [
+        mapView.centerX + (cx - rect.width / 2) / mapView.scale,
+        mapView.centerZ + (cy - rect.height / 2) / mapView.scale,
+    ];
+}
+
+function mapJumpToMarker(id) {
+    if (!id || !points.has(id)) return;
+    const p = points.get(id);
+    mapView.centerX = p.x;
+    mapView.centerZ = p.z;
+    mapView.scale = Math.max(mapView.scale, 4);
+    mapRedraw();
+}
+
+// Nächstgelegenen Wegpunkt zu einer Bildschirmposition finden (für Klick-Interaktion)
+function findNearestPointAtScreen(clientX, clientY, maxPx) {
+    const rect = mapCanvasEl.getBoundingClientRect();
+    const cx = clientX - rect.left, cy = clientY - rect.top;
+    let bestId = null, bestDist = maxPx;
+    for (const [id, p] of points) {
+        const [px, py] = worldToCanvas(p.x, p.z);
+        if (px < cx - maxPx || px > cx + maxPx || py < cy - maxPx || py > cy + maxPx) continue;
+        const d = Math.hypot(px - cx, py - cy);
+        if (d < bestDist) { bestDist = d; bestId = id; }
+    }
+    return bestId;
+}
+
+function connectPoints(idA, idB) {
+    if (idA === idB) return null;
+    const a = points.get(idA), b = points.get(idB);
+    if (!a || !b) return null;
+    if (a.out.has(idB)) return null; // bereits verbunden
+    a.out.add(idB);
+    b.out.add(idA);
+    return { type: 'connect', a: idA, b: idB };
+}
+
+function disconnectPoints(idA, idB) {
+    if (idA === idB) return null;
+    const a = points.get(idA), b = points.get(idB);
+    if (!a || !b) return null;
+    if (!a.out.has(idB) && !b.out.has(idA)) return null; // nicht verbunden
+    a.out.delete(idB);
+    b.out.delete(idA);
+    return { type: 'disconnect', a: idA, b: idB };
+}
+
+function addPointAtScreen(clientX, clientY) {
+    const rect = mapCanvasEl.getBoundingClientRect();
+    const [wx, wz] = canvasToWorld(clientX - rect.left, clientY - rect.top);
+
+    // Höhe (y) grob vom nächstgelegenen bestehenden Punkt übernehmen (Gelände ist
+    // im Nahbereich meist ähnlich hoch)
+    let nearestY = 0, bestDist = Infinity;
+    for (const p of points.values()) {
+        const d = (p.x - wx) ** 2 + (p.z - wz) ** 2;
+        if (d < bestDist) { bestDist = d; nearestY = p.y; }
+    }
+
+    const id = String(nextNewId++);
+    points.set(id, { x: wx, y: nearestY, z: wz, out: new Set(), flags: 0 });
+    return id;
+}
+
+function deletePointById(id) {
+    const p = points.get(id);
+    if (!p) return null;
+    const neighbors = [...p.out];
+    const data = { x: p.x, y: p.y, z: p.z, flags: p.flags };
+    for (const neighborId of neighbors) {
+        const n = points.get(neighborId);
+        if (n) n.out.delete(id);
+    }
+    points.delete(id);
+    if (chainSelection === id) chainSelection = null;
+    if (disconnectSelection === id) disconnectSelection = null;
+    return { type: 'deletePoint', id, data, neighbors };
+}
+
+function isMarkerReferencing(id) {
+    return markers.some(m => String(parseInt(m.id)) === id);
+}
+
+// -----------------------------------------------------------------
+// Undo-System: jeder Bearbeitungsschritt (Klick/Zug) wird als Liste von
+// Einzel-Operationen gespeichert; Strg+Z macht sie in umgekehrter Reihenfolge rückgängig.
+// -----------------------------------------------------------------
+function pushUndoStep(entries) {
+    if (!entries || entries.length === 0) return;
+    undoStack.push(entries);
+    if (undoStack.length > UNDO_STACK_LIMIT) undoStack.shift();
+    updateUndoButton();
+}
+
+function applyInverseEntry(entry) {
+    if (entry.type === 'addPoint') {
+        points.delete(entry.id);
+    } else if (entry.type === 'deletePoint') {
+        points.set(entry.id, { x: entry.data.x, y: entry.data.y, z: entry.data.z, out: new Set(), flags: entry.data.flags });
+        const restored = points.get(entry.id);
+        for (const nb of entry.neighbors) {
+            const n = points.get(nb);
+            if (n) { n.out.add(entry.id); restored.out.add(nb); }
+        }
+    } else if (entry.type === 'connect') {
+        const a = points.get(entry.a), b = points.get(entry.b);
+        if (a) a.out.delete(entry.b);
+        if (b) b.out.delete(entry.a);
+    } else if (entry.type === 'disconnect') {
+        const a = points.get(entry.a), b = points.get(entry.b);
+        if (a) a.out.add(entry.b);
+        if (b) b.out.add(entry.a);
+    } else if (entry.type === 'move') {
+        const p = points.get(entry.id);
+        if (p) { p.x = entry.oldX; p.z = entry.oldZ; }
+    }
+}
+
+function undoCourseEdit() {
+    if (undoStack.length === 0) return;
+    const step = undoStack.pop();
+    for (let i = step.length - 1; i >= 0; i--) applyInverseEntry(step[i]);
+    chainSelection = null;
+    disconnectSelection = null;
+    orphanHighlightIds = null;
+    rebuildEdgesList();
+    updateUndoButton();
+    mapRedraw();
+    showToast('Änderung rückgängig gemacht', 'ok');
+}
+
+function updateUndoButton() {
+    const btn = document.getElementById('undoBtn');
+    if (btn) btn.disabled = undoStack.length === 0;
+}
+
+// -----------------------------------------------------------------
+// Marker direkt auf der Karte anlegen
+// -----------------------------------------------------------------
+function markSelectedAsMarker() {
+    const id = lastClickedPointId;
+    if (id === null || !points.has(id)) {
+        showToast('Erst einen Wegpunkt im Zeichen- oder Trennen-Modus anklicken.', 'err');
+        return;
+    }
+    if (isMarkerReferencing(id)) {
+        showToast('Für diesen Wegpunkt existiert bereits ein Marker.', 'err');
+        return;
+    }
+    showPromptModal('Name für den neuen Marker:', 'Neuer Marker', (name) => {
+        markers.push({ key: '', id: id, name: name.trim(), group: '', uid: 'm' + (uidCounter++) });
+        populateMapJumpList();
+        mapRedraw();
+        showToast(`Marker "${name.trim()}" angelegt – im Marker-Tab speichern nicht vergessen`, 'ok');
+    }, 'Neuer Marker');
+}
+
+// -----------------------------------------------------------------
+// Getrennte Stränge erkennen (Konnektivitätsprüfung)
+// -----------------------------------------------------------------
+function checkConnectivity() {
+    if (points.size === 0) { showToast('Keine Wegpunkte geladen.', 'err'); return; }
+
+    const reverseAdj = new Map();
+    for (const id of points.keys()) reverseAdj.set(id, new Set());
+    for (const [id, p] of points) {
+        for (const t of p.out) {
+            if (reverseAdj.has(t)) reverseAdj.get(t).add(id);
+        }
+    }
+
+    const visited = new Set();
+    const components = [];
+    for (const startId of points.keys()) {
+        if (visited.has(startId)) continue;
+        const compIds = [];
+        const stack = [startId];
+        visited.add(startId);
+        while (stack.length) {
+            const cur = stack.pop();
+            compIds.push(cur);
+            const p = points.get(cur);
+            for (const nb of p.out) {
+                if (!visited.has(nb) && points.has(nb)) { visited.add(nb); stack.push(nb); }
+            }
+            for (const nb of reverseAdj.get(cur)) {
+                if (!visited.has(nb)) { visited.add(nb); stack.push(nb); }
+            }
+        }
+        components.push(compIds);
+    }
+
+    components.sort((a, b) => b.length - a.length);
+
+    if (components.length === 1) {
+        orphanHighlightIds = null;
+        showToast(`✓ Route vollständig verbunden (${points.size} Wegpunkte, 1 Strang)`, 'ok');
+    } else {
+        orphanHighlightIds = new Set(components.slice(1).flat());
+        const sizes = components.map(c => c.length).join(', ');
+        showToast(`⚠ ${components.length} getrennte Stränge gefunden (Größen: ${sizes}). Kleinere Stränge rot markiert.`, 'err');
+    }
+    mapRedraw();
+}
+
+function mapOnWheel(ev) {
+    ev.preventDefault();
+    const rect = mapCanvasEl.getBoundingClientRect();
+    const cx = ev.clientX - rect.left;
+    const cy = ev.clientY - rect.top;
+    const [wx, wz] = canvasToWorld(cx, cy);
+
+    const factor = ev.deltaY < 0 ? 1.15 : 1 / 1.15;
+    mapView.scale = Math.min(50, Math.max(0.02, mapView.scale * factor));
+
+    const [wx2, wz2] = canvasToWorld(cx, cy);
+    mapView.centerX += wx - wx2;
+    mapView.centerZ += wz - wz2;
+    mapRedraw();
+}
+
+function mapOnMouseDown(ev) {
+    mapMouseDownPos = { x: ev.clientX, y: ev.clientY };
+    mapLastMouse = { x: ev.clientX, y: ev.clientY };
+
+    // Treffertest nur in Zeichnen/Trennen/Löschen-Modus – im Ansehen-Modus gibt es keine
+    // Punkt-Interaktion, und ein Treffertest würde dort das Verschieben der Karte
+    // stören (die 30k Punkte liegen dicht am gesamten Straßennetz).
+    if (editMode !== 'view') {
+        const hitId = findNearestPointAtScreen(ev.clientX, ev.clientY, POINT_HIT_RADIUS_PX);
+        if (hitId !== null) {
+            mapDraggingPoint = hitId;
+            const p = points.get(hitId);
+            dragOriginalPos = p ? { x: p.x, z: p.z } : null;
+            return;
+        }
+    }
+    mapDragging = true;
+    mapCanvasEl.classList.add('dragging');
+}
+
+function mapOnMouseMove(ev) {
+    if (mapDraggingPoint !== null) {
+        const moved = Math.hypot(ev.clientX - mapMouseDownPos.x, ev.clientY - mapMouseDownPos.y);
+        // Tatsächliches Verschieben der Position nur im Zeichenmodus erlauben –
+        // in Ansehen/Trennen/Löschen soll ein Ziehen keine unbeabsichtigte Positionsänderung auslösen.
+        if (moved > DRAG_THRESHOLD_PX && editMode === 'draw') {
+            const rect = mapCanvasEl.getBoundingClientRect();
+            const [wx, wz] = canvasToWorld(ev.clientX - rect.left, ev.clientY - rect.top);
+            const p = points.get(mapDraggingPoint);
+            if (p) { p.x = wx; p.z = wz; mapRedraw(); }
+        }
+        return;
+    }
+    if (!mapDragging) return;
+    const dx = ev.clientX - mapLastMouse.x;
+    const dy = ev.clientY - mapLastMouse.y;
+    mapLastMouse = { x: ev.clientX, y: ev.clientY };
+    mapView.centerX -= dx / mapView.scale;
+    mapView.centerZ -= dy / mapView.scale;
+    mapRedraw();
+}
+
+function mapOnMouseUp(ev) {
+    if (mapDraggingPoint !== null) {
+        const moved = mapMouseDownPos ? Math.hypot(ev.clientX - mapMouseDownPos.x, ev.clientY - mapMouseDownPos.y) : 0;
+        const draggedId = mapDraggingPoint;
+        const originalPos = dragOriginalPos;
+        mapDraggingPoint = null;
+        dragOriginalPos = null;
+        if (moved <= DRAG_THRESHOLD_PX) {
+            // war ein Klick, kein Ziehen -> je nach Modus behandeln
+            handlePointClick(draggedId);
+        } else {
+            if (editMode === 'draw' && originalPos) {
+                const p = points.get(draggedId);
+                if (p && (p.x !== originalPos.x || p.z !== originalPos.z)) {
+                    pushUndoStep([{ type: 'move', id: draggedId, oldX: originalPos.x, oldZ: originalPos.z }]);
+                }
+            }
+            orphanHighlightIds = null;
+            rebuildEdgesList();
+            mapRedraw();
+        }
+        return;
+    }
+
+    if (mapDragging) {
+        mapDragging = false;
+        mapCanvasEl.classList.remove('dragging');
+        const moved = mapMouseDownPos ? Math.hypot(ev.clientX - mapMouseDownPos.x, ev.clientY - mapMouseDownPos.y) : 999;
+        if (moved <= DRAG_THRESHOLD_PX && editMode === 'draw') {
+            // Klick auf leeren Bereich im Zeichenmodus -> neuen Punkt setzen,
+            // außer es liegt ein bestehender Punkt im großzügigeren Einrast-Radius (Snap)
+            const entries = [];
+            const snapId = findNearestPointAtScreen(ev.clientX, ev.clientY, SNAP_RADIUS_PX);
+            let targetId;
+            if (snapId !== null) {
+                targetId = snapId;
+            } else {
+                targetId = addPointAtScreen(ev.clientX, ev.clientY);
+                entries.push({ type: 'addPoint', id: targetId });
+            }
+            if (chainSelection !== null && chainSelection !== targetId) {
+                const e = connectPoints(chainSelection, targetId);
+                if (e) entries.push(e);
+            }
+            chainSelection = targetId;
+            lastClickedPointId = targetId;
+            orphanHighlightIds = null;
+            if (entries.length) pushUndoStep(entries);
+            rebuildEdgesList();
+            mapRedraw();
+        }
+    }
+}
+
+function handlePointClick(id) {
+    lastClickedPointId = id;
+
+    if (editMode === 'draw') {
+        const entries = [];
+        if (chainSelection !== null && chainSelection !== id) {
+            const e = connectPoints(chainSelection, id);
+            if (e) entries.push(e);
+        }
+        chainSelection = id;
+        orphanHighlightIds = null;
+        if (entries.length) pushUndoStep(entries);
+        rebuildEdgesList();
+        mapRedraw();
+    } else if (editMode === 'disconnect') {
+        if (disconnectSelection === null || disconnectSelection === id) {
+            disconnectSelection = disconnectSelection === id ? null : id;
+            mapRedraw();
+            return;
+        }
+        const e = disconnectPoints(disconnectSelection, id);
+        if (e) {
+            pushUndoStep([e]);
+            showToast('Verbindung entfernt', 'ok');
+        } else {
+            showToast('Diese beiden Punkte sind nicht direkt verbunden.', 'err');
+        }
+        disconnectSelection = id; // erlaubt direktes Weiterklicken für mehrere Trennungen
+        orphanHighlightIds = null;
+        rebuildEdgesList();
+        mapRedraw();
+    } else if (editMode === 'delete') {
+        if (isMarkerReferencing(id)) {
+            showToast('Dieser Wegpunkt wird von einem Marker referenziert – erst im Marker-Tab umhängen.', 'err');
+            return;
+        }
+        showConfirmModal(
+            'Diesen einzelnen Wegpunkt löschen? Nur die direkten Verbindungen zu diesem einen Punkt werden entfernt – die restliche Route bleibt unangetastet.',
+            () => {
+                const e = deletePointById(id);
+                if (e) pushUndoStep([e]);
+                orphanHighlightIds = null;
+                rebuildEdgesList();
+                mapRedraw();
+            },
+            'Wegpunkt löschen'
+        );
+    }
+}
+
+document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+        if (editMode === 'draw') { chainSelection = null; mapRedraw(); }
+        else if (editMode === 'disconnect') { disconnectSelection = null; mapRedraw(); }
+    }
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z' && activeTab === 'map') {
+        ev.preventDefault();
+        undoCourseEdit();
+    }
+});
+
+async function saveCourse() {
+    document.getElementById('mapStatus').textContent = 'Speichere Route …';
+    const payload = {
+        points: [...points.entries()].map(([id, p]) => ({
+            id, x: p.x, y: p.y, z: p.z, out: [...p.out], flags: p.flags,
+        })),
+    };
+    const res = await fetch('api.php?action=save_course', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.error) {
+        document.getElementById('mapStatus').textContent = 'Fehler: ' + data.error;
+        showToast(data.error, 'err');
+        return;
+    }
+    courseOriginalSnapshot = courseSnapshot();
+    document.getElementById('mapStatus').textContent =
+        `✓ Gespeichert (${data.count} Wegpunkte) · Backup: ${data.backup}`;
+    showToast(`Route gespeichert – ${data.count} Wegpunkte`, 'ok');
+}
+
+function mapRedraw() {
+    if (!mapCtx || !courseBounds || activeTab !== 'map') return;
+    const rect = mapCanvasEl.getBoundingClientRect();
+    mapCtx.clearRect(0, 0, rect.width, rect.height);
+
+    // Hintergrundbild (falls vorhanden), an Wegpunkt-Bounding-Box ausgerichtet,
+    // Kalibrierung steuert nur die Bild-Orientierung, nicht die Wegpunkt-Positionen.
+    if (terrainImg) {
+        const calib = document.getElementById('mapCalibration').value;
+        // Manuelle Ausrichtung: Versatz (Weltkoordinaten) + Skalierung um den Bild-Mittelpunkt,
+        // zusätzlich zur automatischen Einpassung in die Wegpunkt-Bounding-Box.
+        const align = getTerrainAlign();
+        const centerX = (courseBounds.minX + courseBounds.maxX) / 2 + align.offsetX;
+        const centerZ = (courseBounds.minZ + courseBounds.maxZ) / 2 + align.offsetZ;
+        const halfW = (courseBounds.maxX - courseBounds.minX) / 2 * align.scale;
+        const halfH = (courseBounds.maxZ - courseBounds.minZ) / 2 * align.scale;
+        const [x0, y0] = worldToCanvas(centerX - halfW, centerZ - halfH);
+        const [x1, y1] = worldToCanvas(centerX + halfW, centerZ + halfH);
+        const w = x1 - x0, h = y1 - y0;
+
+        mapCtx.save();
+        mapCtx.globalAlpha = 0.85;
+        if (calib === 'normal') {
+            mapCtx.drawImage(terrainImg, x0, y0, w, h);
+        } else if (calib === 'flipz') {
+            mapCtx.translate(x0, y0 + h); mapCtx.scale(1, -1);
+            mapCtx.drawImage(terrainImg, 0, 0, w, h);
+        } else if (calib === 'flipx') {
+            mapCtx.translate(x0 + w, y0); mapCtx.scale(-1, 1);
+            mapCtx.drawImage(terrainImg, 0, 0, w, h);
+        } else if (calib === 'swap') {
+            mapCtx.translate(x0, y0);
+            mapCtx.rotate(Math.PI / 2);
+            mapCtx.scale(1, -1);
+            mapCtx.drawImage(terrainImg, 0, 0, h, w);
+        }
+        mapCtx.restore();
+    }
+
+    // Wegpunkt-Netz (Kanten)
+    {
+        const cx0 = rect.width / 2, cy0 = rect.height / 2;
+        mapCtx.strokeStyle = 'rgba(123, 153, 112, 0.35)';
+        mapCtx.lineWidth = 1;
+        mapCtx.beginPath();
+        for (const [idA, idB] of edgesList) {
+            const a = points.get(idA), b = points.get(idB);
+            if (!a || !b) continue;
+            const ax = cx0 + (a.x - mapView.centerX) * mapView.scale;
+            const ay = cy0 + (a.z - mapView.centerZ) * mapView.scale;
+            const bx = cx0 + (b.x - mapView.centerX) * mapView.scale;
+            const by = cy0 + (b.z - mapView.centerZ) * mapView.scale;
+            if ((ax < 0 || ax > rect.width || ay < 0 || ay > rect.height) &&
+                (bx < 0 || bx > rect.width || by < 0 || by > rect.height) &&
+                ((ax < 0 && bx < 0) || (ax > rect.width && bx > rect.width) ||
+                 (ay < 0 && by < 0) || (ay > rect.height && by > rect.height))) continue;
+            mapCtx.moveTo(ax, ay);
+            mapCtx.lineTo(bx, by);
+        }
+        mapCtx.stroke();
+    }
+
+    // Isolierte Stränge (nach Konnektivitätsprüfung) rot markieren – immer sichtbar,
+    // auch im Ansehen-Modus, damit die Warnung nicht übersehen wird.
+    if (orphanHighlightIds && orphanHighlightIds.size > 0) {
+        const cx0 = rect.width / 2, cy0 = rect.height / 2;
+        mapCtx.fillStyle = '#A85539';
+        mapCtx.beginPath();
+        for (const id of orphanHighlightIds) {
+            const p = points.get(id);
+            if (!p) continue;
+            const cx = cx0 + (p.x - mapView.centerX) * mapView.scale;
+            const cy = cy0 + (p.z - mapView.centerZ) * mapView.scale;
+            if (cx < -5 || cx > rect.width + 5 || cy < -5 || cy > rect.height + 5) continue;
+            mapCtx.rect(cx - 2.5, cy - 2.5, 5, 5);
+        }
+        mapCtx.fill();
+    }
+
+    // Einzelne Wegpunkte nur im Bearbeitungsmodus als Klickziele anzeigen.
+    // Performance-kritisch bei 30k+ Punkten: rect einmal cachen (kein getBoundingClientRect
+    // pro Punkt) und ein einziger Path mit fill() statt vieler Einzelaufrufe (deutlich schneller).
+    if (editMode !== 'view') {
+        const cx0 = rect.width / 2, cy0 = rect.height / 2;
+        mapCtx.fillStyle = 'rgba(169, 164, 140, 0.55)';
+        mapCtx.beginPath();
+        for (const [id, p] of points) {
+            const cx = cx0 + (p.x - mapView.centerX) * mapView.scale;
+            const cy = cy0 + (p.z - mapView.centerZ) * mapView.scale;
+            if (cx < -4 || cx > rect.width + 4 || cy < -4 || cy > rect.height + 4) continue;
+            mapCtx.rect(cx - 1.5, cy - 1.5, 3, 3);
+        }
+        mapCtx.fill();
+
+        // Auswahl-Highlight: im Zeichenmodus der Kettenpunkt, im Trennen-Modus der erste gewählte Punkt
+        const highlightId = editMode === 'draw' ? chainSelection : (editMode === 'disconnect' ? disconnectSelection : null);
+        if (highlightId !== null && points.has(highlightId)) {
+            const p = points.get(highlightId);
+            const [cx, cy] = worldToCanvas(p.x, p.z);
+            mapCtx.beginPath();
+            mapCtx.arc(cx, cy, 6, 0, Math.PI * 2);
+            mapCtx.strokeStyle = editMode === 'disconnect' ? '#A85539' : '#C9A227';
+            mapCtx.lineWidth = 2;
+            mapCtx.stroke();
+        }
+    }
+
+    // Marker als hervorgehobene Punkte + Label (Label nur bei ausreichendem Zoom)
+    const showLabels = mapView.scale > 1.2;
+    for (const m of markers) {
+        const id = String(parseInt(m.id));
+        const p = points.get(id);
+        if (!p) continue;
+        const [cx, cy] = worldToCanvas(p.x, p.z);
+        if (cx < -20 || cx > rect.width + 20 || cy < -20 || cy > rect.height + 20) continue;
+
+        mapCtx.beginPath();
+        mapCtx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+        mapCtx.fillStyle = '#C9A227';
+        mapCtx.fill();
+        mapCtx.strokeStyle = '#14160E';
+        mapCtx.lineWidth = 1.2;
+        mapCtx.stroke();
+
+        if (showLabels) {
+            mapCtx.font = '11px "IBM Plex Mono", monospace';
+            mapCtx.fillStyle = '#ECE7D8';
+            mapCtx.fillText(m.name, cx + 7, cy - 6);
+        }
+    }
+}
+
+async function openBackupPanel() {
+    const res = await fetch('api.php?action=list_backups');
+    const data = await res.json();
+    if (data.error) { showToast(data.error, 'err'); return; }
+
+    const rows = data.backups.length === 0
+        ? '<div class="empty-note">Noch keine Backups vorhanden.</div>'
+        : data.backups.map(b => `
+            <div class="backup-row">
+                <span class="ts">${escapeHtml(b.formatted)}</span>
+                <span class="size">${(b.size / 1024).toFixed(0)} KB</span>
+                <button class="small" onclick="restoreBackup('${b.file}')">Wiederherstellen</button>
+                <button class="small danger" onclick="deleteBackupEntry('${b.file}')" title="Backup dauerhaft löschen">✕</button>
+            </div>
+        `).join('');
+
+    document.getElementById('modalContainer').innerHTML = `
+        <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+            <div class="modal-box">
+                <h2>Backups</h2>
+                <div class="modal-sub">Automatisch vor jedem Speichern und jeder Wiederherstellung angelegt · max. 20 pro Spielstand</div>
+                <div class="modal-list">${rows}</div>
+                <div class="modal-close"><button onclick="closeModal()">Schließen</button></div>
+            </div>
+        </div>
+    `;
+}
+
+function closeModal() {
+    document.getElementById('modalContainer').innerHTML = '';
+}
+
+let pendingConfirmCallback = null;
+
+function showConfirmModal(message, onConfirmCallback, confirmLabel) {
+    pendingConfirmCallback = onConfirmCallback;
+    document.getElementById('modalContainer').innerHTML = `
+        <div class="modal-overlay" onclick="if(event.target===this) cancelConfirmModal()">
+            <div class="modal-box" style="width:440px">
+                <h2>Bestätigung</h2>
+                <div class="modal-sub" style="margin-bottom:18px; font-family:var(--font-body); font-size:13px; color:var(--text)">${escapeHtml(message)}</div>
+                <div class="modal-close" style="display:flex; justify-content:flex-end; gap:10px">
+                    <button onclick="cancelConfirmModal()">Abbrechen</button>
+                    <button class="danger" onclick="runConfirmModal()">${escapeHtml(confirmLabel || 'Bestätigen')}</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function cancelConfirmModal() {
+    pendingConfirmCallback = null;
+    closeModal();
+}
+
+function runConfirmModal() {
+    const cb = pendingConfirmCallback;
+    pendingConfirmCallback = null;
+    closeModal();
+    if (cb) cb();
+}
+
+let pendingPromptCallback = null;
+
+function showPromptModal(message, defaultValue, onConfirmCallback, confirmLabel, placeholder) {
+    pendingPromptCallback = onConfirmCallback;
+    document.getElementById('modalContainer').innerHTML = `
+        <div class="modal-overlay" onclick="if(event.target===this) cancelPromptModal()">
+            <div class="modal-box" style="width:440px">
+                <h2>${escapeHtml(confirmLabel || 'Eingabe')}</h2>
+                <div class="modal-sub" style="margin-bottom:10px; font-family:var(--font-body); font-size:13px; color:var(--text)">${escapeHtml(message)}</div>
+                <input type="text" id="promptModalInput" value="${escapeAttr(defaultValue || '')}" placeholder="${escapeAttr(placeholder || '')}" style="margin-bottom:18px">
+                <div class="modal-close" style="display:flex; justify-content:flex-end; gap:10px">
+                    <button onclick="cancelPromptModal()">Abbrechen</button>
+                    <button class="primary" onclick="runPromptModal()">Übernehmen</button>
+                </div>
+            </div>
+        </div>
+    `;
+    const input = document.getElementById('promptModalInput');
+    input.focus();
+    input.select();
+    input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); runPromptModal(); }
+    });
+}
+
+function cancelPromptModal() {
+    pendingPromptCallback = null;
+    closeModal();
+}
+
+function runPromptModal() {
+    const cb = pendingPromptCallback;
+    const value = document.getElementById('promptModalInput').value.trim();
+    pendingPromptCallback = null;
+    closeModal();
+    if (cb && value) cb(value);
+}
+
+function restoreBackup(file) {
+    showConfirmModal(
+        'Diesen Backup-Stand wiederherstellen? Der aktuelle Stand auf der Festplatte wird vorher automatisch gesichert, aber ungespeicherte Änderungen in diesem Fenster gehen verloren.',
+        () => doRestoreBackup(file),
+        'Wiederherstellen'
+    );
+}
+
+async function doRestoreBackup(file) {
+    const res = await fetch('api.php?action=restore_backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file })
+    });
+    const data = await res.json();
+    if (data.error) { showToast('Fehler: ' + data.error, 'err'); return; }
+
+    closeModal();
+    showToast('Backup wiederhergestellt', 'ok');
+    loadMarkers();
+}
+
+function deleteBackupEntry(file) {
+    showConfirmModal(
+        'Dieses Backup dauerhaft löschen? Das kann nicht rückgängig gemacht werden.',
+        () => doDeleteBackup(file),
+        'Löschen'
+    );
+}
+
+async function doDeleteBackup(file) {
+    const res = await fetch('api.php?action=delete_backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file })
+    });
+    const data = await res.json();
+    if (data.error) { showToast('Fehler: ' + data.error, 'err'); return; }
+    showToast('Backup gelöscht', 'ok');
+    openBackupPanel(); // Liste neu laden
+}
+
+function exportJson() {
+    const payload = {
+        exportedAt: new Date().toISOString(),
+        groups: knownGroups,
+        markers: markers.map(m => ({ id: m.id, name: m.name, group: m.group }))
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `autodrive-marker-export_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Export heruntergeladen', 'ok');
+}
+
+function importJson(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        let data;
+        try {
+            data = JSON.parse(reader.result);
+        } catch (e) {
+            showToast('Datei ist kein gültiges JSON', 'err');
+            input.value = '';
+            return;
+        }
+        if (!Array.isArray(data.markers)) {
+            showToast('Datei enthält keine Marker-Liste', 'err');
+            input.value = '';
+            return;
+        }
+        showConfirmModal(
+            `${data.markers.length} Marker aus der Datei importieren? Das ersetzt die aktuelle Ansicht (nicht gespeichert, bis du auf Speichern klickst).`,
+            () => {
+                markers = data.markers.map(m => ({
+                    key: '', id: String(m.id), name: m.name || 'Unbenannt', group: m.group || '', uid: 'm' + (uidCounter++)
+                }));
+                knownGroups = Array.isArray(data.groups) ? data.groups.slice() : [];
+                markers.forEach(m => { if (m.group && !knownGroups.includes(m.group)) knownGroups.push(m.group); });
+                knownGroups.sort((a, b) => a.localeCompare(b, 'de', {numeric: true}));
+                selectedUids.clear();
+                renderTable();
+                renderBulkBar();
+                showToast(`${markers.length} Marker importiert – noch nicht gespeichert`, 'ok');
+                input.value = '';
+            },
+            'Importieren'
+        );
+    };
+    reader.readAsText(file);
+}
+
+function toggleGroup(groupName) {
+    if (collapsedGroups.has(groupName)) collapsedGroups.delete(groupName);
+    else collapsedGroups.add(groupName);
+    renderTable();
+}
+
+function collapseAll() {
+    [...knownGroups, UNGROUPED].forEach(g => collapsedGroups.add(g));
+    renderTable();
+}
+
+function expandAll() {
+    collapsedGroups.clear();
+    renderTable();
+}
+
+function toggleAllGroups() {
+    const totalGroups = knownGroups.length + 1; // +1 für UNGROUPED
+    if (collapsedGroups.size >= totalGroups) {
+        expandAll();
+    } else {
+        collapseAll();
+    }
+}
+
+function updateToggleAllGroupsLabel() {
+    const btn = document.getElementById('toggleAllGroupsBtn');
+    if (!btn) return;
+    const totalGroups = knownGroups.length + 1;
+    const allCollapsed = collapsedGroups.size >= totalGroups;
+    btn.textContent = allCollapsed ? '⤢ Ausklappen' : '⤡ Einklappen';
+}
+
+function createGroup() {
+    showPromptModal('Name der neuen Gruppe:', '', (name) => {
+        if (!knownGroups.includes(name)) {
+            knownGroups.push(name);
+            knownGroups.sort((a, b) => a.localeCompare(b, 'de', {numeric: true}));
+        }
+        renderTable();
+    }, 'Neue Gruppe', 'z. B. "9. Felder 61-70"');
+}
+
+function renderTable() {
+    updateToggleAllGroupsLabel();
+    const filter = document.getElementById('filterInput').value.toLowerCase();
+    const container = document.getElementById('groupsContainer');
+    container.innerHTML = '';
+
+    const byGroup = {};
+    markers.forEach((m, i) => {
+        const g = m.group && m.group.trim() ? m.group.trim() : UNGROUPED;
+        if (!byGroup[g]) byGroup[g] = [];
+        byGroup[g].push(i);
+    });
+
+    const orderedGroups = [...knownGroups];
+    Object.keys(byGroup).forEach(g => { if (g !== UNGROUPED && !orderedGroups.includes(g)) orderedGroups.push(g); });
+    orderedGroups.push(UNGROUPED);
+
+    let anyRendered = false;
+    let flurCounter = 0;
+
+    orderedGroups.forEach(groupName => {
+        const indices = (byGroup[groupName] || []).slice()
+            .sort((a, b) => markers[a].name.localeCompare(markers[b].name, 'de', {numeric: true}));
+
+        const visibleIndices = indices.filter(i => {
+            if (!filter) return true;
+            return markers[i].name.toLowerCase().includes(filter) || groupName.toLowerCase().includes(filter);
+        });
+
+        if (filter && visibleIndices.length === 0) return;
+        if (!filter && indices.length === 0 && groupName === UNGROUPED) return;
+
+        anyRendered = true;
+        flurCounter++;
+        const flurNo = groupName === UNGROUPED ? '—' : 'Flur ' + String(flurCounter).padStart(2, '0');
+        const isCollapsed = collapsedGroups.has(groupName);
+
+        const section = document.createElement('div');
+        section.className = 'parcel' + (isCollapsed ? ' collapsed' : '');
+
+        const header = document.createElement('div');
+        header.className = 'parcel-header';
+        header.onclick = (ev) => {
+            if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'BUTTON') return;
+            toggleGroup(groupName);
+        };
+        if (groupName === UNGROUPED) {
+            header.innerHTML = `
+                <span class="chevron">▾</span>
+                <span class="flur-no">${flurNo}</span>
+                <span style="flex:1; font-family:var(--font-display); font-weight:600; font-size:14.5px; color:var(--muted)">${UNGROUPED}</span>
+                <span class="parcel-count">${indices.length}</span>
+            `;
+        } else {
+            header.innerHTML = `
+                <span class="chevron">▾</span>
+                <span class="flur-no">${flurNo}</span>
+                <input value="${escapeHtml(groupName)}" data-old-group="${escapeHtml(groupName)}" onchange="renameGroup(this)">
+                <span class="parcel-count">${indices.length}</span>
+                <button class="small danger" onclick="deleteGroup('${escapeAttr(groupName)}')" title="Gruppe auflösen (Marker bleiben, werden ungruppiert)">✕ Gruppe</button>
+            `;
+        }
+        section.appendChild(header);
+
+        const body = document.createElement('div');
+        body.className = 'parcel-body';
+
+        if (visibleIndices.length === 0) {
+            body.innerHTML = '<div class="empty-note">Keine Marker in dieser Gruppe.</div>';
+        } else {
+            const table = document.createElement('table');
+            table.innerHTML = `
+                <thead><tr><th style="width:30px"></th><th style="width:100px">Wegpunkt</th><th>Name</th><th style="width:240px">Gruppe</th><th></th></tr></thead>
+                <tbody>${visibleIndices.map(i => rowHtml(i)).join('')}</tbody>
+            `;
+            body.appendChild(table);
+        }
+
+        section.appendChild(body);
+        container.appendChild(section);
+    });
+
+    if (!anyRendered) {
+        container.innerHTML = '<div class="empty-note">Keine Treffer.</div>';
+    }
+}
+
+function rowHtml(i) {
+    const m = markers[i];
+    const groupSelectOptions = [...knownGroups, UNGROUPED].map(g => {
+        const val = g === UNGROUPED ? '' : g;
+        const selected = (m.group || '') === val ? 'selected' : '';
+        return `<option value="${escapeAttr(val)}" ${selected}>${escapeHtml(g)}</option>`;
+    }).join('') + `<option value="__new__">➕ Neue Gruppe…</option>`;
+
+    const checked = selectedUids.has(m.uid) ? 'checked' : '';
+
+    return `
+        <tr>
+            <td class="check-col"><input type="checkbox" ${checked} onchange="toggleSelect('${m.uid}')"></td>
+            <td><span class="id-tag">${m.id ? Math.trunc(parseFloat(m.id)) : ''}</span></td>
+            <td><input value="${escapeHtml(m.name)}" oninput="markers[${i}].name = this.value"></td>
+            <td class="group-col">
+                <select onchange="onGroupSelect(${i}, this)">
+                    ${groupSelectOptions}
+                </select>
+            </td>
+            <td class="actions"><button class="danger small" onclick="removeRow(${i})">✕</button></td>
+        </tr>
+    `;
+}
+
+function toggleSelect(uid) {
+    if (selectedUids.has(uid)) selectedUids.delete(uid);
+    else selectedUids.add(uid);
+    renderBulkBar();
+}
+
+function renderBulkBar() {
+    const bar = document.getElementById('bulkBar');
+    if (selectedUids.size === 0) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+
+    const groupOptions = [...knownGroups].map(g =>
+        `<option value="${escapeAttr(g)}">${escapeHtml(g)}</option>`
+    ).join('') + `<option value="">${UNGROUPED}</option><option value="__new__">➕ Neue Gruppe…</option>`;
+
+    bar.style.display = 'flex';
+    bar.innerHTML = `
+        <span class="bulk-count">${selectedUids.size} ausgewählt</span>
+        <select id="bulkGroupSelect" style="width:220px">
+            <option value="">— Gruppe zuweisen —</option>
+            ${groupOptions}
+        </select>
+        <button onclick="applyBulkGroup()">Zuweisen</button>
+        <button class="danger" onclick="bulkDelete()">✕ Ausgewählte löschen</button>
+        <button onclick="clearSelection()">Auswahl aufheben</button>
+    `;
+}
+
+function applyBulkGroup() {
+    const select = document.getElementById('bulkGroupSelect');
+    const value = select.value;
+    if (value === '') return;
+    if (value === '__new__') {
+        showPromptModal('Name der neuen Gruppe:', '', (name) => {
+            if (!knownGroups.includes(name)) {
+                knownGroups.push(name);
+                knownGroups.sort((a, b) => a.localeCompare(b, 'de', {numeric: true}));
+            }
+            markers.forEach(m => { if (selectedUids.has(m.uid)) m.group = name; });
+            clearSelection();
+        }, 'Neue Gruppe');
+        return;
+    }
+    markers.forEach(m => { if (selectedUids.has(m.uid)) m.group = value; });
+    clearSelection();
+}
+
+function bulkDelete() {
+    showConfirmModal(`${selectedUids.size} Marker wirklich löschen?`, () => {
+        markers = markers.filter(m => !selectedUids.has(m.uid));
+        clearSelection();
+    }, 'Löschen');
+}
+
+function clearSelection() {
+    selectedUids.clear();
+    renderBulkBar();
+    renderTable();
+}
+
+function onGroupSelect(i, select) {
+    if (select.value === '__new__') {
+        showPromptModal('Name der neuen Gruppe:', '', (name) => {
+            if (!knownGroups.includes(name)) {
+                knownGroups.push(name);
+                knownGroups.sort((a, b) => a.localeCompare(b, 'de', {numeric: true}));
+            }
+            markers[i].group = name;
+            renderTable();
+        }, 'Neue Gruppe');
+        return;
+    }
+    markers[i].group = select.value;
+    renderTable();
+}
+
+function renameGroup(input) {
+    const oldName = input.dataset.oldGroup;
+    const newName = input.value.trim();
+    if (!newName || newName === oldName) { input.value = oldName; return; }
+    markers.forEach(m => { if ((m.group || '').trim() === oldName) m.group = newName; });
+    const idx = knownGroups.indexOf(oldName);
+    if (idx !== -1) knownGroups[idx] = newName;
+    knownGroups.sort((a, b) => a.localeCompare(b, 'de', {numeric: true}));
+    renderTable();
+}
+
+function deleteGroup(groupName) {
+    showConfirmModal(`Gruppe "${groupName}" auflösen? Die Marker bleiben erhalten, werden aber ungruppiert.`, () => {
+        markers.forEach(m => { if ((m.group || '').trim() === groupName) m.group = ''; });
+        knownGroups = knownGroups.filter(g => g !== groupName);
+        renderTable();
+    }, 'Auflösen');
+}
+
+function addRow() {
+    showPromptModal('Wegpunkt-ID für den neuen Marker (im Spiel per AutoDrive-Debuganzeige ablesbar):', '', (id) => {
+        markers.push({ key: '', id: id, name: 'Neuer Marker', group: '', uid: 'm' + (uidCounter++) });
+        renderTable();
+    }, 'Marker hinzufügen');
+}
+
+function removeRow(i) {
+    selectedUids.delete(markers[i].uid);
+    markers.splice(i, 1);
+    renderTable();
+    renderBulkBar();
+}
+
+async function saveMarkers() {
+    setStatus('Speichere …', '');
+    const res = await fetch('api.php?action=save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markers })
+    });
+    const data = await res.json();
+    if (data.error === 'no_savegame_selected') { showPickerScreen(); return; }
+    if (data.error) {
+        setStatus('Fehler: ' + data.error, 'err');
+        showToast('Fehler beim Speichern: ' + data.error, 'err');
+        return;
+    }
+    setStatus(`✓ Gespeichert (${data.count} Marker) · Backup: ${data.backup}`, 'ok');
+    showToast(`Gespeichert – ${data.count} Marker`, 'ok');
+    originalSnapshot = markersSnapshot();
+}
+
+function showToast(msg, type) {
+    const container = document.getElementById('toastContainer');
+    const el = document.createElement('div');
+    el.className = 'toast ' + type;
+    el.textContent = msg;
+    container.appendChild(el);
+    setTimeout(() => {
+        el.classList.add('fading');
+        setTimeout(() => el.remove(), 300);
+    }, 3200);
+}
+
+function setStatus(msg, cls) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = 'status ' + cls;
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+function escapeAttr(str) {
+    return escapeHtml(str).replace(/`/g, '&#96;');
+}
+
+// -----------------------------------------------------------------
+// Overflow-Menüs ("⋯ Mehr") für überfüllte Toolbars
+// -----------------------------------------------------------------
+function closeAllMoreMenus() {
+    document.querySelectorAll('.more-menu').forEach(m => { m.style.display = 'none'; });
+}
+
+function toggleMoreMenu(id) {
+    const menu = document.getElementById(id);
+    const willOpen = menu.style.display === 'none';
+    closeAllMoreMenus();
+    if (willOpen) menu.style.display = 'flex';
+}
+
+document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('.toolbar-more')) closeAllMoreMenus();
+});
+
+window.addEventListener('beforeunload', (e) => {
+    if (isDirty() || (typeof isCourseDirty === 'function' && isCourseDirty())) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
+
+init();
+</script>
+</body>
+</html>

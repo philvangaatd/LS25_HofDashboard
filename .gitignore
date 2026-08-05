@@ -1,0 +1,3 @@
+# Automatische Backups sind spielstand-/spielerspezifisch und gehören nicht ins Repo
+/backups/*
+!/backups/.gitkeep
