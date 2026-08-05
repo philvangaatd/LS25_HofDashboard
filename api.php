@@ -292,6 +292,16 @@ function classify_vehicle_type(DOMElement $v): string {
     return 'IMPLEMENT';
 }
 
+// Echte Kraftstoffarten in <fillUnit>-Tanks (nicht ALLE fillType-Werte dort sind
+// Kraftstoff – AIR ist Druckluft für Anbaugeräte, BALE_NET Ballennetz usw., die
+// tauchen ebenfalls in fillUnit auf, sind aber kein Sprit).
+const FUEL_TYPE_LABELS = [
+    'DIESEL' => 'Diesel',
+    'DEF' => 'AdBlue',
+    'ELECTRICCHARGE' => 'Strom',
+    'METHANE' => 'Methan',
+];
+
 function parse_vehicles(string $savegameDir, string $farmId): array {
     $file = $savegameDir . DIRECTORY_SEPARATOR . 'vehicles.xml';
     if (!file_exists($file)) return [];
@@ -316,6 +326,22 @@ function parse_vehicles(string $savegameDir, string $farmId): array {
             $dirtCount++;
         }
 
+        // Tankinhalt: <fillUnit><unit fillType="DIESEL" fillLevel="..."/></fillUnit>. Nur
+        // echte Kraftstoffarten herausfiltern (AIR = Druckluft für Anbaugeräte, BALE_NET =
+        // Ballennetz, UNKNOWN = Platzhalter – keine Kraftstoffe). Eine maximale Tankgröße
+        // steht nirgends im Spielstand (nur in den Mod-Fahrzeugdaten selbst), daher zeigen
+        // wir absolute Liter statt eines Prozent-Balkens.
+        $fuelLevels = [];
+        foreach ($v->getElementsByTagName('unit') as $unit) {
+            $fillType = $unit->getAttribute('fillType');
+            if (!isset(FUEL_TYPE_LABELS[$fillType])) continue;
+            $fuelLevels[] = [
+                'fillType' => $fillType,
+                'label' => FUEL_TYPE_LABELS[$fillType],
+                'liters' => round((float)$unit->getAttribute('fillLevel'), 1),
+            ];
+        }
+
         $result[] = [
             'uniqueId' => $v->getAttribute('uniqueId'),
             'name' => readable_vehicle_name($v->getAttribute('filename')),
@@ -325,6 +351,7 @@ function parse_vehicles(string $savegameDir, string $farmId): array {
             'wear' => $wear,
             'dirt' => $dirtCount > 0 ? $dirtSum / $dirtCount : 0.0,
             'propertyState' => $v->getAttribute('propertyState'),
+            'fuel' => $fuelLevels,
         ];
     }
     return $result;
@@ -355,6 +382,7 @@ const ANIMAL_BREED_LABELS = [
     'PINTO' => 'Schecke',
     'PALOMINO' => 'Palomino',
     'SEAL_BROWN' => 'Dunkelbraun',
+    'ROOSTER' => 'Hahn',
 ];
 
 // Grobe, aber generische Deutsch-Übersetzung von Stall-/Gehege-Dateinamen. Mod-Autoren
@@ -382,11 +410,37 @@ const BARN_TYPE_WORDS = [
     'barn' => ['word' => 'stall', 'gender' => 'm'],
 ];
 
+// Gewächshaus-Gebäude sind keine Tierställe, folgen aber demselben englischen
+// Benennungsschema ("greenHouseGlassLarge.xml" usw.) – eigenes, kleines
+// Übersetzungsschema mit sachlichem statt männlichem/weiblichem Artikel ("das
+// Gewächshaus").
+const GREENHOUSE_SIZE_ADJ = [
+    'small' => 'Kleines', 'medium' => 'Mittleres', 'large' => 'Großes', 'big' => 'Großes',
+];
+const GREENHOUSE_MATERIAL_WORDS = [
+    'glass' => 'Glas-', 'foil' => 'Folien-', 'plastic' => 'Kunststoff-',
+];
+
 function readable_barn_name(string $filename): string {
     $clean = preg_replace('#^\$moddir\$[^/]+/#', '', $filename);
     $parts = explode('/', $clean);
     $base = preg_replace('/\.xml$/i', '', end($parts));
     $lower = strtolower($base);
+
+    // Gewächshaus vor der Tierart-Erkennung prüfen, da es sonst mit keinem
+    // BARN_SPECIES_STEMS-Muster übereinstimmt und ungenutzt auf den generischen
+    // wortgetrennten Fallback zurückfallen würde ("Green House Glass Large").
+    if (str_contains($lower, 'greenhouse')) {
+        $sizePrefix = '';
+        foreach (GREENHOUSE_SIZE_ADJ as $needle => $adj) {
+            if (str_contains($lower, $needle)) { $sizePrefix = $adj . ' '; break; }
+        }
+        $material = '';
+        foreach (GREENHOUSE_MATERIAL_WORDS as $needle => $word) {
+            if (str_contains($lower, $needle)) { $material = $word; break; }
+        }
+        return trim($sizePrefix . $material . 'Gewächshaus');
+    }
 
     $species = null;
     foreach (BARN_SPECIES_STEMS as $needle => $stem) {
@@ -434,12 +488,22 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
         $animalsNode = $p->getElementsByTagName('husbandryAnimals')->item(0);
         if (!$animalsNode) continue;
 
-        $bySpecies = []; // Label => ['icon'=>, 'total'=>, 'breeds' => [Rasse => ['total'=>, 'clusters'=>[{age,count}]]]]
+        $bySpecies = []; // Label => ['icon'=>, 'total'=>, 'breeds' => [Rasse => ['total'=>, 'clusters'=>[{age,count,health,reproduction,isPregnant,isParent}]]]]
         $total = 0;
+        $anyBreedingData = false; // wird true, sobald irgendein Tier Gesundheit/Reproduktion > 0 hat
         foreach ($animalsNode->getElementsByTagName('animal') as $a) {
             $num = (int)$a->getAttribute('numAnimals');
             if ($num <= 0) continue;
             $age = (int)$a->getAttribute('age');
+            // health/reproduction sind bei manchen Ställen/Mods nicht befuellt (immer 0) –
+            // wir lesen sie trotzdem aus, blenden die Anzeige im Frontend aber nur ein, wenn
+            // mindestens ein Tier im Bestand tatsächlich einen Wert > 0 hat (siehe $anyBreedingData).
+            $health = (float)$a->getAttribute('health');
+            $reproduction = (float)$a->getAttribute('reproduction');
+            $isPregnant = $a->getAttribute('isPregnant') === 'true';
+            $isParent = $a->getAttribute('isParent') === 'true';
+            if ($health > 0 || $reproduction > 0 || $isPregnant) $anyBreedingData = true;
+
             $info = animal_species_info($a->getAttribute('subType'));
             $total += $num;
             if (!isset($bySpecies[$info['species']])) {
@@ -451,7 +515,14 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
                 $bySpecies[$info['species']]['breeds'][$breedKey] = ['total' => 0, 'clusters' => []];
             }
             $bySpecies[$info['species']]['breeds'][$breedKey]['total'] += $num;
-            $bySpecies[$info['species']]['breeds'][$breedKey]['clusters'][] = ['age' => $age, 'count' => $num];
+            $bySpecies[$info['species']]['breeds'][$breedKey]['clusters'][] = [
+                'age' => $age,
+                'count' => $num,
+                'health' => round($health * 100),
+                'reproduction' => round($reproduction * 100),
+                'isPregnant' => $isPregnant,
+                'isParent' => $isParent,
+            ];
         }
         if ($total === 0) continue; // leerer Stall (noch keine Tiere gekauft) wird nicht gelistet
 
@@ -498,6 +569,7 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
             'totalAnimals' => $total,
             'species' => $speciesList,
             'meadow' => $meadow,
+            'hasBreedingData' => $anyBreedingData,
         ];
     }
     usort($result, fn($a, $b) => $b['totalAnimals'] <=> $a['totalAnimals']);
@@ -521,10 +593,21 @@ const PRODUCTION_ID_LABELS = [
     'chips' => 'Chips', 'oil' => 'Öl', 'oliveOil' => 'Olivenöl', 'grapeJuice' => 'Traubensaft',
     'wine' => 'Wein', 'eggs' => 'Eier', 'pigFood' => 'Schweinefutter', 'forage' => 'Mischfutter',
     'tms' => 'Totalmischration',
+    // Gewächshaus-Kulturen (Obst/Gemüse) – entsprechen keiner Feld-Fruchtart aus
+    // fruit_type_label(), daher hier separat gepflegt
+    'strawberry' => 'Erdbeeren', 'tomato' => 'Tomaten', 'chilli' => 'Chili', 'chili' => 'Chili',
+    'cucumber' => 'Gurken', 'pepper' => 'Paprika', 'eggplant' => 'Auberginen',
+    'blueberry' => 'Heidelbeeren', 'raspberry' => 'Himbeeren',
 ];
 
 function production_id_label(string $id): string {
     if (isset(PRODUCTION_ID_LABELS[$id])) return PRODUCTION_ID_LABELS[$id];
+    // Manche Produktions-IDs entsprechen direkt einer bekannten Feld-Fruchtart (z. B.
+    // "lettuce" = LETTUCE) – dieselbe Übersetzungstabelle wiederverwenden statt sie
+    // doppelt zu pflegen.
+    $asFruitType = fruit_type_label(strtoupper($id));
+    if ($asFruitType !== strtoupper($id)) return $asFruitType;
+
     // Unbekannte ID: nur wortgetrennt anzeigen statt geraten zu übersetzen
     $name = preg_replace('/([a-z])([A-Z])/', '$1 $2', $id);
     return ucfirst(trim($name));
@@ -808,6 +891,335 @@ function prune_old_farms_backups(string $folder, int $keep): void {
 function make_farms_backup_filename(string $folder): string {
     $ms = sprintf('%03d', (int)(microtime(true) * 1000) % 1000);
     return BACKUP_DIR . '/' . $folder . '_farms_' . date('Y-m-d_His') . '_' . $ms . '.xml';
+}
+
+// -----------------------------------------------------------------
+// Kartenhintergrundbild: gemeinsame Verarbeitung (Formatprüfung, Downscale,
+// Speichern) für sowohl manuellen Upload als auch automatisches Laden aus den
+// Moddateien – identische Logik, nur die Bildquelle unterscheidet sich.
+// -----------------------------------------------------------------
+function save_terrain_image_from_path(string $srcPath, string $destPath): array {
+    $info = @getimagesize($srcPath);
+    if (!$info) {
+        return ['error' => 'Datei ist kein gültiges Bild.'];
+    }
+
+    // Anhand der IMAGETYPE-Konstante statt des rohen Mime-Strings prüfen: manche Tools
+    // (Screenshot-Programme, Bildbearbeitung) liefern Varianten wie "image/x-png" oder
+    // "image/pjpeg" statt der Standard-Strings.
+    $loadersByType = [
+        IMAGETYPE_PNG => 'imagecreatefrompng',
+        IMAGETYPE_JPEG => 'imagecreatefromjpeg',
+        IMAGETYPE_WEBP => 'imagecreatefromwebp',
+    ];
+    $type = $info[2];
+    if (!isset($loadersByType[$type]) || !function_exists($loadersByType[$type])) {
+        return ['error' => 'Bildformat nicht unterstützt (erlaubt: PNG, JPEG, WEBP). Erkannt: ' . ($info['mime'] ?? 'unbekannt')];
+    }
+
+    $src = @$loadersByType[$type]($srcPath);
+    if (!$src) {
+        return ['error' => 'Bild konnte nicht gelesen werden.'];
+    }
+
+    $srcW = imagesx($src);
+    $srcH = imagesy($src);
+
+    // Sehr große Bilder auf eine handhabbare Kantenlänge herunterskalieren – die Karte
+    // braucht keine Auflösung jenseits dessen, was am Bildschirm sichtbar ist, und hält
+    // die Datei klein genug für schnelles Laden im Browser.
+    $maxDim = 2048;
+    if ($srcW > $maxDim || $srcH > $maxDim) {
+        $ratio = min($maxDim / $srcW, $maxDim / $srcH);
+        $dstW = max(1, (int)round($srcW * $ratio));
+        $dstH = max(1, (int)round($srcH * $ratio));
+        $dst = imagecreatetruecolor($dstW, $dstH);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $dstW, $dstH, $srcW, $srcH);
+        imagedestroy($src);
+    } else {
+        $dst = $src;
+        $dstW = $srcW;
+        $dstH = $srcH;
+    }
+
+    $assetsDir = dirname($destPath);
+    if (!is_dir($assetsDir)) mkdir($assetsDir, 0777, true);
+
+    if (!imagepng($dst, $destPath)) {
+        imagedestroy($dst);
+        return ['error' => 'Bild konnte nicht gespeichert werden.'];
+    }
+    imagedestroy($dst);
+
+    return ['success' => true, 'width' => $dstW, 'height' => $dstH];
+}
+
+// Sucht nach einem als Kartenbild nutzbaren Bild – je nach mapId entweder in der
+// Mod-ZIP (Community-Karten) oder direkt in den Spieldateien (offizielle GIANTS-
+// Karten). Community-Karten haben ein mapId-Format "<ModName>.<KartenSchlüssel>"
+// (z. B. "FS25_Szpakowo.SampleModMap"); offizielle Karten haben keinen Punkt im
+// mapId (z. B. "mapUS") und liegen nicht im Spielstand-mods-Ordner, sondern direkt
+// im Installationsverzeichnis des Spiels. Wichtige Einschränkung in beiden Fällen:
+// Kartenbilder liegen in FS25 so gut wie immer als DDS-Textur vor, die PHP/GD nicht
+// lesen kann – verifiziert an der echten mapUS-Installation: die eigene Karten-XML
+// referenziert zwar "overview.png", tatsächlich ausgeliefert wird aber nur
+// "overview.dds". Diese Funktion findet nur PNG/JPEG-Kandidaten; ein DDS-Fund wird
+// als Hinweis mitgegeben, aber nicht nutzbar gemacht.
+function find_map_overview_image(string $mapId): array {
+    if (!class_exists('ZipArchive')) {
+        return ['found' => false, 'ddsOnly' => false, 'reason' => 'no_zip_extension'];
+    }
+    if ($mapId === '') {
+        return ['found' => false, 'ddsOnly' => false, 'reason' => 'no_map_id'];
+    }
+
+    if (str_contains($mapId, '.')) {
+        return find_map_overview_image_in_mod($mapId);
+    }
+    return find_map_overview_image_in_install($mapId);
+}
+
+// Heuristik: nur Dateien, deren DATEINAME (nicht der gesamte Pfad!) exakt auf eine
+// Kartenübersicht hindeutet. Vorher wurde der komplette Pfad nach diesen Begriffen als
+// Teilstring durchsucht – bei großen Mods mit tausenden Texturdateien konnte das
+// versehentlich eine völlig unbezogene Datei treffen, deren Pfad zufällig "overview"
+// als Teilstring enthält (z. B. ".../overviewShedRoof.dds"), und lieferte dann ein
+// komplett falsches Kartenbild aus – genau das ist bei Szpakowo passiert. Der exakte
+// Dateiname (ohne Endung) muss jetzt komplett übereinstimmen. "preview" ist bewusst
+// NICHT dabei: mapUS/mapEU liefern getrennt "overview.dds" (volle Karte) und
+// "preview.dds" (kleines Store-Icon) – verifiziert an den echten Spieldateien.
+function overview_filename_matches(string $path): bool {
+    $base = strtolower(pathinfo($path, PATHINFO_FILENAME));
+    return in_array($base, ['overview', 'mapoverview', 'ingamemap', 'mapimage', 'minimap'], true);
+}
+
+function overview_file_type(string $lower): ?string {
+    if (preg_match('/\.(png|jpe?g)$/', $lower)) return 'png';
+    if (str_ends_with($lower, '.dds')) return 'dds';
+    return null;
+}
+
+// Gemeinsame Auswahllogik für beide Quellen (ZIP-Einträge oder Dateisystem-Treffer):
+// größte PNG/JPEG-Kandidatendatei bevorzugen (kleine Icons/Vorschaubilder sind i. d. R.
+// deutlich kleiner als eine echte Kartenübersicht in nutzbarer Auflösung).
+function pick_best_overview_candidate(array $entries): array {
+    $pngCandidates = array_values(array_filter($entries, fn($e) => $e['type'] === 'png'));
+    $ddsFound = count(array_filter($entries, fn($e) => $e['type'] === 'dds')) > 0;
+    if (empty($pngCandidates)) {
+        return ['found' => false, 'ddsOnly' => $ddsFound, 'reason' => $ddsFound ? 'dds_only' : 'no_candidate'];
+    }
+    usort($pngCandidates, fn($a, $b) => $b['size'] <=> $a['size']);
+    return ['found' => true, 'best' => $pngCandidates[0]];
+}
+
+function find_map_overview_image_in_mod(string $mapId): array {
+    // mapId-Format: "<ModName>.<KartenSchlüssel>". Kein zugehöriges ZIP im
+    // mods-Ordner ist kein Fehler, sondern schlicht keine Community-Karte.
+    $modName = strtok($mapId, '.');
+    if (!$modName) {
+        return ['found' => false, 'ddsOnly' => false, 'reason' => 'no_map_id'];
+    }
+
+    $zipPath = FS_BASE_DIR . DIRECTORY_SEPARATOR . 'mods' . DIRECTORY_SEPARATOR . $modName . '.zip';
+    if (!file_exists($zipPath)) {
+        return ['found' => false, 'ddsOnly' => false, 'reason' => 'no_mod_zip'];
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath) !== true) {
+        return ['found' => false, 'ddsOnly' => false, 'reason' => 'zip_open_failed'];
+    }
+
+    $entries = [];
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = $zip->getNameIndex($i);
+        if ($name === false) continue;
+        $lower = strtolower($name);
+        if (!overview_filename_matches($lower)) continue;
+        $type = overview_file_type($lower);
+        if (!$type) continue;
+        $stat = $zip->statIndex($i);
+        $entries[] = ['name' => $name, 'size' => $stat['size'] ?? 0, 'type' => $type];
+    }
+
+    $pick = pick_best_overview_candidate($entries);
+    if (!$pick['found']) {
+        $zip->close();
+        return $pick;
+    }
+
+    $imageData = $zip->getFromName($pick['best']['name']);
+    $zip->close();
+
+    if ($imageData === false) {
+        return ['found' => false, 'ddsOnly' => false, 'reason' => 'extract_failed'];
+    }
+
+    return ['found' => true, 'ddsOnly' => false, 'data' => $imageData, 'sourceName' => $pick['best']['name']];
+}
+
+// Offizielle GIANTS-Karte: liegt nicht im Spielstand-mods-Ordner, sondern direkt im
+// Installationsverzeichnis des Spiels unter data/maps/<mapId>/. FS_INSTALL_DIR wird
+// in config.php automatisch erkannt oder lässt sich dort manuell setzen; ist der
+// Ordner nicht bekannt, ist das kein Fehler des Tools, sondern fehlende Information
+// – der Nutzer bekommt dafür eine gezielte Meldung statt eines stillen Fehlschlags.
+function find_map_overview_image_in_install(string $mapId): array {
+    if (!defined('FS_INSTALL_DIR') || FS_INSTALL_DIR === '') {
+        return ['found' => false, 'ddsOnly' => false, 'reason' => 'no_install_dir'];
+    }
+
+    $mapDir = FS_INSTALL_DIR . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'maps' . DIRECTORY_SEPARATOR . $mapId;
+    if (!is_dir($mapDir)) {
+        return ['found' => false, 'ddsOnly' => false, 'reason' => 'map_dir_not_found'];
+    }
+
+    $entries = [];
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($mapDir, FilesystemIterator::SKIP_DOTS));
+    foreach ($it as $file) {
+        if (!$file->isFile()) continue;
+        $lower = strtolower($file->getFilename());
+        if (!overview_filename_matches($lower)) continue;
+        $type = overview_file_type($lower);
+        if (!$type) continue;
+        $entries[] = ['name' => $file->getPathname(), 'size' => $file->getSize(), 'type' => $type];
+    }
+
+    $pick = pick_best_overview_candidate($entries);
+    if (!$pick['found']) {
+        return $pick;
+    }
+
+    $imageData = @file_get_contents($pick['best']['name']);
+    if ($imageData === false) {
+        return ['found' => false, 'ddsOnly' => false, 'reason' => 'extract_failed'];
+    }
+
+    return ['found' => true, 'ddsOnly' => false, 'data' => $imageData, 'sourceName' => basename($pick['best']['name'])];
+}
+
+// -----------------------------------------------------------------
+// Exakte Kartengröße ermitteln (unabhängig vom Bildformat-Problem oben): Jede
+// FS25-Karte – offiziell oder Mod – muss eine Wurzel-XML mit <map width="..."
+// height="..."> besitzen, das ist Teil des Kartenformats selbst (verifiziert an
+// mapUS.xml: <map width="2048" height="2048" ...>). Diese Zahl ist genauer als
+// die Schätzung anhand der Wegpunkt-Ausdehnung im Frontend und funktioniert auch,
+// wenn das eigentliche Kartenbild nur als DDS vorliegt.
+// -----------------------------------------------------------------
+function extract_map_size_from_xml_string(string $xmlContent): ?array {
+    libxml_use_internal_errors(true);
+    $xml = simplexml_load_string($xmlContent);
+    if (!$xml || $xml->getName() !== 'map') return null;
+    $w = (int)($xml['width'] ?? 0);
+    $h = (int)($xml['height'] ?? 0);
+    if ($w <= 0 || $h <= 0) return null;
+    return ['width' => $w, 'height' => $h];
+}
+
+function find_map_size(string $mapId): ?array {
+    if ($mapId === '') return null;
+    if (str_contains($mapId, '.')) {
+        return find_map_size_in_mod($mapId);
+    }
+    return find_map_size_in_install($mapId);
+}
+
+function find_map_size_in_install(string $mapId): ?array {
+    if (!defined('FS_INSTALL_DIR') || FS_INSTALL_DIR === '') return null;
+    $xmlPath = FS_INSTALL_DIR . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'maps'
+        . DIRECTORY_SEPARATOR . $mapId . DIRECTORY_SEPARATOR . $mapId . '.xml';
+    if (!file_exists($xmlPath)) return null;
+    $content = @file_get_contents($xmlPath);
+    if ($content === false) return null;
+    return extract_map_size_from_xml_string($content);
+}
+
+function find_map_size_in_mod(string $mapId): ?array {
+    if (!class_exists('ZipArchive')) return null;
+    $modName = strtok($mapId, '.');
+    if (!$modName) return null;
+    $zipPath = FS_BASE_DIR . DIRECTORY_SEPARATOR . 'mods' . DIRECTORY_SEPARATOR . $modName . '.zip';
+    if (!file_exists($zipPath)) return null;
+
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath) !== true) return null;
+
+    $result = null;
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = $zip->getNameIndex($i);
+        if ($name === false || !preg_match('/\.xml$/i', $name)) continue;
+        // Die Kartendefinitions-XML liegt bei jeder FS25-Karte im Wurzelverzeichnis
+        // (höchstens einen Unterordner tief) – tiefer verschachtelte XMLs
+        // (Fahrzeuge, Geräte usw.) werden so ausgeschlossen.
+        if (substr_count($name, '/') > 1) continue;
+        $content = $zip->getFromName($name);
+        if ($content === false) continue;
+        $size = extract_map_size_from_xml_string($content);
+        if ($size) { $result = $size; break; }
+    }
+    $zip->close();
+    return $result;
+}
+
+// -----------------------------------------------------------------
+// Rohe DDS-Kartentextur ausliefern, wenn keine PNG/JPEG-Variante existiert.
+// PHP/GD kann DDS nicht dekodieren, ein Browser mit JavaScript aber sehr wohl
+// (siehe DXT1-Dekoder im Frontend) – dieser Endpunkt liefert daher einfach die
+// unveränderten Rohbytes, die Dekodierung passiert komplett client-seitig.
+// -----------------------------------------------------------------
+function find_map_overview_dds(string $mapId): ?string {
+    if ($mapId === '') return null;
+    if (str_contains($mapId, '.')) {
+        return find_map_overview_dds_in_mod($mapId);
+    }
+    return find_map_overview_dds_in_install($mapId);
+}
+
+function find_map_overview_dds_in_mod(string $mapId): ?string {
+    if (!class_exists('ZipArchive')) return null;
+    $modName = strtok($mapId, '.');
+    if (!$modName) return null;
+    $zipPath = FS_BASE_DIR . DIRECTORY_SEPARATOR . 'mods' . DIRECTORY_SEPARATOR . $modName . '.zip';
+    if (!file_exists($zipPath)) return null;
+
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath) !== true) return null;
+
+    $ddsCandidates = [];
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = $zip->getNameIndex($i);
+        if ($name === false) continue;
+        $lower = strtolower($name);
+        if (!overview_filename_matches($lower) || !str_ends_with($lower, '.dds')) continue;
+        $stat = $zip->statIndex($i);
+        $ddsCandidates[] = ['name' => $name, 'size' => $stat['size'] ?? 0];
+    }
+    if (empty($ddsCandidates)) {
+        $zip->close();
+        return null;
+    }
+    usort($ddsCandidates, fn($a, $b) => $b['size'] <=> $a['size']);
+    $data = $zip->getFromName($ddsCandidates[0]['name']);
+    $zip->close();
+    return $data !== false ? $data : null;
+}
+
+function find_map_overview_dds_in_install(string $mapId): ?string {
+    if (!defined('FS_INSTALL_DIR') || FS_INSTALL_DIR === '') return null;
+    $mapDir = FS_INSTALL_DIR . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'maps' . DIRECTORY_SEPARATOR . $mapId;
+    if (!is_dir($mapDir)) return null;
+
+    $ddsCandidates = [];
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($mapDir, FilesystemIterator::SKIP_DOTS));
+    foreach ($it as $file) {
+        if (!$file->isFile()) continue;
+        $lower = strtolower($file->getFilename());
+        if (!overview_filename_matches($lower) || !str_ends_with($lower, '.dds')) continue;
+        $ddsCandidates[] = ['path' => $file->getPathname(), 'size' => $file->getSize()];
+    }
+    if (empty($ddsCandidates)) return null;
+    usort($ddsCandidates, fn($a, $b) => $b['size'] <=> $a['size']);
+    $data = @file_get_contents($ddsCandidates[0]['path']);
+    return $data !== false ? $data : null;
 }
 
 $action = $_GET['action'] ?? ($_POST['action'] ?? '');
@@ -1370,6 +1782,21 @@ if ($action === 'upload_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+        $uploadErr = $_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE;
+        if ($uploadErr === UPLOAD_ERR_INI_SIZE || $uploadErr === UPLOAD_ERR_FORM_SIZE) {
+            // Besonders relevant bei großen Kartentexturen (z. B. dekodierte 4096×4096-DDS-Bilder
+            // können unkomprimiert als PNG 10-15 MB groß sein) – das PHP-Standardlimit von oft nur
+            // 2 MB (upload_max_filesize) greift dann VOR unserer eigenen 25-MB-Prüfung weiter unten,
+            // und ohne diese Fallunterscheidung sah das bisher wie "kein Bild empfangen" aus.
+            http_response_code(413);
+            $iniPath = php_ini_loaded_file() ?: null;
+            $currentLimit = ini_get('upload_max_filesize') . ' / post_max_size ' . ini_get('post_max_size');
+            $hint = $iniPath
+                ? "Bitte in \"$iniPath\" die Werte \"upload_max_filesize\" und \"post_max_size\" erhöhen (z. B. auf 32M) und den Server neu starten."
+                : 'Bitte in der php.ini die Werte "upload_max_filesize" und "post_max_size" erhöhen (z. B. auf 32M) und den Server neu starten.';
+            echo json_encode(['error' => "Datei überschreitet das aktuelle PHP-Upload-Limit (upload_max_filesize $currentLimit). $hint"]);
+            exit;
+        }
         http_response_code(400);
         echo json_encode(['error' => 'Kein gültiges Bild empfangen.']);
         exit;
@@ -1382,69 +1809,253 @@ if ($action === 'upload_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $tmpPath = $_FILES['image']['tmp_name'];
-    $info = @getimagesize($tmpPath);
-    if (!$info) {
+    $assetsDir = __DIR__ . '/assets';
+    $destPath = $assetsDir . '/terrain_' . $folder . '.png';
+    $result = save_terrain_image_from_path($_FILES['image']['tmp_name'], $destPath);
+
+    if (isset($result['error'])) {
         http_response_code(422);
-        echo json_encode(['error' => 'Datei ist kein gültiges Bild.']);
+        echo json_encode($result);
         exit;
     }
 
-    // Anhand des IMAGETYPE-Konstante statt des rohen Mime-Strings prüfen: manche Tools
-    // (Screenshot-Programme, Bildbearbeitung) liefern Varianten wie "image/x-png" oder
-    // "image/pjpeg" statt der Standard-Strings, die vorher hier fälschlich abgelehnt wurden.
-    $loadersByType = [
-        IMAGETYPE_PNG => 'imagecreatefrompng',
-        IMAGETYPE_JPEG => 'imagecreatefromjpeg',
-        IMAGETYPE_WEBP => 'imagecreatefromwebp',
-    ];
-    $type = $info[2];
-    if (!isset($loadersByType[$type]) || !function_exists($loadersByType[$type])) {
-        http_response_code(422);
-        echo json_encode(['error' => 'Bildformat nicht unterstützt (erlaubt: PNG, JPEG, WEBP). Erkannt: ' . ($info['mime'] ?? 'unbekannt')]);
+    echo json_encode($result);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Exakte Kartengröße (in Metern) ermitteln, unabhängig davon, ob ein nutzbares
+// Kartenbild gefunden wird – wird vom Frontend zur genauen Ausrichtung des
+// Hintergrundbilds genutzt (statt der Schätzung anhand der Wegpunkt-Ausdehnung).
+// ---------------------------------------------------------------
+if ($action === 'map_size_info' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $folder = $_SESSION['savegame_folder'] ?? null;
+    if (!$folder) {
+        http_response_code(409);
+        echo json_encode(['error' => 'no_savegame_selected']);
+        exit;
+    }
+    $dir = get_general_savegame_dir($folder);
+    if (!$dir) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Spielstand nicht gefunden.']);
         exit;
     }
 
-    $src = @$loadersByType[$type]($tmpPath);
-    if (!$src) {
-        http_response_code(422);
-        echo json_encode(['error' => 'Bild konnte nicht gelesen werden.']);
+    $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
+    $mapId = '';
+    if (file_exists($careerFile)) {
+        libxml_use_internal_errors(true);
+        $career = simplexml_load_file($careerFile);
+        if ($career && isset($career->settings)) {
+            $mapId = (string)($career->settings->mapId ?? '');
+        }
+    }
+
+    echo json_encode(['size' => find_map_size($mapId)]);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Kartenhintergrundbild automatisch aus den Moddateien laden
+// ---------------------------------------------------------------
+if ($action === 'load_map_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $folder = $_SESSION['savegame_folder'] ?? null;
+    if (!$folder) {
+        http_response_code(409);
+        echo json_encode(['error' => 'no_savegame_selected']);
         exit;
     }
 
-    $srcW = imagesx($src);
-    $srcH = imagesy($src);
-
-    // Sehr große Ingame-Screenshots auf eine handhabbare Kantenlänge herunterskalieren –
-    // die Karte braucht keine Auflösung jenseits dessen, was am Bildschirm sichtbar ist,
-    // und hält die Datei klein genug für schnelles Laden im Browser.
-    $maxDim = 2048;
-    if ($srcW > $maxDim || $srcH > $maxDim) {
-        $ratio = min($maxDim / $srcW, $maxDim / $srcH);
-        $dstW = max(1, (int)round($srcW * $ratio));
-        $dstH = max(1, (int)round($srcH * $ratio));
-        $dst = imagecreatetruecolor($dstW, $dstH);
-        imagecopyresampled($dst, $src, 0, 0, 0, 0, $dstW, $dstH, $srcW, $srcH);
-        imagedestroy($src);
-    } else {
-        $dst = $src;
-        $dstW = $srcW;
-        $dstH = $srcH;
+    if (!extension_loaded('gd')) {
+        http_response_code(500);
+        $iniPath = php_ini_loaded_file() ?: null;
+        $hint = $iniPath
+            ? "Bitte in \"$iniPath\" die Zeile \"extension=gd\" aktivieren (führendes Semikolon entfernen) und den Server neu starten."
+            : 'Bitte in der php.ini die Zeile "extension=gd" aktivieren (führendes Semikolon entfernen) und den Server neu starten.';
+        echo json_encode(['error' => 'Die PHP-Erweiterung "gd" ist nicht aktiviert (wird für die Bildverarbeitung benötigt). ' . $hint]);
+        exit;
     }
+
+    $dir = get_general_savegame_dir($folder);
+    if (!$dir) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Spielstand nicht gefunden.']);
+        exit;
+    }
+
+    $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
+    $mapId = '';
+    if (file_exists($careerFile)) {
+        libxml_use_internal_errors(true);
+        $career = simplexml_load_file($careerFile);
+        if ($career && isset($career->settings)) {
+            $mapId = (string)($career->settings->mapId ?? '');
+        }
+    }
+
+    $found = find_map_overview_image($mapId);
+
+    if (!$found['found']) {
+        $messages = [
+            'no_zip_extension' => 'Die PHP-Erweiterung "zip" wird für die automatische Kartensuche benötigt und ist nicht aktiviert.',
+            'no_map_id' => 'Im Spielstand konnte keine Karten-ID gefunden werden.',
+            'no_mod_zip' => 'Für diese Karte wurde keine Mod-Datei im "mods"-Ordner gefunden.',
+            'zip_open_failed' => 'Die Mod-Datei der Karte konnte nicht geöffnet werden.',
+            'no_candidate' => 'Es wurde kein Kartenbild gefunden.',
+            'dds_only' => 'Es wurde ein Kartenbild gefunden, aber nur im DDS-Format – das kann dieses Tool nicht lesen (nur PNG/JPEG werden unterstützt).',
+            'extract_failed' => 'Das gefundene Kartenbild konnte nicht gelesen werden.',
+            'no_install_dir' => 'Das ist eine offizielle GIANTS-Karte ohne Mod-Datei – dafür müsste der Installationsordner des Spiels bekannt sein. Der wurde automatisch nicht gefunden. Trage ihn in config.php unter FS_INSTALL_DIR_OVERRIDE manuell ein, z. B. define(\'FS_INSTALL_DIR_OVERRIDE\', \'D:\\\\SteamLibrary\\\\steamapps\\\\common\\\\Farming Simulator 25\');.',
+            'map_dir_not_found' => 'Im Installationsordner des Spiels wurde kein Datenordner für diese Karte gefunden.',
+        ];
+        $reason = $found['reason'] ?? 'no_candidate';
+        http_response_code(404);
+        echo json_encode([
+            'error' => ($messages[$reason] ?? 'Kein automatisch nutzbares Kartenbild gefunden.') . ' Bitte manuell ein Bild hochladen.',
+            'ddsAvailable' => $found['ddsOnly'] ?? false,
+        ]);
+        exit;
+    }
+
+    // Extrahierte Bilddaten in eine temporäre Datei schreiben, damit dieselbe
+    // Verarbeitung wie beim manuellen Upload greifen kann (Formatprüfung, Downscale).
+    $tmpFile = tempnam(sys_get_temp_dir(), 'mapimg_');
+    file_put_contents($tmpFile, $found['data']);
 
     $assetsDir = __DIR__ . '/assets';
-    if (!is_dir($assetsDir)) mkdir($assetsDir, 0777, true);
     $destPath = $assetsDir . '/terrain_' . $folder . '.png';
+    $result = save_terrain_image_from_path($tmpFile, $destPath);
+    @unlink($tmpFile);
 
-    if (!imagepng($dst, $destPath)) {
-        imagedestroy($dst);
-        http_response_code(500);
-        echo json_encode(['error' => 'Bild konnte nicht gespeichert werden.']);
+    if (isset($result['error'])) {
+        http_response_code(422);
+        echo json_encode($result);
         exit;
     }
-    imagedestroy($dst);
 
-    echo json_encode(['success' => true, 'width' => $dstW, 'height' => $dstH]);
+    $result['source'] = $found['sourceName'];
+    echo json_encode($result);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Rohe DDS-Kartentextur ausliefern (für client-seitige Dekodierung im Browser)
+// ---------------------------------------------------------------
+if ($action === 'fetch_map_dds' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $folder = $_SESSION['savegame_folder'] ?? null;
+    if (!$folder) {
+        http_response_code(409);
+        exit;
+    }
+    $dir = get_general_savegame_dir($folder);
+    if (!$dir) {
+        http_response_code(404);
+        exit;
+    }
+
+    $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
+    $mapId = '';
+    if (file_exists($careerFile)) {
+        libxml_use_internal_errors(true);
+        $career = simplexml_load_file($careerFile);
+        if ($career && isset($career->settings)) {
+            $mapId = (string)($career->settings->mapId ?? '');
+        }
+    }
+
+    $ddsData = find_map_overview_dds($mapId);
+    if ($ddsData === null) {
+        http_response_code(404);
+        exit;
+    }
+
+    header('Content-Type: application/octet-stream');
+    header('Content-Length: ' . strlen($ddsData));
+    echo $ddsData;
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Systemcheck: prüft PHP-Erweiterungen, Upload-Limits, Schreibrechte und Pfade auf
+// einen Blick – entstanden aus mehreren Fällen, in denen genau solche Dinge (gd, zip,
+// Upload-Limits, FS_INSTALL_DIR) erst beim Ausprobieren aufgefallen sind statt vorher.
+// ---------------------------------------------------------------
+if ($action === 'system_check' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $checks = [];
+
+    $checks[] = [
+        'label' => 'PHP-Version',
+        'status' => version_compare(PHP_VERSION, '8.0.0', '>=') ? 'ok' : 'warn',
+        'detail' => PHP_VERSION,
+    ];
+
+    $checks[] = [
+        'label' => 'PHP-Erweiterung "gd" (Bildverarbeitung)',
+        'status' => extension_loaded('gd') ? 'ok' : 'error',
+        'detail' => extension_loaded('gd') ? 'aktiviert' : 'fehlt – Kartenbild-Upload funktioniert nicht',
+    ];
+
+    $checks[] = [
+        'label' => 'PHP-Erweiterung "zip" (Backups, Mod-Kartensuche)',
+        'status' => class_exists('ZipArchive') ? 'ok' : 'error',
+        'detail' => class_exists('ZipArchive') ? 'aktiviert' : 'fehlt – vollständige Backups und automatische Kartensuche funktionieren nicht',
+    ];
+
+    $checks[] = [
+        'label' => 'PHP-Erweiterung "mbstring"',
+        'status' => extension_loaded('mbstring') ? 'ok' : 'info',
+        'detail' => extension_loaded('mbstring') ? 'aktiviert' : 'nicht aktiviert (Tool kommt bewusst ohne sie aus, kein Handlungsbedarf)',
+    ];
+
+    $uploadMax = ini_get('upload_max_filesize');
+    $postMax = ini_get('post_max_size');
+    $uploadBytes = (int)$uploadMax * (str_contains(strtoupper($uploadMax), 'M') ? 1024 * 1024 : 1);
+    $checks[] = [
+        'label' => 'Upload-Limit (upload_max_filesize / post_max_size)',
+        'status' => $uploadBytes >= 8 * 1024 * 1024 ? 'ok' : 'warn',
+        'detail' => "$uploadMax / $postMax" . ($uploadBytes < 8 * 1024 * 1024 ? ' – für große Kartenbilder ggf. zu klein, empfohlen mind. 8M' : ''),
+    ];
+
+    $iniPath = php_ini_loaded_file();
+    $checks[] = [
+        'label' => 'Geladene php.ini',
+        'status' => $iniPath ? 'ok' : 'info',
+        'detail' => $iniPath ?: 'keine php.ini geladen (nur Standardwerte aktiv)',
+    ];
+
+    $checks[] = [
+        'label' => 'Spielstand-Ordner (FS_BASE_DIR)',
+        'status' => is_dir(FS_BASE_DIR) && is_readable(FS_BASE_DIR) ? 'ok' : 'error',
+        'detail' => FS_BASE_DIR,
+    ];
+
+    $checks[] = [
+        'label' => 'Backup-Ordner beschreibbar',
+        'status' => is_dir(BACKUP_DIR) && is_writable(BACKUP_DIR) ? 'ok' : 'error',
+        'detail' => BACKUP_DIR,
+    ];
+
+    $modsDir = FS_BASE_DIR . DIRECTORY_SEPARATOR . 'mods';
+    $checks[] = [
+        'label' => 'Mods-Ordner gefunden',
+        'status' => is_dir($modsDir) ? 'ok' : 'info',
+        'detail' => is_dir($modsDir) ? $modsDir : 'nicht gefunden (nur relevant für automatische Kartenbild-Suche bei Mod-Karten)',
+    ];
+
+    $installDir = defined('FS_INSTALL_DIR') ? FS_INSTALL_DIR : '';
+    $checks[] = [
+        'label' => 'Spiel-Installationsordner (FS_INSTALL_DIR)',
+        'status' => $installDir !== '' ? 'ok' : 'info',
+        'detail' => $installDir !== '' ? $installDir : 'nicht automatisch gefunden (nur relevant für automatische Kartenbild-Suche bei offiziellen Karten ohne Mod-Datei) – manuell setzbar über FS_INSTALL_DIR_OVERRIDE in config.php',
+    ];
+
+    $checks[] = [
+        'label' => 'Zeitzone',
+        'status' => 'ok',
+        'detail' => date_default_timezone_get() . ' · Serverzeit: ' . date('d.m.Y H:i:s'),
+    ];
+
+    echo json_encode(['checks' => $checks]);
     exit;
 }
 
@@ -1623,12 +2234,20 @@ if ($action === 'vehicles_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     // Standardsortierung: höchster Verschleiß zuerst (dringendster Wartungsbedarf)
     usort($vehicles, fn($a, $b) => $b['wear'] <=> $a['wear']);
 
+    $totalDiesel = 0.0;
+    foreach ($vehicles as $v) {
+        foreach ($v['fuel'] as $f) {
+            if ($f['fillType'] === 'DIESEL') $totalDiesel += $f['liters'];
+        }
+    }
+
     echo json_encode([
         'vehicles' => $vehicles,
         'totalCount' => count($vehicles),
         'totalValue' => array_sum(array_column($vehicles, 'price')),
         'needsRepairCount' => count(array_filter($vehicles, fn($v) => $v['wear'] > 0.5)),
         'needsWashCount' => count(array_filter($vehicles, fn($v) => $v['dirt'] > 0.5)),
+        'totalDieselLiters' => round($totalDiesel, 1),
     ]);
     exit;
 }

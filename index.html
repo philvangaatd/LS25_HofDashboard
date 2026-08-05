@@ -98,8 +98,10 @@
         font-family: var(--font-mono);
     }
     #lastSavedInfo {
-        color: var(--wheat-500);
-        margin: 6px 0 20px;
+        color: var(--muted);
+        font-size: 11px;
+        font-family: var(--font-mono);
+        opacity: 0.8;
     }
 
     .toolbar {
@@ -546,6 +548,13 @@
     }
     .more-menu button { text-align: left; justify-content: flex-start; width: 100%; }
     .more-menu select { margin-top: 2px; }
+    .map-size-hint {
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        color: var(--muted);
+        padding: 2px 4px 4px;
+        line-height: 1.4;
+    }
 
     /* Legende */
     .legend-line {
@@ -861,6 +870,41 @@
     .mission-days.urgent { color: var(--rust-500); font-weight: 600; }
     .mission-extra { font-family: var(--font-mono); font-size: 11px; color: var(--moss-400); white-space: nowrap; }
     .mission-reward { font-family: var(--font-mono); font-size: 12px; color: var(--wheat-500); font-weight: 600; white-space: nowrap; }
+
+    /* Systemcheck */
+    #systemCheckContainer { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+    .syscheck-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--border);
+        border-radius: 6px;
+        padding: 10px 14px;
+        font-size: 13px;
+    }
+    .syscheck-row.status-ok { border-left-color: var(--moss-500); }
+    .syscheck-row.status-warn { border-left-color: var(--wheat-500); }
+    .syscheck-row.status-error { border-left-color: var(--rust-500); }
+    .syscheck-row.status-info { border-left-color: var(--border); }
+    .syscheck-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
+    .syscheck-label { font-family: var(--font-display); font-weight: 600; width: 320px; flex-shrink: 0; }
+    .syscheck-detail { flex: 1; font-family: var(--font-mono); font-size: 12px; color: var(--muted); word-break: break-all; }
+
+    /* Tank (Fuhrpark) */
+    .vehicle-fuel-row { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+    /* Zucht-/Gesundheitsdaten (Tiere) */
+    .animal-breeding-line { font-family: var(--font-mono); font-size: 10px; color: var(--moss-400); margin: 0 0 8px 24px; }
+
+    /* Footer */
+    .app-footer {
+        margin-top: 48px;
+        padding-top: 16px;
+        border-top: 1px solid var(--ink-800);
+        text-align: center;
+    }
 </style>
 </head>
 <body>
@@ -912,6 +956,7 @@
                 <button class="tab-btn" id="tabBtnProduction" onclick="switchTab('production')">🏭 Produktion</button>
                 <button class="tab-btn" id="tabBtnMarket" onclick="switchTab('market')">💰 Markt</button>
                 <button class="tab-btn" id="tabBtnMissions" onclick="switchTab('missions')">🤝 Verträge</button>
+                <button class="tab-btn" id="tabBtnSystem" onclick="switchTab('system')">🩺 System</button>
             </div>
             <div class="header-actions">
                 <button onclick="openFullBackupPanel()">💾 Backup</button>
@@ -919,7 +964,6 @@
             </div>
         </div>
         <div class="subtitle" id="mapInfo">Lade …</div>
-        <div class="subtitle" id="lastSavedInfo" style="display:none; margin-top:-16px"></div>
 
         <div id="tabHome" style="display:block">
             <div class="toolbar">
@@ -992,8 +1036,9 @@
                             <option value="swap">Ausrichtung: X/Z vertauscht</option>
                         </select>
                         <input type="file" id="terrainFileInput" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="uploadTerrainImage(this)">
-                        <button onclick="searchMapImage(); closeAllMoreMenus()">🔍 Kartenbild online suchen</button>
-                        <button onclick="document.getElementById('terrainFileInput').click(); closeAllMoreMenus()">🖼️ Hintergrundbild hochladen</button>
+                        <button onclick="loadMapTerrainFromGame(); closeAllMoreMenus()">📥 Kartenbild aus Spieldateien laden</button>
+                        <button onclick="document.getElementById('terrainFileInput').click(); closeAllMoreMenus()">🖼️ Hintergrundbild manuell hochladen</button>
+                        <div class="map-size-hint" id="mapSizeHint"></div>
                         <button id="removeTerrainBtn" onclick="removeTerrainImage(); closeAllMoreMenus()" disabled>🗑️ Hintergrundbild entfernen</button>
                         <div style="padding:4px 4px 2px; display:flex; flex-direction:column; gap:4px;">
                             <span style="font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em;">Bild-Ausrichtung (manuell)</span>
@@ -1078,6 +1123,16 @@
             <div class="legend-line">Weiß: vom Vertrag geforderte Fruchtart · Grün: erscheint nur, wenn auf dem Feld aktuell etwas anderes wächst als vom Vertrag verlangt</div>
             <div id="missionsContainer"></div>
         </div>
+
+        <div id="tabSystem" style="display:none">
+            <div class="toolbar">
+                <button onclick="loadSystemCheck()">↻ Aktualisieren</button>
+            </div>
+            <div class="legend-line">Prüft PHP-Erweiterungen, Upload-Limits, Pfade und Schreibrechte – alles, was das Tool intern braucht, auf einen Blick statt erst beim Ausprobieren zu bemerken</div>
+            <div id="systemCheckContainer"></div>
+        </div>
+
+        <div class="app-footer" id="lastSavedInfo" style="display:none"></div>
     </div>
 
 
@@ -1127,6 +1182,7 @@ function performSwitchTab(tab) {
     document.getElementById('tabProduction').style.display = tab === 'production' ? 'block' : 'none';
     document.getElementById('tabMarket').style.display = tab === 'market' ? 'block' : 'none';
     document.getElementById('tabMissions').style.display = tab === 'missions' ? 'block' : 'none';
+    document.getElementById('tabSystem').style.display = tab === 'system' ? 'block' : 'none';
     document.getElementById('tabBtnHome').classList.toggle('active', tab === 'home');
     document.getElementById('tabBtnFields').classList.toggle('active', tab === 'fields');
     document.getElementById('tabBtnMarkers').classList.toggle('active', tab === 'markers');
@@ -1136,6 +1192,7 @@ function performSwitchTab(tab) {
     document.getElementById('tabBtnProduction').classList.toggle('active', tab === 'production');
     document.getElementById('tabBtnMarket').classList.toggle('active', tab === 'market');
     document.getElementById('tabBtnMissions').classList.toggle('active', tab === 'missions');
+    document.getElementById('tabBtnSystem').classList.toggle('active', tab === 'system');
     if (tab === 'map') {
         ensureMapLoaded();
     } else if (tab === 'home') {
@@ -1152,6 +1209,8 @@ function performSwitchTab(tab) {
         loadMarketData();
     } else if (tab === 'missions') {
         loadMissionsData();
+    } else if (tab === 'system') {
+        loadSystemCheck();
     }
 }
 
@@ -1494,6 +1553,10 @@ async function loadVehiclesData() {
             <div class="stat-label">Waschen empfohlen</div>
             <div class="stat-value">${data.needsWashCount}</div>
         </div>
+        <div class="stat-card">
+            <div class="stat-label">⛽ Diesel gesamt</div>
+            <div class="stat-value">${Math.round(data.totalDieselLiters).toLocaleString('de-DE')} L</div>
+        </div>
     `;
     renderVehicles();
 }
@@ -1535,6 +1598,9 @@ function renderVehicles() {
 
     container.innerHTML = visible.map(v => {
         const needsAttention = v.wear > 0.5 || v.dirt > 0.5;
+        const fuelHtml = v.fuel && v.fuel.length > 0
+            ? `<div class="vehicle-fuel-row">⛽ ${v.fuel.map(f => `${escapeHtml(f.label)}: ${f.liters} L`).join(' · ')}</div>`
+            : '';
         return `
             <div class="vehicle-card ${needsAttention ? 'needs-attention' : ''}">
                 <div class="vehicle-card-header">
@@ -1552,6 +1618,7 @@ function renderVehicles() {
                     <div class="bar-track"><div class="bar-fill ${barClass(v.dirt)}" style="width:${(v.dirt * 100).toFixed(0)}%"></div></div>
                     <span class="bar-value">${(v.dirt * 100).toFixed(0)}%</span>
                 </div>
+                ${fuelHtml}
             </div>
         `;
     }).join('');
@@ -1809,6 +1876,27 @@ async function loadMissionsData() {
     }).join('');
 }
 
+// =================================================================
+// Systemcheck
+// =================================================================
+const SYSCHECK_ICONS = { ok: '✅', warn: '⚠️', error: '❌', info: 'ℹ️' };
+
+async function loadSystemCheck() {
+    const container = document.getElementById('systemCheckContainer');
+    container.innerHTML = '<div class="empty-note">Prüfe System …</div>';
+    const res = await fetch('api.php?action=system_check');
+    const data = await res.json();
+    if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
+
+    container.innerHTML = data.checks.map(c => `
+        <div class="syscheck-row status-${c.status}">
+            <span class="syscheck-icon">${SYSCHECK_ICONS[c.status] || '•'}</span>
+            <span class="syscheck-label">${escapeHtml(c.label)}</span>
+            <span class="syscheck-detail">${escapeHtml(c.detail)}</span>
+        </div>
+    `).join('');
+}
+
 function markersSnapshot() {
     return JSON.stringify(markers.map(m => ({ id: m.id, name: m.name, group: m.group })));
 }
@@ -1970,7 +2058,9 @@ function reloadOrDiscard() {
 // Kartenansicht
 // =================================================================
 let points = new Map();      // id(string) -> {x,y,z,out:Set<string>, flags:number}
-let courseBounds = null;     // { minX, maxX, minZ, maxZ }
+let courseBounds = null;     // { minX, maxX, minZ, maxZ } – tatsächliche Wegpunkt-Ausdehnung
+let guessedMapBounds = null; // { minX, maxX, minZ, maxZ, size } – geschätzte volle Kartengröße,
+                              // für die Hintergrundbild-Platzierung verwendet (siehe guessMapWorldBounds)
 let edgesList = [];          // [[idA, idB], ...] dedupliziert, für Rendering
 let courseOriginalSnapshot = null;
 let nextNewId = null;
@@ -1994,6 +2084,53 @@ const UNDO_STACK_LIMIT = 50;
 const DRAG_THRESHOLD_PX = 4;
 const POINT_HIT_RADIUS_PX = 10;
 const SNAP_RADIUS_PX = 22; // großzügigerer Radius beim Setzen neuer Punkte, um an bestehende anzudocken
+
+// FS25-Karten sind praktisch immer quadratisch, auf den Weltursprung (0,0) zentriert
+// und in glatten Kantenlängen gehalten (z. B. 2048 m). Die Wegpunkt-Bounding-Box
+// erreicht aber selten die tatsächlichen Kartenränder (Straßen enden vor dem Rand) –
+// wird ein Hintergrundbild stattdessen auf die (zu kleine, oft nicht mittige) reine
+// Wegpunkt-Box gepasst, verschiebt und verzerrt sich das Bild gegenüber den echten
+// Straßen. Diese Schätzung rundet auf die nächste übliche Kantenlänge auf und nimmt
+// eine Zentrierung auf (0,0) an – funktioniert bei den allermeisten Karten deutlich
+// genauer als die reine Wegpunkt-Box. Die manuellen Ausrichtungsregler bleiben als
+// Korrektur für Ausnahmefälle erhalten.
+function guessMapWorldBounds(bounds) {
+    const spanX = bounds.maxX - bounds.minX;
+    const spanZ = bounds.maxZ - bounds.minZ;
+    const maxSpan = Math.max(spanX, spanZ);
+    const commonSizes = [512, 1024, 1536, 2048, 3072, 4096, 6144, 8192];
+    let size = commonSizes.find(s => s >= maxSpan * 1.01);
+    if (!size) size = Math.ceil(maxSpan / 256) * 256;
+    const half = size / 2;
+    return { minX: -half, maxX: half, minZ: -half, maxZ: half, size };
+}
+
+function updateMapSizeHint() {
+    const el = document.getElementById('mapSizeHint');
+    if (!el || !guessedMapBounds) return;
+    const detail = guessedMapBounds.exact
+        ? 'aus den Spieldateien ermittelt, exakt'
+        : 'geschätzt anhand der Wegpunkt-Ausdehnung, nicht garantiert exakt';
+    el.textContent = `Empfohlen für das Hintergrundbild: quadratisch (1:1), zeigt die komplette Karte von Rand zu Rand – Kartengröße ${guessedMapBounds.size}×${guessedMapBounds.size} m (${detail}). Bild sollte mindestens ${guessedMapBounds.size}×${guessedMapBounds.size} Pixel haben, sonst wirkt es beim Hineinzoomen unscharf.`;
+}
+
+// Versucht die exakte Kartengröße direkt aus der Karten-XML zu lesen (siehe
+// map_size_info in api.php) und ersetzt damit die reine Schätzung, sobald verfügbar.
+// Läuft im Hintergrund, ohne das Laden der Karte zu blockieren; bei Fehlschlag bleibt
+// stillschweigend die Schätzung bestehen.
+async function refineMapSizeFromGameFiles() {
+    try {
+        const res = await fetch('api.php?action=map_size_info');
+        const data = await res.json();
+        if (data.size && data.size.width > 0 && data.size.height > 0) {
+            const halfW = data.size.width / 2;
+            const halfH = data.size.height / 2;
+            guessedMapBounds = { minX: -halfW, maxX: halfW, minZ: -halfH, maxZ: halfH, size: data.size.width, exact: true };
+            updateMapSizeHint();
+            mapRedraw();
+        }
+    } catch (e) { /* stille Verbesserung, kein Nutzer-Fehler bei Fehlschlag */ }
+}
 
 async function ensureMapLoaded() {
     if (!mapCanvasEl) {
@@ -2033,6 +2170,8 @@ async function ensureMapLoaded() {
             if (numId > maxId) maxId = numId;
         }
         courseBounds = { minX, maxX, minZ, maxZ };
+        guessedMapBounds = guessMapWorldBounds(courseBounds);
+        updateMapSizeHint();
         nextNewId = maxId + 1;
         undoStack = [];
         orphanHighlightIds = null;
@@ -2046,6 +2185,7 @@ async function ensureMapLoaded() {
         populateMapJumpList();
         loadTerrainImage();
         mapResetView();
+        refineMapSizeFromGameFiles(); // im Hintergrund, verbessert die Schätzung nachträglich falls möglich
     }
 
     sizeMapCanvas();
@@ -2178,20 +2318,172 @@ function resetTerrainAlign() {
 }
 
 // -----------------------------------------------------------------
-// Kartenbild online suchen – öffnet eine vorausgefüllte Bildersuche mit dem
-// tatsächlichen Kartennamen ("Karte auswerten" ist mangels allgemeinem
-// Internetzugriff aus der App heraus nicht möglich, und ein automatisch
-// gewähltes Bild ohne Kontrolle wäre auch riskant – der schnelle Umweg über
-// die Bildersuche spart aber das manuelle Formulieren des Suchbegriffs).
+// Kartenbild automatisch aus den Moddateien laden – sucht direkt im
+// "mods"-Ordner nach der Kartenmod, findet dort aber häufig nur eine DDS-Textur
+// (Standard-Texturformat der Giants Engine), die dieses Tool nicht lesen kann.
+// In dem Fall (oder bei Standardkarten ohne Mod-ZIP) bekommt man eine klare
+// Fehlermeldung und kann wie gewohnt manuell ein Bild hochladen.
 // -----------------------------------------------------------------
-function searchMapImage() {
-    if (!currentMapTitle) {
-        showToast('Kartenname noch nicht geladen – zuerst die Übersicht öffnen.', 'err');
-        return;
+async function loadMapTerrainFromGame() {
+    document.getElementById('mapStatus').textContent = 'Suche Kartenbild in den Spieldateien …';
+    try {
+        const res = await fetch('api.php?action=load_map_terrain', { method: 'POST' });
+        const data = await res.json();
+        if (!data.error) {
+            loadTerrainImage(true);
+            showToast(`Kartenbild aus Spieldateien geladen (${data.width}×${data.height}px)`, 'ok');
+            document.getElementById('mapStatus').textContent = '';
+            return;
+        }
+        // Keine PNG/JPEG-Variante gefunden – falls stattdessen eine DDS-Textur existiert,
+        // versuchen wir die direkt im Browser zu dekodieren (PHP/GD kann DDS nicht lesen,
+        // JavaScript mit einem eigenen DXT1-Dekoder aber sehr wohl).
+        if (data.ddsAvailable) {
+            await tryLoadMapDds();
+        } else {
+            showToast(data.error, 'err');
+            document.getElementById('mapStatus').textContent = '';
+        }
+    } catch (e) {
+        showToast('Laden fehlgeschlagen.', 'err');
+        document.getElementById('mapStatus').textContent = '';
     }
-    const query = encodeURIComponent(`Farming Simulator 25 ${currentMapTitle} Kartenübersicht`);
-    window.open(`https://www.google.com/search?q=${query}&tbm=isch`, '_blank');
-    showToast('Suche geöffnet – gewünschtes Bild speichern und über "Hintergrundbild hochladen" auswählen.', 'ok');
+}
+
+// -----------------------------------------------------------------
+// DDS-Kartentextur laden und client-seitig dekodieren. FS25-Kartenbilder liegen
+// so gut wie immer als DXT1 (BC1) vor – verifiziert an der echten mapUS-Textur
+// (4096×4096 DXT1). Andere Kompressionsformen (DXT3/5, BC7, DX10-Header) werden
+// bewusst nicht geraten unterstützt, sondern klar als nicht unterstützt gemeldet.
+// -----------------------------------------------------------------
+async function tryLoadMapDds() {
+    document.getElementById('mapStatus').textContent = 'Lade und dekodiere DDS-Kartentextur …';
+    try {
+        const res = await fetch('api.php?action=fetch_map_dds');
+        if (!res.ok) {
+            showToast('Keine DDS-Kartentextur gefunden. Bitte manuell ein Bild hochladen.', 'err');
+            document.getElementById('mapStatus').textContent = '';
+            return;
+        }
+        const buffer = await res.arrayBuffer();
+        let canvas = decodeDdsToCanvas(buffer);
+        if (!canvas) {
+            showToast('Dieses DDS-Kompressionsformat wird (noch) nicht unterstützt (nur DXT1/BC1). Bitte manuell ein Bild hochladen.', 'err');
+            document.getElementById('mapStatus').textContent = '';
+            return;
+        }
+
+        // Vor dem Hochladen auf maximal 2048px Kantenlänge herunterskalieren – das Backend
+        // würde ohnehin auf diese Größe herunterrechnen (save_terrain_image_from_path), und
+        // eine 4096×4096-Kartentextur kann unkomprimiert als PNG leicht 10-15 MB groß sein,
+        // was am recht niedrigen PHP-Standardlimit (upload_max_filesize oft nur 2 MB) scheitern
+        // würde. Kleiner hochzuladen spart zudem unnötige Übertragungszeit.
+        const maxDim = 2048;
+        if (canvas.width > maxDim || canvas.height > maxDim) {
+            const ratio = Math.min(maxDim / canvas.width, maxDim / canvas.height);
+            const scaled = document.createElement('canvas');
+            scaled.width = Math.round(canvas.width * ratio);
+            scaled.height = Math.round(canvas.height * ratio);
+            scaled.getContext('2d').drawImage(canvas, 0, 0, scaled.width, scaled.height);
+            canvas = scaled;
+        }
+
+        // Als PNG ans Backend zum Speichern schicken – gleicher Ablauf wie beim manuellen
+        // Upload, damit terrain_<folder>.png konsistent bleibt und beim nächsten Laden
+        // einfach per <img> angezeigt wird, statt bei jedem Seitenaufruf neu zu dekodieren.
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const formData = new FormData();
+        formData.append('image', blob, 'dds_decoded.png');
+        const uploadRes = await fetch('api.php?action=upload_terrain', { method: 'POST', body: formData });
+        const uploadData = await uploadRes.json();
+        if (uploadData.error) {
+            showToast(uploadData.error, 'err');
+            document.getElementById('mapStatus').textContent = '';
+            return;
+        }
+        loadTerrainImage(true);
+        showToast(`DDS-Kartentextur dekodiert und gespeichert (${uploadData.width}×${uploadData.height}px)`, 'ok');
+        document.getElementById('mapStatus').textContent = '';
+    } catch (e) {
+        showToast('DDS-Dekodierung fehlgeschlagen.', 'err');
+        document.getElementById('mapStatus').textContent = '';
+    }
+}
+
+function decodeDdsToCanvas(arrayBuffer) {
+    const view = new DataView(arrayBuffer);
+    if (view.byteLength < 128 || view.getUint32(0, true) !== 0x20534444) return null; // "DDS " Magic
+    const height = view.getUint32(12, true);
+    const width = view.getUint32(16, true);
+    // FourCC steht im DDS_PIXELFORMAT-Block: Offset 4 (Magic) + 76 (Header bis dahin) + 4 (pfSize) = 84
+    const fourCC = String.fromCharCode(
+        view.getUint8(84), view.getUint8(85), view.getUint8(86), view.getUint8(87)
+    );
+    const dataOffset = 128; // Standard-Header ist 4 (Magic) + 124 Byte lang
+
+    let rgba;
+    if (fourCC === 'DXT1') {
+        rgba = decodeDXT1(view, dataOffset, width, height);
+    } else {
+        return null; // DXT3/DXT5/BC7/DX10 usw. – (noch) nicht implementiert
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(width, height);
+    imgData.data.set(rgba);
+    ctx.putImageData(imgData, 0, 0);
+    return canvas;
+}
+
+function rgb565to888(c) {
+    const r5 = (c >> 11) & 0x1F, g6 = (c >> 5) & 0x3F, b5 = c & 0x1F;
+    return [(r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2)];
+}
+
+function dxt1BlockColors(c0, c1) {
+    const [r0, g0, b0] = rgb565to888(c0);
+    const [r1, g1, b1] = rgb565to888(c1);
+    const colors = [[r0, g0, b0, 255], [r1, g1, b1, 255]];
+    if (c0 > c1) {
+        colors.push([Math.round((2*r0+r1)/3), Math.round((2*g0+g1)/3), Math.round((2*b0+b1)/3), 255]);
+        colors.push([Math.round((r0+2*r1)/3), Math.round((g0+2*g1)/3), Math.round((b0+2*b1)/3), 255]);
+    } else {
+        colors.push([Math.round((r0+r1)/2), Math.round((g0+g1)/2), Math.round((b0+b1)/2), 255]);
+        colors.push([0, 0, 0, 0]); // transparent
+    }
+    return colors;
+}
+
+function decodeDXT1(view, offset, width, height) {
+    const rgba = new Uint8ClampedArray(width * height * 4);
+    const blocksWide = Math.ceil(width / 4);
+    const blocksHigh = Math.ceil(height / 4);
+    let ptr = offset;
+
+    for (let by = 0; by < blocksHigh; by++) {
+        for (let bx = 0; bx < blocksWide; bx++) {
+            const c0 = view.getUint16(ptr, true);
+            const c1 = view.getUint16(ptr + 2, true);
+            const indices = view.getUint32(ptr + 4, true);
+            ptr += 8;
+            const colors = dxt1BlockColors(c0, c1);
+
+            for (let py = 0; py < 4; py++) {
+                for (let px = 0; px < 4; px++) {
+                    const x = bx * 4 + px, y = by * 4 + py;
+                    if (x >= width || y >= height) continue;
+                    const idx = (indices >>> ((py * 4 + px) * 2)) & 0x3;
+                    const [r, g, b, a] = colors[idx];
+                    const p = (y * width + x) * 4;
+                    rgba[p] = r; rgba[p+1] = g; rgba[p+2] = b; rgba[p+3] = a;
+                }
+            }
+        }
+    }
+    return rgba;
 }
 
 function uploadTerrainImage(input) {
@@ -2679,17 +2971,19 @@ function mapRedraw() {
     const rect = mapCanvasEl.getBoundingClientRect();
     mapCtx.clearRect(0, 0, rect.width, rect.height);
 
-    // Hintergrundbild (falls vorhanden), an Wegpunkt-Bounding-Box ausgerichtet,
-    // Kalibrierung steuert nur die Bild-Orientierung, nicht die Wegpunkt-Positionen.
-    if (terrainImg) {
+    // Hintergrundbild (falls vorhanden). Ausgerichtet an der GESCHÄTZTEN vollen Kartengröße
+    // (guessedMapBounds), NICHT an der reinen Wegpunkt-Box – Straßen erreichen selten die
+    // echten Kartenränder, ein Fit auf die Wegpunkt-Box allein hätte das Bild verschoben
+    // und leicht verzerrt dargestellt. Kalibrierung steuert nur die Bild-Orientierung.
+    if (terrainImg && guessedMapBounds) {
         const calib = document.getElementById('mapCalibration').value;
         // Manuelle Ausrichtung: Versatz (Weltkoordinaten) + Skalierung um den Bild-Mittelpunkt,
-        // zusätzlich zur automatischen Einpassung in die Wegpunkt-Bounding-Box.
+        // zusätzlich zur automatischen Einpassung in die geschätzte Kartengröße.
         const align = getTerrainAlign();
-        const centerX = (courseBounds.minX + courseBounds.maxX) / 2 + align.offsetX;
-        const centerZ = (courseBounds.minZ + courseBounds.maxZ) / 2 + align.offsetZ;
-        const halfW = (courseBounds.maxX - courseBounds.minX) / 2 * align.scale;
-        const halfH = (courseBounds.maxZ - courseBounds.minZ) / 2 * align.scale;
+        const centerX = (guessedMapBounds.minX + guessedMapBounds.maxX) / 2 + align.offsetX;
+        const centerZ = (guessedMapBounds.minZ + guessedMapBounds.maxZ) / 2 + align.offsetZ;
+        const halfW = (guessedMapBounds.maxX - guessedMapBounds.minX) / 2 * align.scale;
+        const halfH = (guessedMapBounds.maxZ - guessedMapBounds.minZ) / 2 * align.scale;
         const [x0, y0] = worldToCanvas(centerX - halfW, centerZ - halfH);
         const [x1, y1] = worldToCanvas(centerX + halfW, centerZ + halfH);
         const w = x1 - x0, h = y1 - y0;

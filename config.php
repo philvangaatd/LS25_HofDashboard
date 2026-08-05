@@ -50,4 +50,36 @@ if (is_dir($assetsDir)) {
     }
 }
 
+// -----------------------------------------------------------------
+// Spiel-Installationsordner (nur für die automatische Kartenbild-Suche bei
+// offiziellen GIANTS-Karten nötig – anders als Mod-Karten liegen die nicht im
+// mods-Ordner des Spielstands, sondern direkt in den Spieldateien. Alle anderen
+// Funktionen des Tools funktionieren auch ohne diesen Fund einwandfrei.
+//
+// Auto-Erkennung probiert ein paar übliche Steam-Installationspfade durch. Falls
+// deine Installation woanders liegt, hier manuell eintragen:
+// define('FS_INSTALL_DIR_OVERRIDE', 'D:\\SteamLibrary\\steamapps\\common\\Farming Simulator 25');
+// -----------------------------------------------------------------
+define('FS_INSTALL_DIR_OVERRIDE', '');
+
+function detect_fs_install_dir(): string {
+    if (FS_INSTALL_DIR_OVERRIDE !== '' && is_dir(FS_INSTALL_DIR_OVERRIDE . '/data/maps')) {
+        return FS_INSTALL_DIR_OVERRIDE;
+    }
+    $candidates = [];
+    // Alle Laufwerksbuchstaben prüfen, nicht nur C-F: Steam-Bibliotheken liegen häufig
+    // auf zusätzlichen Laufwerken/Partitionen (z. B. A:, B: bei vielen Laufwerken im System).
+    foreach (range('A', 'Z') as $drive) {
+        $candidates[] = $drive . ':\\Program Files (x86)\\Steam\\steamapps\\common\\Farming Simulator 25';
+        $candidates[] = $drive . ':\\Steam\\steamapps\\common\\Farming Simulator 25';
+        $candidates[] = $drive . ':\\SteamLibrary\\steamapps\\common\\Farming Simulator 25';
+        $candidates[] = $drive . ':\\Games\\Farming Simulator 25';
+    }
+    foreach ($candidates as $c) {
+        if (is_dir($c . '\\data\\maps')) return $c;
+    }
+    return '';
+}
+define('FS_INSTALL_DIR', detect_fs_install_dir());
+
 session_start();
