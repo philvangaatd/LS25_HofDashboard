@@ -303,11 +303,13 @@ function parse_vehicles(string $savegameDir, string $farmId): array {
     foreach ($dom->getElementsByTagName('vehicle') as $v) {
         if ($v->getAttribute('farmId') !== $farmId) continue;
 
-        $wearSum = 0.0; $wearCount = 0;
-        foreach ($v->getElementsByTagName('wearNode') as $wn) {
-            $wearSum += (float)$wn->getAttribute('amount');
-            $wearCount++;
-        }
+        // Der im Spiel angezeigte Verschleiß-/Schaden-Wert steht direkt als "damage"-Attribut
+        // am <wearable>-Element. Die einzelnen <wearNode>-Kindelemente sind ein interner
+        // Detailwert je Bauteil (z. B. für visuelle Kratzer) und entsprechen NICHT der im
+        // Spiel gezeigten Prozentzahl – das hatte vorher zu falschen Werten geführt.
+        $wearableNode = $v->getElementsByTagName('wearable')->item(0);
+        $wear = $wearableNode ? (float)$wearableNode->getAttribute('damage') : 0.0;
+
         $dirtSum = 0.0; $dirtCount = 0;
         foreach ($v->getElementsByTagName('dirtNode') as $dn) {
             $dirtSum += (float)$dn->getAttribute('amount');
@@ -320,7 +322,7 @@ function parse_vehicles(string $savegameDir, string $farmId): array {
             'vehicleType' => classify_vehicle_type($v),
             'price' => (float)$v->getAttribute('price'),
             'operatingHours' => round((float)$v->getAttribute('operatingTime') / 3600, 1),
-            'wear' => $wearCount > 0 ? $wearSum / $wearCount : 0.0,
+            'wear' => $wear,
             'dirt' => $dirtCount > 0 ? $dirtSum / $dirtCount : 0.0,
             'propertyState' => $v->getAttribute('propertyState'),
         ];
@@ -432,11 +434,12 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
         $animalsNode = $p->getElementsByTagName('husbandryAnimals')->item(0);
         if (!$animalsNode) continue;
 
-        $bySpecies = []; // Label => ['icon'=>, 'total'=>, 'breeds' => [Rasse => Anzahl]]
+        $bySpecies = []; // Label => ['icon'=>, 'total'=>, 'breeds' => [Rasse => ['total'=>, 'clusters'=>[{age,count}]]]]
         $total = 0;
         foreach ($animalsNode->getElementsByTagName('animal') as $a) {
             $num = (int)$a->getAttribute('numAnimals');
             if ($num <= 0) continue;
+            $age = (int)$a->getAttribute('age');
             $info = animal_species_info($a->getAttribute('subType'));
             $total += $num;
             if (!isset($bySpecies[$info['species']])) {
@@ -444,7 +447,11 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
             }
             $bySpecies[$info['species']]['total'] += $num;
             $breedKey = $info['breed'] !== '' ? $info['breed'] : $info['species'];
-            $bySpecies[$info['species']]['breeds'][$breedKey] = ($bySpecies[$info['species']]['breeds'][$breedKey] ?? 0) + $num;
+            if (!isset($bySpecies[$info['species']]['breeds'][$breedKey])) {
+                $bySpecies[$info['species']]['breeds'][$breedKey] = ['total' => 0, 'clusters' => []];
+            }
+            $bySpecies[$info['species']]['breeds'][$breedKey]['total'] += $num;
+            $bySpecies[$info['species']]['breeds'][$breedKey]['clusters'][] = ['age' => $age, 'count' => $num];
         }
         if ($total === 0) continue; // leerer Stall (noch keine Tiere gekauft) wird nicht gelistet
 
@@ -465,11 +472,22 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
 
         $speciesList = [];
         foreach ($bySpecies as $label => $data) {
+            $breedList = [];
+            foreach ($data['breeds'] as $breedName => $breedData) {
+                // Älteste Tiere zuerst, wie in der Stall-Ansicht des Spiels
+                usort($breedData['clusters'], fn($a, $b) => $b['age'] <=> $a['age']);
+                $breedList[] = [
+                    'name' => $breedName,
+                    'total' => $breedData['total'],
+                    'clusters' => $breedData['clusters'],
+                ];
+            }
+            usort($breedList, fn($a, $b) => $b['total'] <=> $a['total']);
             $speciesList[] = [
                 'label' => $label,
                 'icon' => $data['icon'],
                 'total' => $data['total'],
-                'breeds' => $data['breeds'],
+                'breeds' => $breedList,
             ];
         }
         usort($speciesList, fn($a, $b) => $b['total'] <=> $a['total']);
@@ -483,6 +501,68 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
         ];
     }
     usort($result, fn($a, $b) => $b['totalAnimals'] <=> $a['totalAnimals']);
+    return $result;
+}
+
+// -----------------------------------------------------------------
+// Produktionsketten (Verarbeitungsanlagen wie Mühle, Sägewerk, Biogas usw.)
+// -----------------------------------------------------------------
+// Deutsche Übersetzung der geläufigsten Produktionsketten-IDs. Mods bringen oft eigene,
+// unbekannte IDs mit – die werden lesbar aus der ID selbst hergeleitet statt geraten übersetzt.
+const PRODUCTION_ID_LABELS = [
+    'flourWheat' => 'Weizenmehl', 'flourBarley' => 'Gerstenmehl', 'flourOat' => 'Hafermehl',
+    'flourSorghum' => 'Sorghummehl', 'flourRice' => 'Reismehl', 'flourRiceLongGrain' => 'Langkornreismehl',
+    'bread' => 'Brot', 'sugar' => 'Zucker', 'sugarBeet' => 'Zucker (aus Rüben)', 'sugarCane' => 'Zucker (aus Zuckerrohr)',
+    'biogas' => 'Biogas', 'biogasManure' => 'Biogas (Mist)', 'biogasLiquidManure' => 'Biogas (Gülle)',
+    'biogasSugarbeetCut' => 'Biogas (Zuckerrüben)', 'biogasPotato' => 'Biogas (Kartoffeln)',
+    'planks' => 'Bretter', 'wood' => 'Holz', 'woodChips' => 'Hackschnitzel',
+    'chocolate' => 'Schokolade', 'cheese' => 'Käse', 'butter' => 'Butter', 'milk' => 'Milch',
+    'clothing' => 'Kleidung', 'fabric' => 'Stoff', 'cotton' => 'Baumwolle',
+    'chips' => 'Chips', 'oil' => 'Öl', 'oliveOil' => 'Olivenöl', 'grapeJuice' => 'Traubensaft',
+    'wine' => 'Wein', 'eggs' => 'Eier', 'pigFood' => 'Schweinefutter', 'forage' => 'Mischfutter',
+    'tms' => 'Totalmischration',
+];
+
+function production_id_label(string $id): string {
+    if (isset(PRODUCTION_ID_LABELS[$id])) return PRODUCTION_ID_LABELS[$id];
+    // Unbekannte ID: nur wortgetrennt anzeigen statt geraten zu übersetzen
+    $name = preg_replace('/([a-z])([A-Z])/', '$1 $2', $id);
+    return ucfirst(trim($name));
+}
+
+function parse_production_points(string $savegameDir, string $farmId): array {
+    $file = $savegameDir . DIRECTORY_SEPARATOR . 'placeables.xml';
+    if (!file_exists($file)) return [];
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $dom->load($file, LIBXML_PARSEHUGE);
+
+    $result = [];
+    foreach ($dom->getElementsByTagName('placeable') as $p) {
+        if ($p->getAttribute('farmId') !== $farmId) continue;
+        $ppNode = $p->getElementsByTagName('productionPoint')->item(0);
+        if (!$ppNode) continue;
+
+        $productions = [];
+        foreach ($ppNode->getElementsByTagName('production') as $prod) {
+            $productions[] = [
+                'id' => $prod->getAttribute('id'),
+                'label' => production_id_label($prod->getAttribute('id')),
+                'enabled' => $prod->getAttribute('isEnabled') === 'true',
+            ];
+        }
+        usort($productions, fn($a, $b) => strcmp($a['label'], $b['label']));
+
+        $result[] = [
+            'uniqueId' => $p->getAttribute('uniqueId'),
+            // Gleiche Namens-Heuristik wie bei Ställen: erkennt hier keine Tierart, fällt
+            // also direkt auf die wortgetrennte Rohdarstellung des Dateinamens zurück.
+            'name' => readable_barn_name($p->getAttribute('filename')),
+            'productions' => $productions,
+            'activeCount' => count(array_filter($productions, fn($x) => $x['enabled'])),
+        ];
+    }
+    usort($result, fn($a, $b) => strcmp($a['name'], $b['name']));
     return $result;
 }
 
@@ -1151,6 +1231,13 @@ if ($action === 'save_course' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     copy($configPath, $backupFile);
     prune_old_backups($folder, 20);
 
+    // Änderungszeitpunkt der Datei vor dem Überschreiben merken: Steam Cloud vergleicht
+    // Zeitstempel, um zu entscheiden, ob der lokale Stand "neuer" ist als die Cloud. Da wir
+    // die Datei außerhalb des Spiels bearbeiten, würde jedes Schreiben einen Cloud-Konflikt
+    // auslösen, obwohl der Spielstand selbst unverändert bleibt. Zeitstempel danach wieder
+    // auf den ursprünglichen Wert setzen umgeht das.
+    $originalMTime = filemtime($configPath);
+
     // Arrays aufbauen; incoming wird aus out neu berechnet (garantiert konsistent)
     $ids = [];
     $xs = [];
@@ -1208,6 +1295,7 @@ if ($action === 'save_course' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $replaceLeaf('flags', implode(',', $flagsList));
 
     $dom2->save($configPath);
+    if ($originalMTime !== false) touch($configPath, $originalMTime);
 
     echo json_encode(['success' => true, 'backup' => basename($backupFile), 'count' => count($ids)]);
     exit;
@@ -1221,6 +1309,20 @@ if ($action === 'upload_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$folder) {
         http_response_code(409);
         echo json_encode(['error' => 'no_savegame_selected']);
+        exit;
+    }
+
+    // Ohne die PHP-Erweiterung "gd" schlägt jede einzelne Bildprüfung weiter unten fehl
+    // (function_exists() für imagecreatefrompng/-jpeg/-webp ist dann immer false) – das
+    // sah bisher aus wie "Format nicht unterstützt", obwohl PNG und JPEG eigentlich gültig
+    // waren. Das hier direkt am Anfang klarstellen statt es als Formatfehler zu tarnen.
+    if (!extension_loaded('gd')) {
+        http_response_code(500);
+        $iniPath = php_ini_loaded_file() ?: null;
+        $hint = $iniPath
+            ? "Bitte in \"$iniPath\" die Zeile \"extension=gd\" aktivieren (führendes Semikolon entfernen) und den Server neu starten."
+            : 'Bitte in der php.ini die Zeile "extension=gd" aktivieren (führendes Semikolon entfernen) und den Server neu starten.';
+        echo json_encode(['error' => 'Die PHP-Erweiterung "gd" ist nicht aktiviert (wird für die Bildverarbeitung benötigt). ' . $hint]);
         exit;
     }
 
@@ -1245,19 +1347,22 @@ if ($action === 'upload_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $loaders = [
-        'image/png' => 'imagecreatefrompng',
-        'image/jpeg' => 'imagecreatefromjpeg',
-        'image/webp' => 'imagecreatefromwebp',
+    // Anhand des IMAGETYPE-Konstante statt des rohen Mime-Strings prüfen: manche Tools
+    // (Screenshot-Programme, Bildbearbeitung) liefern Varianten wie "image/x-png" oder
+    // "image/pjpeg" statt der Standard-Strings, die vorher hier fälschlich abgelehnt wurden.
+    $loadersByType = [
+        IMAGETYPE_PNG => 'imagecreatefrompng',
+        IMAGETYPE_JPEG => 'imagecreatefromjpeg',
+        IMAGETYPE_WEBP => 'imagecreatefromwebp',
     ];
-    $mime = $info['mime'];
-    if (!isset($loaders[$mime]) || !function_exists($loaders[$mime])) {
+    $type = $info[2];
+    if (!isset($loadersByType[$type]) || !function_exists($loadersByType[$type])) {
         http_response_code(422);
-        echo json_encode(['error' => 'Bildformat nicht unterstützt (erlaubt: PNG, JPEG, WEBP).']);
+        echo json_encode(['error' => 'Bildformat nicht unterstützt (erlaubt: PNG, JPEG, WEBP). Erkannt: ' . ($info['mime'] ?? 'unbekannt')]);
         exit;
     }
 
-    $src = @$loaders[$mime]($tmpPath);
+    $src = @$loadersByType[$type]($tmpPath);
     if (!$src) {
         http_response_code(422);
         echo json_encode(['error' => 'Bild konnte nicht gelesen werden.']);
@@ -1334,6 +1439,7 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 
     $playTime = null;
     $mapTitle = '';
+    $lastSaved = '';
     $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
     if (file_exists($careerFile)) {
         libxml_use_internal_errors(true);
@@ -1343,6 +1449,7 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         }
         if ($career && isset($career->settings)) {
             $mapTitle = (string)($career->settings->mapTitle ?? '');
+            $lastSaved = (string)($career->settings->saveDateFormatted ?? '');
         }
     }
 
@@ -1396,6 +1503,7 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         'missionsTodayCount' => $missionsToday,
         'missionsTotalCount' => count($missions),
         'weatherForecast' => get_weather_forecast($dir, $currentDay, 5),
+        'lastSaved' => $lastSaved,
     ]);
     exit;
 }
@@ -1500,6 +1608,27 @@ if ($action === 'animals_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         'husbandries' => $husbandries,
         'barnCount' => count($husbandries),
         'totalAnimals' => array_sum(array_column($husbandries, 'totalAnimals')),
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Produktionsketten
+// ---------------------------------------------------------------
+if ($action === 'production_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $folder = $_SESSION['savegame_folder'] ?? null;
+    if (!$folder) {
+        http_response_code(409);
+        echo json_encode(['error' => 'no_savegame_selected']);
+        exit;
+    }
+    $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
+    $farmInfo = get_farm_info($dir);
+    $points = $farmInfo['farmId'] ? parse_production_points($dir, $farmInfo['farmId']) : [];
+
+    echo json_encode([
+        'productionPoints' => $points,
+        'pointCount' => count($points),
     ]);
     exit;
 }
@@ -1647,6 +1776,10 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     copy($configPath, $backupFile);
     prune_old_backups($folder, 20);
 
+    // Siehe Kommentar bei save_course: Zeitstempel erhalten, damit Steam Cloud beim
+    // nächsten Spielstart nicht fälschlich einen Synchronisationskonflikt meldet.
+    $originalMTime = filemtime($configPath);
+
     $markerNode = $dom->getElementsByTagName('mapmarker')->item(0);
     $autoDriveRoot = $dom->getElementsByTagName('AutoDrive')->item(0);
 
@@ -1677,6 +1810,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $dom->save($configPath);
+    if ($originalMTime !== false) touch($configPath, $originalMTime);
 
     echo json_encode(['success' => true, 'backup' => basename($backupFile), 'count' => count($body['markers'])]);
     exit;

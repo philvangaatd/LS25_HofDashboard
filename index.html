@@ -97,6 +97,10 @@
         font-size: 13px;
         font-family: var(--font-mono);
     }
+    #lastSavedInfo {
+        color: var(--wheat-500);
+        margin: 6px 0 20px;
+    }
 
     .toolbar {
         display: flex;
@@ -520,12 +524,14 @@
         padding: 8px 0;
     }
 
-    /* Overflow-Menü ("⋯ Mehr") für überfüllte Toolbars */
+    /* Overflow-Menü ("⋯ Mehr") für überfüllte Toolbars – rechts verankert statt links, damit
+       es bei einem weit rechts stehenden Button (z. B. Karte-Tab) nicht über den
+       Bildschirmrand hinausläuft, sondern immer nach links ins Sichtfeld hinein öffnet. */
     .toolbar-more { position: relative; display: inline-block; }
     .more-menu {
         position: absolute;
         top: 100%;
-        left: 0;
+        right: 0;
         margin-top: 6px;
         background: var(--panel);
         border: 1px solid var(--border);
@@ -712,6 +718,45 @@
         margin-bottom: 4px;
     }
 
+    /* Produktion */
+    #productionContainer {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+    }
+    .production-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--secondary);
+        border-radius: 8px;
+        padding: 12px 14px;
+    }
+    .production-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .production-name { font-family: var(--font-display); font-weight: 600; font-size: 14px; flex: 1; }
+    .production-count-badge {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--ink-950);
+        background: var(--accent);
+        padding: 2px 8px;
+        border-radius: 10px;
+        white-space: nowrap;
+        font-weight: 600;
+    }
+    .production-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        padding: 4px 0;
+    }
+    .production-row.production-disabled { color: var(--muted); }
+    .production-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .production-dot.on { background: var(--moss-500); }
+    .production-dot.off { background: var(--ink-700); }
+    .production-status { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+
     /* Preis-Alarm (Markt) */
     .market-card.alert-hit { border-left-color: var(--wheat-500); box-shadow: 0 0 0 1px var(--wheat-500); }
     .market-alert-row {
@@ -861,6 +906,7 @@
                 <button class="tab-btn" id="tabBtnMap" onclick="switchTab('map')">🗺️ Karte</button>
                 <button class="tab-btn" id="tabBtnVehicles" onclick="switchTab('vehicles')">🚜 Fuhrpark</button>
                 <button class="tab-btn" id="tabBtnAnimals" onclick="switchTab('animals')">🐄 Tiere</button>
+                <button class="tab-btn" id="tabBtnProduction" onclick="switchTab('production')">🏭 Produktion</button>
                 <button class="tab-btn" id="tabBtnMarket" onclick="switchTab('market')">💰 Markt</button>
                 <button class="tab-btn" id="tabBtnMissions" onclick="switchTab('missions')">🤝 Verträge</button>
             </div>
@@ -870,6 +916,7 @@
             </div>
         </div>
         <div class="subtitle" id="mapInfo">Lade …</div>
+        <div class="subtitle" id="lastSavedInfo" style="display:none; margin-top:-16px"></div>
 
         <div id="tabHome" style="display:block">
             <div class="toolbar">
@@ -967,6 +1014,12 @@
         <div id="tabVehicles" style="display:none">
             <div class="toolbar">
                 <button onclick="loadVehiclesData()">↻ Aktualisieren</button>
+                <div class="mode-switch" id="vehicleTypeSwitch">
+                    <button class="mode-btn active" data-type="ALL" onclick="setVehicleTypeFilter('ALL')">Alle</button>
+                    <button class="mode-btn" data-type="VEHICLE" onclick="setVehicleTypeFilter('VEHICLE')">🚜 Fahrzeuge</button>
+                    <button class="mode-btn" data-type="TRAILER" onclick="setVehicleTypeFilter('TRAILER')">🚛 Anhänger</button>
+                    <button class="mode-btn" data-type="IMPLEMENT" onclick="setVehicleTypeFilter('IMPLEMENT')">🔧 Anbaugeräte</button>
+                </div>
                 <input type="text" id="vehicleFilterInput" placeholder="Filtern nach Marke/Modell …" style="flex:1" oninput="renderVehicles()">
                 <select id="vehicleSortSelect" style="width:220px" onchange="renderVehicles()">
                     <option value="wear">Sortieren: Verschleiß (höchster zuerst)</option>
@@ -979,6 +1032,7 @@
             <div class="legend-line">
                 <span><span class="legend-swatch" style="background:var(--rust-500)"></span>Roter Rahmen = Verschleiß oder Dreck über 50%, Wartung/Wäsche empfohlen</span>
                 <span>🚜 Fahrzeug · 🚛 Anhänger · 🔧 Anbaugerät</span>
+                <span>Dreck ist ein rechnerischer Durchschnitt über alle Schmutz-Sensorpunkte des Fahrzeugs und kann geringfügig von der im Spiel gezeigten Prozentzahl abweichen</span>
             </div>
             <div class="stat-grid" id="vehicleStatGrid"></div>
             <div id="vehiclesContainer"></div>
@@ -993,13 +1047,22 @@
             <div id="animalsContainer"></div>
         </div>
 
+        <div id="tabProduction" style="display:none">
+            <div class="toolbar">
+                <button onclick="loadProductionData()">↻ Aktualisieren</button>
+            </div>
+            <div class="legend-line">Zeigt, welche Produktionsketten je Anlage aktiviert sind · Füllstände von Rohstoffen und Ausstoß werden nicht im Spielstand gespeichert und können daher hier nicht angezeigt werden</div>
+            <div class="stat-grid" id="productionStatGrid"></div>
+            <div id="productionContainer"></div>
+        </div>
+
         <div id="tabMarket" style="display:none">
             <div class="toolbar">
                 <button onclick="loadMarketData()">↻ Aktualisieren</button>
                 <input type="text" id="marketFilterInput" placeholder="Filtern nach Kultur …" style="flex:1" oninput="renderMarket()">
                 <span class="map-hint" id="marketPeriodLabel"></span>
             </div>
-            <div class="legend-line">Preise je Kultur für den aktuellen Zeitpunkt im Jahresverlauf · Preise schwanken saisonal · gelber Strich zeigt, wo der aktuelle Preis innerhalb der Jahresspanne liegt · 🔔 Preis-Alarm: Zielpreis je Kultur festlegen, Karte wird hervorgehoben und nach oben sortiert sobald erreicht</div>
+            <div class="legend-line">Basispreis der Marktentwicklung (aus der wirtschaftlichen Saison-Kalkulation) · einzelne Verkaufsstationen im Spiel (Genossenschaften, Werke) zahlen häufig einen Auf- oder Abschlag darauf – diese Zahl zeigt daher die saisonale Tendenz, nicht zwingend den Preis an einer bestimmten Station gerade jetzt · gelber Strich zeigt, wo der aktuelle Preis innerhalb der Jahresspanne liegt · 🔔 Preis-Alarm: Zielpreis je Kultur festlegen, Karte wird hervorgehoben und nach oben sortiert sobald erreicht</div>
             <div id="marketContainer"></div>
         </div>
 
@@ -1055,6 +1118,7 @@ function performSwitchTab(tab) {
     document.getElementById('tabMap').style.display = tab === 'map' ? 'block' : 'none';
     document.getElementById('tabVehicles').style.display = tab === 'vehicles' ? 'block' : 'none';
     document.getElementById('tabAnimals').style.display = tab === 'animals' ? 'block' : 'none';
+    document.getElementById('tabProduction').style.display = tab === 'production' ? 'block' : 'none';
     document.getElementById('tabMarket').style.display = tab === 'market' ? 'block' : 'none';
     document.getElementById('tabMissions').style.display = tab === 'missions' ? 'block' : 'none';
     document.getElementById('tabBtnHome').classList.toggle('active', tab === 'home');
@@ -1063,6 +1127,7 @@ function performSwitchTab(tab) {
     document.getElementById('tabBtnMap').classList.toggle('active', tab === 'map');
     document.getElementById('tabBtnVehicles').classList.toggle('active', tab === 'vehicles');
     document.getElementById('tabBtnAnimals').classList.toggle('active', tab === 'animals');
+    document.getElementById('tabBtnProduction').classList.toggle('active', tab === 'production');
     document.getElementById('tabBtnMarket').classList.toggle('active', tab === 'market');
     document.getElementById('tabBtnMissions').classList.toggle('active', tab === 'missions');
     if (tab === 'map') {
@@ -1075,6 +1140,8 @@ function performSwitchTab(tab) {
         loadVehiclesData();
     } else if (tab === 'animals') {
         loadAnimalsData();
+    } else if (tab === 'production') {
+        loadProductionData();
     } else if (tab === 'market') {
         loadMarketData();
     } else if (tab === 'missions') {
@@ -1135,6 +1202,14 @@ async function loadFarmOverview() {
     renderQuickAccess(data);
     renderWeatherForecast(data.weatherForecast);
     checkPriceAlerts();
+    renderLastSavedInfo(data.lastSaved);
+}
+
+function renderLastSavedInfo(lastSaved) {
+    const el = document.getElementById('lastSavedInfo');
+    if (!lastSaved) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    el.textContent = `ℹ Diese Daten stammen vom letzten Speicherpunkt im Spiel: ${lastSaved}. Wurde seitdem weitergespielt, weichen Werte (Markt, Verschleiß, Wachstum, Tierbestand …) vom aktuellen Live-Stand ab – im Spiel speichern und hier auf „↻ Aktualisieren“ klicken, um wieder gleichzuziehen.`;
 }
 
 async function checkPriceAlerts() {
@@ -1394,13 +1469,26 @@ async function loadVehiclesData() {
 }
 
 const VEHICLE_TYPE_ICON = { VEHICLE: '🚜 Fahrzeug', TRAILER: '🚛 Anhänger', IMPLEMENT: '🔧 Anbaugerät' };
+let vehicleTypeFilter = 'ALL';
+
+function setVehicleTypeFilter(type) {
+    vehicleTypeFilter = type;
+    document.querySelectorAll('#vehicleTypeSwitch .mode-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.type === type);
+    });
+    renderVehicles();
+}
 
 function renderVehicles() {
     const filter = document.getElementById('vehicleFilterInput').value.toLowerCase();
     const sortBy = document.getElementById('vehicleSortSelect').value;
     const container = document.getElementById('vehiclesContainer');
 
-    const sorted = vehiclesCache.slice().sort((a, b) => {
+    const typeFiltered = vehicleTypeFilter === 'ALL'
+        ? vehiclesCache
+        : vehiclesCache.filter(v => v.vehicleType === vehicleTypeFilter);
+
+    const sorted = typeFiltered.slice().sort((a, b) => {
         if (sortBy === 'name') return a.name.localeCompare(b.name, 'de');
         if (sortBy === 'price') return b.price - a.price;
         if (sortBy === 'hours') return b.operatingHours - a.operatingHours;
@@ -1475,17 +1563,21 @@ function renderAnimals() {
 
     container.innerHTML = animalsCache.map(barn => {
         const speciesHtml = barn.species.map(s => {
-            const breedEntries = Object.entries(s.breeds);
-            const breedLine = breedEntries.length > 1 || (breedEntries.length === 1 && breedEntries[0][0] !== s.label)
-                ? `<div class="animal-breed-line">${breedEntries.map(([breed, count]) => `${escapeHtml(breed)}: ${count}`).join(' · ')}</div>`
-                : '';
+            const breedLines = s.breeds.map(breed => {
+                const clusterText = breed.clusters
+                    .map(c => `${c.age} Mon.: ${c.count}`)
+                    .join(' · ');
+                const showBreedName = breed.name !== s.label;
+                const prefix = showBreedName ? `${escapeHtml(breed.name)}: ` : '';
+                return `<div class="animal-breed-line">${prefix}${clusterText}</div>`;
+            }).join('');
             return `
                 <div class="animal-species-row">
                     <span class="animal-species-icon">${s.icon}</span>
                     <span>${escapeHtml(s.label)}</span>
                     <span class="animal-species-count">${s.total}</span>
                 </div>
-                ${breedLine}
+                ${breedLines}
             `;
         }).join('');
 
@@ -1504,6 +1596,57 @@ function renderAnimals() {
                 </div>
                 ${speciesHtml}
                 ${meadowHtml}
+            </div>
+        `;
+    }).join('');
+}
+
+// =================================================================
+// Produktionsketten
+// =================================================================
+let productionCache = [];
+
+async function loadProductionData() {
+    const container = document.getElementById('productionContainer');
+    container.innerHTML = '<div class="empty-note">Lade Produktionsanlagen …</div>';
+    const res = await fetch('api.php?action=production_data');
+    const data = await res.json();
+    if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
+    productionCache = data.productionPoints;
+
+    document.getElementById('productionStatGrid').innerHTML = `
+        <div class="stat-card">
+            <div class="stat-label">Produktionsanlagen</div>
+            <div class="stat-value">${data.pointCount}</div>
+        </div>
+    `;
+    renderProduction();
+}
+
+function renderProduction() {
+    const container = document.getElementById('productionContainer');
+
+    if (productionCache.length === 0) {
+        container.innerHTML = '<div class="empty-note">Keine eigenen Produktionsanlagen in diesem Spielstand gefunden.</div>';
+        return;
+    }
+
+    container.innerHTML = productionCache.map(pp => {
+        const rows = pp.productions.map(prod => `
+            <div class="production-row ${prod.enabled ? '' : 'production-disabled'}">
+                <span class="production-dot ${prod.enabled ? 'on' : 'off'}"></span>
+                <span>${escapeHtml(prod.label)}</span>
+                <span class="production-status">${prod.enabled ? 'aktiv' : 'deaktiviert'}</span>
+            </div>
+        `).join('');
+
+        return `
+            <div class="production-card">
+                <div class="production-card-header">
+                    <span class="production-name">${escapeHtml(pp.name)}</span>
+                    <span class="production-count-badge">${pp.activeCount}/${pp.productions.length} aktiv</span>
+                </div>
+                ${rows || '<div class="empty-note">Keine Produktionsketten konfiguriert.</div>'}
             </div>
         `;
     }).join('');
@@ -1559,7 +1702,7 @@ function renderMarket() {
                     <span class="market-current-price">${m.currentPrice.toLocaleString('de-DE')} €</span>
                     <span class="market-trend-inline ${m.trend}">${trendArrow}</span>
                 </div>
-                <div class="market-detail-row"><span>Preis pro Einheit, aktuelle Saisonperiode</span></div>
+                <div class="market-detail-row"><span>Basispreis pro Einheit, aktuelle Saisonperiode</span></div>
                 <div class="market-range-track" title="Spanne über das ganze Jahr: ${m.minPrice}–${m.maxPrice} €">
                     <div class="market-range-marker" style="left:${markerPos.toFixed(0)}%"></div>
                 </div>
