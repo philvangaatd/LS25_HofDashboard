@@ -97,6 +97,56 @@ function get_current_season(string $savegameDir, int $currentDay): string {
     return $bestSeason;
 }
 
+// Fasst die Wettervorhersage aus environment.xml (mehrere Instanzen pro Tag) zu
+// einer Zusammenfassung je Kalendertag zusammen: dominanter Wettertyp (nach
+// Gesamtdauer) plus Hinweis, ob an dem Tag überhaupt Niederschlag vorkommt.
+const WEATHER_TYPE_ICONS = [
+    'SUN' => '☀️',
+    'CLOUDY' => '☁️',
+    'RAIN' => '🌧️',
+    'SNOW' => '❄️',
+    'HAIL' => '🌨️',
+    'FOG' => '🌫️',
+];
+
+function get_weather_forecast(string $savegameDir, int $currentDay, int $daysAhead = 5): array {
+    $envFile = $savegameDir . DIRECTORY_SEPARATOR . 'environment.xml';
+    if (!file_exists($envFile)) return [];
+    libxml_use_internal_errors(true);
+    $xml = simplexml_load_file($envFile);
+    if (!$xml || !isset($xml->weather->forecast->instance)) return [];
+
+    $byDay = [];
+    foreach ($xml->weather->forecast->instance as $inst) {
+        $day = (int)$inst['startDay'];
+        if ($day < $currentDay || $day > $currentDay + $daysAhead - 1) continue;
+        $type = (string)$inst['typeName'];
+        $duration = (float)$inst['duration'];
+        if (!isset($byDay[$day])) {
+            $byDay[$day] = ['durations' => [], 'season' => (string)$inst['season'], 'hasPrecipitation' => false];
+        }
+        $byDay[$day]['durations'][$type] = ($byDay[$day]['durations'][$type] ?? 0) + $duration;
+        if (in_array($type, ['RAIN', 'SNOW', 'HAIL'], true)) {
+            $byDay[$day]['hasPrecipitation'] = true;
+        }
+    }
+
+    ksort($byDay);
+    $result = [];
+    foreach ($byDay as $day => $data) {
+        arsort($data['durations']);
+        $dominantType = array_key_first($data['durations']);
+        $result[] = [
+            'day' => $day,
+            'season' => $data['season'],
+            'dominantType' => $dominantType,
+            'dominantTypeIcon' => WEATHER_TYPE_ICONS[$dominantType] ?? '🌡️',
+            'hasPrecipitation' => $data['hasPrecipitation'],
+        ];
+    }
+    return $result;
+}
+
 function count_vehicles_for_farm(string $savegameDir, string $farmId): int {
     $file = $savegameDir . DIRECTORY_SEPARATOR . 'vehicles.xml';
     if (!file_exists($file)) return 0;
@@ -279,6 +329,105 @@ function parse_vehicles(string $savegameDir, string $farmId): array {
 }
 
 // -----------------------------------------------------------------
+// Tierbestände (Herden/Ställe aus placeables.xml)
+// -----------------------------------------------------------------
+const ANIMAL_SPECIES_LABELS = [
+    'COW' => ['label' => 'Kühe', 'icon' => '🐄'],
+    'PIG' => ['label' => 'Schweine', 'icon' => '🐖'],
+    'SHEEP' => ['label' => 'Schafe', 'icon' => '🐑'],
+    'HORSE' => ['label' => 'Pferde', 'icon' => '🐴'],
+    'CHICKEN' => ['label' => 'Hühner', 'icon' => '🐔'],
+    'GOAT' => ['label' => 'Ziegen', 'icon' => '🐐'],
+];
+
+function readable_barn_name(string $filename): string {
+    // Gleiches Muster wie bei Fahrzeugnamen: Modordner-Präfix entfernen, restlichen
+    // Dateinamen in lesbare Wortgrenzen auftrennen (Heuristik, nicht perfekt).
+    $clean = preg_replace('#^\$moddir\$[^/]+/#', '', $filename);
+    $parts = explode('/', $clean);
+    $base = preg_replace('/\.xml$/i', '', end($parts));
+    $name = preg_replace('/([a-z])([A-Z])/', '$1 $2', $base);
+    $name = preg_replace('/([a-zA-Z])(\d)/', '$1 $2', $name);
+    $name = ucfirst(trim($name));
+    return $name !== '' ? $name : 'Stall';
+}
+
+function animal_species_info(string $subType): array {
+    $species = strtok($subType, '_');
+    $info = ANIMAL_SPECIES_LABELS[$species] ?? ['label' => ucfirst(strtolower($species)), 'icon' => '🐾'];
+    $breedRaw = substr($subType, strlen($species) + 1);
+    $breed = $breedRaw !== '' ? ucwords(strtolower(str_replace('_', ' ', $breedRaw))) : '';
+    return ['species' => $info['label'], 'icon' => $info['icon'], 'breed' => $breed];
+}
+
+function parse_husbandries(string $savegameDir, string $farmId): array {
+    $file = $savegameDir . DIRECTORY_SEPARATOR . 'placeables.xml';
+    if (!file_exists($file)) return [];
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $dom->load($file, LIBXML_PARSEHUGE);
+
+    $result = [];
+    foreach ($dom->getElementsByTagName('placeable') as $p) {
+        if ($p->getAttribute('farmId') !== $farmId) continue;
+        $animalsNode = $p->getElementsByTagName('husbandryAnimals')->item(0);
+        if (!$animalsNode) continue;
+
+        $bySpecies = []; // Label => ['icon'=>, 'total'=>, 'breeds' => [Rasse => Anzahl]]
+        $total = 0;
+        foreach ($animalsNode->getElementsByTagName('animal') as $a) {
+            $num = (int)$a->getAttribute('numAnimals');
+            if ($num <= 0) continue;
+            $info = animal_species_info($a->getAttribute('subType'));
+            $total += $num;
+            if (!isset($bySpecies[$info['species']])) {
+                $bySpecies[$info['species']] = ['icon' => $info['icon'], 'total' => 0, 'breeds' => []];
+            }
+            $bySpecies[$info['species']]['total'] += $num;
+            $breedKey = $info['breed'] !== '' ? $info['breed'] : $info['species'];
+            $bySpecies[$info['species']]['breeds'][$breedKey] = ($bySpecies[$info['species']]['breeds'][$breedKey] ?? 0) + $num;
+        }
+        if ($total === 0) continue; // leerer Stall (noch keine Tiere gekauft) wird nicht gelistet
+
+        $meadow = null;
+        $meadowNode = $p->getElementsByTagName('husbandryMeadow')->item(0);
+        if ($meadowNode) {
+            $fillTypeNode = $meadowNode->getElementsByTagName('fillType')->item(0);
+            if ($fillTypeNode) {
+                $level = (float)$fillTypeNode->getAttribute('fillLevel');
+                $capacity = (float)$fillTypeNode->getAttribute('capacity');
+                $meadow = [
+                    'level' => round($level),
+                    'capacity' => round($capacity),
+                    'percent' => $capacity > 0 ? round($level / $capacity * 100) : 0,
+                ];
+            }
+        }
+
+        $speciesList = [];
+        foreach ($bySpecies as $label => $data) {
+            $speciesList[] = [
+                'label' => $label,
+                'icon' => $data['icon'],
+                'total' => $data['total'],
+                'breeds' => $data['breeds'],
+            ];
+        }
+        usort($speciesList, fn($a, $b) => $b['total'] <=> $a['total']);
+
+        $result[] = [
+            'uniqueId' => $p->getAttribute('uniqueId'),
+            'name' => readable_barn_name($p->getAttribute('filename')),
+            'totalAnimals' => $total,
+            'species' => $speciesList,
+            'meadow' => $meadow,
+        ];
+    }
+    usort($result, fn($a, $b) => $b['totalAnimals'] <=> $a['totalAnimals']);
+    return $result;
+}
+
+// -----------------------------------------------------------------
 // Marktpreise
 // -----------------------------------------------------------------
 const MARKET_PERIOD_ORDER = [
@@ -448,6 +597,35 @@ function make_backup_filename(string $folder): string {
     // innerhalb derselben Sekunde (z. B. schnelles Testen/Skripten).
     $ms = sprintf('%03d', (int)(microtime(true) * 1000) % 1000);
     return BACKUP_DIR . '/' . $folder . '_AutoDrive_config_' . date('Y-m-d_His') . '_' . $ms . '.xml';
+}
+
+// -----------------------------------------------------------------
+// Vollständige Spielstand-Backups (ZIP des kompletten savegameN-Ordners) –
+// unabhängig von den automatischen AutoDrive-XML-Backups oben. Eigener
+// Unterordner backups/full/, da diese Dateien deutlich größer sind.
+// -----------------------------------------------------------------
+function full_backup_dir(): string {
+    $dir = BACKUP_DIR . '/full';
+    if (!is_dir($dir)) mkdir($dir, 0777, true);
+    return $dir;
+}
+
+function list_full_backups_for(string $folder): array {
+    $files = glob(full_backup_dir() . '/' . $folder . '_full_*.zip');
+    rsort($files);
+    return $files;
+}
+
+function prune_old_full_backups(string $folder, int $keep): void {
+    $files = list_full_backups_for($folder);
+    foreach (array_slice($files, $keep) as $old) {
+        @unlink($old);
+    }
+}
+
+function make_full_backup_filename(string $folder): string {
+    $ms = sprintf('%03d', (int)(microtime(true) * 1000) % 1000);
+    return full_backup_dir() . '/' . $folder . '_full_' . date('Y-m-d_His') . '_' . $ms . '.zip';
 }
 
 $action = $_GET['action'] ?? ($_POST['action'] ?? '');
@@ -642,6 +820,147 @@ if ($action === 'delete_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     @unlink($path);
 
     echo json_encode(['success' => true]);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Vollständiges Spielstand-Backup erstellen (ZIP des kompletten Ordners)
+// ---------------------------------------------------------------
+if ($action === 'create_full_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $folder = $_SESSION['savegame_folder'] ?? null;
+    if (!$folder) {
+        http_response_code(409);
+        echo json_encode(['error' => 'no_savegame_selected']);
+        exit;
+    }
+    $dir = get_general_savegame_dir($folder);
+    if (!$dir) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Spielstand nicht gefunden.']);
+        exit;
+    }
+    if (!class_exists('ZipArchive')) {
+        http_response_code(500);
+        $iniPath = php_ini_loaded_file() ?: null;
+        $hint = $iniPath
+            ? "Bitte in \"$iniPath\" die Zeile \"extension=zip\" aktivieren (führendes Semikolon entfernen) und den Server neu starten."
+            : 'Bitte in der php.ini die Zeile "extension=zip" aktivieren (führendes Semikolon entfernen) und den Server neu starten. Den Pfad der geladenen php.ini zeigt "php --ini" im Terminal.';
+        echo json_encode(['error' => 'Die PHP-Erweiterung "zip" ist nicht aktiviert. ' . $hint]);
+        exit;
+    }
+
+    set_time_limit(180); // große Spielstände (Terrain-Caches etc.) können etwas dauern
+
+    $zipPath = make_full_backup_filename($folder);
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
+        http_response_code(500);
+        echo json_encode(['error' => 'ZIP-Datei konnte nicht angelegt werden.']);
+        exit;
+    }
+
+    $files = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
+    );
+    foreach ($files as $file) {
+        if (!$file->isFile()) continue;
+        $localName = substr($file->getPathname(), strlen($dir) + 1);
+        $zip->addFile($file->getPathname(), $localName);
+    }
+    $zip->close();
+
+    prune_old_full_backups($folder, 5); // große Dateien – bewusst weniger Generationen als bei den AutoDrive-Backups
+
+    echo json_encode(['success' => true, 'file' => basename($zipPath), 'size' => filesize($zipPath)]);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Vollständige Spielstand-Backups auflisten
+// ---------------------------------------------------------------
+if ($action === 'list_full_backups' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $folder = $_SESSION['savegame_folder'] ?? null;
+    if (!$folder) {
+        http_response_code(409);
+        echo json_encode(['error' => 'no_savegame_selected']);
+        exit;
+    }
+
+    $files = list_full_backups_for($folder);
+    $result = array_map(function ($f) {
+        preg_match('/_full_(\d{4}-\d{2}-\d{2}_\d{6})_\d{3}\.zip$/', $f, $m);
+        $ts = $m[1] ?? '';
+        $formatted = $ts ? sprintf(
+            '%s.%s.%s %s:%s:%s',
+            substr($ts, 8, 2), substr($ts, 5, 2), substr($ts, 0, 4),
+            substr($ts, 11, 2), substr($ts, 13, 2), substr($ts, 15, 2)
+        ) : '';
+        return ['file' => basename($f), 'formatted' => $formatted, 'size' => filesize($f)];
+    }, $files);
+
+    echo json_encode(['backups' => $result]);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Vollständiges Spielstand-Backup manuell löschen
+// ---------------------------------------------------------------
+if ($action === 'delete_full_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $folder = $_SESSION['savegame_folder'] ?? null;
+    if (!$folder) {
+        http_response_code(409);
+        echo json_encode(['error' => 'no_savegame_selected']);
+        exit;
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    $file = basename($body['file'] ?? '');
+
+    if (!preg_match('/^' . preg_quote($folder, '/') . '_full_\d{4}-\d{2}-\d{2}_\d{6}_\d{3}\.zip$/', $file)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ungültiger Backup-Dateiname.']);
+        exit;
+    }
+
+    $path = full_backup_dir() . '/' . $file;
+    if (!file_exists($path)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Backup nicht gefunden.']);
+        exit;
+    }
+
+    @unlink($path);
+
+    echo json_encode(['success' => true]);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Vollständiges Spielstand-Backup herunterladen
+// ---------------------------------------------------------------
+if ($action === 'download_full_backup' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $folder = $_SESSION['savegame_folder'] ?? null;
+    if (!$folder) {
+        http_response_code(409);
+        exit;
+    }
+
+    $file = basename($_GET['file'] ?? '');
+    if (!preg_match('/^' . preg_quote($folder, '/') . '_full_\d{4}-\d{2}-\d{2}_\d{6}_\d{3}\.zip$/', $file)) {
+        http_response_code(400);
+        exit;
+    }
+
+    $path = full_backup_dir() . '/' . $file;
+    if (!file_exists($path)) {
+        http_response_code(404);
+        exit;
+    }
+
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . $file . '"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
     exit;
 }
 
@@ -1013,6 +1332,7 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         'vehiclesNeedingAttention' => array_slice($vehiclesNeedingAttention, 0, 5),
         'missionsTodayCount' => $missionsToday,
         'missionsTotalCount' => count($missions),
+        'weatherForecast' => get_weather_forecast($dir, $currentDay, 5),
     ]);
     exit;
 }
@@ -1095,6 +1415,28 @@ if ($action === 'vehicles_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         'totalValue' => array_sum(array_column($vehicles, 'price')),
         'needsRepairCount' => count(array_filter($vehicles, fn($v) => $v['wear'] > 0.5)),
         'needsWashCount' => count(array_filter($vehicles, fn($v) => $v['dirt'] > 0.5)),
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Tierbestände
+// ---------------------------------------------------------------
+if ($action === 'animals_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $folder = $_SESSION['savegame_folder'] ?? null;
+    if (!$folder) {
+        http_response_code(409);
+        echo json_encode(['error' => 'no_savegame_selected']);
+        exit;
+    }
+    $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
+    $farmInfo = get_farm_info($dir);
+    $husbandries = $farmInfo['farmId'] ? parse_husbandries($dir, $farmInfo['farmId']) : [];
+
+    echo json_encode([
+        'husbandries' => $husbandries,
+        'barnCount' => count($husbandries),
+        'totalAnimals' => array_sum(array_column($husbandries, 'totalAnimals')),
     ]);
     exit;
 }

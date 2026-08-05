@@ -375,15 +375,30 @@
     }
     .tab-btn:hover { border-color: var(--border); color: var(--text); }
     .tab-btn.active { color: var(--accent); border-color: var(--accent); }
+    .tab-badge {
+        display: inline-block;
+        margin-left: 5px;
+        background: var(--wheat-500);
+        color: var(--ink-950);
+        font-size: 10px;
+        font-weight: 700;
+        padding: 1px 6px;
+        border-radius: 8px;
+        font-family: var(--font-mono);
+        vertical-align: middle;
+    }
 
     .header-actions {
         flex-shrink: 0;
-        align-self: center;
+        align-self: flex-end;
         margin-left: 18px;
+        margin-bottom: 1px;
+        display: flex;
+        gap: 8px;
     }
     .header-actions button {
-        padding: 9px 16px;
-        font-size: 13px;
+        padding: 7px 13px;
+        font-size: 12.5px;
         font-weight: 600;
     }
 
@@ -621,6 +636,106 @@
     .bar-fill.bad { background: var(--rust-500); }
     .bar-value { width: 38px; text-align: right; font-family: var(--font-mono); font-size: 11px; }
 
+    /* Wettervorschau (Hof-Übersicht) */
+    .weather-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .weather-day {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px 20px;
+        text-align: center;
+        min-width: 118px;
+    }
+    .weather-day-label {
+        font-family: var(--font-mono);
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .weather-day-icon { font-size: 40px; margin-bottom: 8px; line-height: 1; }
+    .weather-day-season { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+    .weather-day-precip {
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        color: var(--moss-400);
+        margin-top: 6px;
+    }
+
+    /* Tiere */
+    #animalsContainer {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+    }
+    .animal-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--secondary);
+        border-radius: 8px;
+        padding: 12px 14px;
+    }
+    .animal-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .animal-name { font-family: var(--font-display); font-weight: 600; font-size: 14px; flex: 1; }
+    .animal-total-badge {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--ink-950);
+        background: var(--accent);
+        padding: 2px 8px;
+        border-radius: 10px;
+        white-space: nowrap;
+        font-weight: 600;
+    }
+    .animal-species-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 13px;
+        margin-bottom: 4px;
+    }
+    .animal-species-icon { font-size: 16px; }
+    .animal-species-count { font-family: var(--font-mono); color: var(--muted); font-size: 11px; margin-left: auto; }
+    .animal-breed-line {
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        color: var(--muted);
+        margin: 0 0 8px 24px;
+    }
+    .animal-meadow-row { margin-top: 8px; }
+    .animal-meadow-label {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 4px;
+    }
+
+    /* Preis-Alarm (Markt) */
+    .market-card.alert-hit { border-left-color: var(--wheat-500); box-shadow: 0 0 0 1px var(--wheat-500); }
+    .market-alert-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+    }
+    .market-alert-row input { width: 70px; padding: 3px 6px; font-size: 12px; }
+    .market-alert-hit-badge {
+        margin-top: 6px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--ink-950);
+        background: var(--wheat-500);
+        padding: 3px 8px;
+        border-radius: 10px;
+        display: inline-block;
+        font-weight: 600;
+    }
+
     /* Markt */
     #marketContainer {
         display: grid;
@@ -745,10 +860,12 @@
                 <button class="tab-btn" id="tabBtnMarkers" onclick="switchTab('markers')">📋 Marker</button>
                 <button class="tab-btn" id="tabBtnMap" onclick="switchTab('map')">🗺️ Karte</button>
                 <button class="tab-btn" id="tabBtnVehicles" onclick="switchTab('vehicles')">🚜 Fuhrpark</button>
+                <button class="tab-btn" id="tabBtnAnimals" onclick="switchTab('animals')">🐄 Tiere</button>
                 <button class="tab-btn" id="tabBtnMarket" onclick="switchTab('market')">💰 Markt</button>
                 <button class="tab-btn" id="tabBtnMissions" onclick="switchTab('missions')">🤝 Verträge</button>
             </div>
             <div class="header-actions">
+                <button onclick="openFullBackupPanel()">💾 Backup</button>
                 <button onclick="switchSavegame()">⇄ Spielstand wechseln</button>
             </div>
         </div>
@@ -761,6 +878,7 @@
             <div class="stat-grid" id="statGrid">
                 <div class="empty-note">Lade Hof-Übersicht …</div>
             </div>
+            <div id="weatherForecastContainer"></div>
             <div id="quickAccessContainer"></div>
         </div>
 
@@ -866,13 +984,22 @@
             <div id="vehiclesContainer"></div>
         </div>
 
+        <div id="tabAnimals" style="display:none">
+            <div class="toolbar">
+                <button onclick="loadAnimalsData()">↻ Aktualisieren</button>
+            </div>
+            <div class="legend-line">🐄 Kühe · 🐖 Schweine · 🐑 Schafe · 🐴 Pferde · 🐔 Hühner · Futter-/Wasserfüllstände werden von manchen Stall-Mods nicht im Spielstand gespeichert und können daher hier nicht angezeigt werden</div>
+            <div class="stat-grid" id="animalStatGrid"></div>
+            <div id="animalsContainer"></div>
+        </div>
+
         <div id="tabMarket" style="display:none">
             <div class="toolbar">
                 <button onclick="loadMarketData()">↻ Aktualisieren</button>
                 <input type="text" id="marketFilterInput" placeholder="Filtern nach Kultur …" style="width:280px" oninput="renderMarket()">
                 <span class="map-hint" id="marketPeriodLabel"></span>
             </div>
-            <div class="legend-line">Preise je Kultur für den aktuellen Zeitpunkt im Jahresverlauf · Preise schwanken saisonal · gelber Strich zeigt, wo der aktuelle Preis innerhalb der Jahresspanne liegt</div>
+            <div class="legend-line">Preise je Kultur für den aktuellen Zeitpunkt im Jahresverlauf · Preise schwanken saisonal · gelber Strich zeigt, wo der aktuelle Preis innerhalb der Jahresspanne liegt · 🔔 Preis-Alarm: Zielpreis je Kultur festlegen, Karte wird hervorgehoben und nach oben sortiert sobald erreicht</div>
             <div id="marketContainer"></div>
         </div>
 
@@ -881,6 +1008,7 @@
                 <button onclick="loadMissionsData()">↻ Aktualisieren</button>
                 <span class="map-hint">Belohnung wird im Spiel dynamisch berechnet – im Spielstand nicht hinterlegt</span>
             </div>
+            <div class="legend-line">Weiß: vom Vertrag geforderte Fruchtart · Grün: erscheint nur, wenn auf dem Feld aktuell etwas anderes wächst als vom Vertrag verlangt</div>
             <div id="missionsContainer"></div>
         </div>
     </div>
@@ -926,6 +1054,7 @@ function performSwitchTab(tab) {
     document.getElementById('tabMarkers').style.display = tab === 'markers' ? 'block' : 'none';
     document.getElementById('tabMap').style.display = tab === 'map' ? 'block' : 'none';
     document.getElementById('tabVehicles').style.display = tab === 'vehicles' ? 'block' : 'none';
+    document.getElementById('tabAnimals').style.display = tab === 'animals' ? 'block' : 'none';
     document.getElementById('tabMarket').style.display = tab === 'market' ? 'block' : 'none';
     document.getElementById('tabMissions').style.display = tab === 'missions' ? 'block' : 'none';
     document.getElementById('tabBtnHome').classList.toggle('active', tab === 'home');
@@ -933,6 +1062,7 @@ function performSwitchTab(tab) {
     document.getElementById('tabBtnMarkers').classList.toggle('active', tab === 'markers');
     document.getElementById('tabBtnMap').classList.toggle('active', tab === 'map');
     document.getElementById('tabBtnVehicles').classList.toggle('active', tab === 'vehicles');
+    document.getElementById('tabBtnAnimals').classList.toggle('active', tab === 'animals');
     document.getElementById('tabBtnMarket').classList.toggle('active', tab === 'market');
     document.getElementById('tabBtnMissions').classList.toggle('active', tab === 'missions');
     if (tab === 'map') {
@@ -943,6 +1073,8 @@ function performSwitchTab(tab) {
         loadFieldsData();
     } else if (tab === 'vehicles') {
         loadVehiclesData();
+    } else if (tab === 'animals') {
+        loadAnimalsData();
     } else if (tab === 'market') {
         loadMarketData();
     } else if (tab === 'missions') {
@@ -1001,6 +1133,76 @@ async function loadFarmOverview() {
     `;
 
     renderQuickAccess(data);
+    renderWeatherForecast(data.weatherForecast);
+    checkPriceAlerts();
+}
+
+async function checkPriceAlerts() {
+    const res = await fetch('api.php?action=market_data');
+    const data = await res.json();
+    const hits = data.error ? [] : data.market.filter(m => isAlertHit(m));
+    updateMarketBadge(hits);
+    renderPriceAlertQuickAccess(hits);
+}
+
+function updateMarketBadge(hits) {
+    const btn = document.getElementById('tabBtnMarket');
+    if (!btn) return;
+    const existing = btn.querySelector('.tab-badge');
+    if (existing) existing.remove();
+    if (hits.length > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'tab-badge';
+        badge.textContent = hits.length;
+        btn.appendChild(badge);
+    }
+}
+
+function renderPriceAlertQuickAccess(hits) {
+    const container = document.getElementById('quickAccessContainer');
+    const existingSection = document.getElementById('priceAlertQuickSection');
+    if (existingSection) existingSection.remove();
+    if (hits.length === 0) return;
+
+    // "Alles im grünen Bereich"-Hinweis entfernen, sonst widerspricht er sich mit dem Alarm
+    const allGood = container.querySelector('.quick-all-good');
+    if (allGood) allGood.closest('.quick-section')?.remove();
+
+    const section = document.createElement('div');
+    section.id = 'priceAlertQuickSection';
+    section.className = 'quick-section';
+    section.innerHTML = `
+        <h3>🔔 Preis-Alarm ausgelöst</h3>
+        <div class="quick-list">
+            ${hits.map(m => `
+                <div class="quick-row" onclick="switchTab('market')">
+                    <span class="quick-title">${escapeHtml(m.label)}</span>
+                    <span class="quick-meta">${m.currentPrice.toLocaleString('de-DE')} €</span>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    container.prepend(section); // zeitkritisch – ganz oben
+}
+
+function renderWeatherForecast(forecast) {
+    const container = document.getElementById('weatherForecastContainer');
+    if (!forecast || forecast.length === 0) { container.innerHTML = ''; return; }
+    container.innerHTML = `
+        <div class="quick-section">
+            <h3>🌤️ Wettervorschau</h3>
+            <div class="weather-row">
+                ${forecast.map((f, i) => `
+                    <div class="weather-day">
+                        <div class="weather-day-label">${i === 0 ? 'Heute' : (i === 1 ? 'Morgen' : 'Tag ' + f.day)}</div>
+                        <div class="weather-day-icon">${f.dominantTypeIcon}</div>
+                        <div class="weather-day-season">${SEASON_LABELS[f.season] || f.season}</div>
+                        ${f.hasPrecipitation ? '<div class="weather-day-precip">🌧 Niederschlag</div>' : ''}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
 }
 
 function renderQuickAccess(data) {
@@ -1238,6 +1440,76 @@ function renderVehicles() {
 }
 
 // =================================================================
+// Tierbestände
+// =================================================================
+let animalsCache = [];
+
+async function loadAnimalsData() {
+    const container = document.getElementById('animalsContainer');
+    container.innerHTML = '<div class="empty-note">Lade Tierbestände …</div>';
+    const res = await fetch('api.php?action=animals_data');
+    const data = await res.json();
+    if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
+    animalsCache = data.husbandries;
+
+    document.getElementById('animalStatGrid').innerHTML = `
+        <div class="stat-card">
+            <div class="stat-label">Ställe/Gehege</div>
+            <div class="stat-value">${data.barnCount}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Tiere gesamt</div>
+            <div class="stat-value">${data.totalAnimals}</div>
+        </div>
+    `;
+    renderAnimals();
+}
+
+function renderAnimals() {
+    const container = document.getElementById('animalsContainer');
+
+    if (animalsCache.length === 0) {
+        container.innerHTML = '<div class="empty-note">Keine Tierbestände in diesem Spielstand gefunden.</div>';
+        return;
+    }
+
+    container.innerHTML = animalsCache.map(barn => {
+        const speciesHtml = barn.species.map(s => {
+            const breedEntries = Object.entries(s.breeds);
+            const breedLine = breedEntries.length > 1 || (breedEntries.length === 1 && breedEntries[0][0] !== s.label)
+                ? `<div class="animal-breed-line">${breedEntries.map(([breed, count]) => `${escapeHtml(breed)}: ${count}`).join(' · ')}</div>`
+                : '';
+            return `
+                <div class="animal-species-row">
+                    <span class="animal-species-icon">${s.icon}</span>
+                    <span>${escapeHtml(s.label)}</span>
+                    <span class="animal-species-count">${s.total}</span>
+                </div>
+                ${breedLine}
+            `;
+        }).join('');
+
+        const meadowHtml = barn.meadow ? `
+            <div class="animal-meadow-row">
+                <div class="animal-meadow-label">Weide: ${barn.meadow.percent}%</div>
+                <div class="bar-track"><div class="bar-fill ${barClass(1 - barn.meadow.percent / 100)}" style="width:${barn.meadow.percent}%"></div></div>
+            </div>
+        ` : '';
+
+        return `
+            <div class="animal-card">
+                <div class="animal-card-header">
+                    <span class="animal-name">${escapeHtml(barn.name)}</span>
+                    <span class="animal-total-badge">${barn.totalAnimals} Tiere</span>
+                </div>
+                ${speciesHtml}
+                ${meadowHtml}
+            </div>
+        `;
+    }).join('');
+}
+
+// =================================================================
 // Marktpreise / Verkaufsplaner
 // =================================================================
 let marketCache = [];
@@ -1258,6 +1530,9 @@ function renderMarket() {
     const container = document.getElementById('marketContainer');
 
     const sorted = marketCache.slice().sort((a, b) => {
+        const aHit = isAlertHit(a);
+        const bHit = isAlertHit(b);
+        if (aHit !== bHit) return aHit ? -1 : 1;
         if (a.isOwnCrop !== b.isOwnCrop) return a.isOwnCrop ? -1 : 1;
         return b.currentPrice - a.currentPrice;
     });
@@ -1272,8 +1547,10 @@ function renderMarket() {
         const span = m.maxPrice - m.minPrice || 1;
         const markerPos = ((m.currentPrice - m.minPrice) / span) * 100;
         const trendArrow = m.trend === 'up' ? '▲ steigt' : (m.trend === 'down' ? '▼ fällt' : '– stabil');
+        const alertValue = getPriceAlert(m.fruitType);
+        const alertHit = isAlertHit(m);
         return `
-            <div class="market-card ${m.isOwnCrop ? 'own-crop' : ''}">
+            <div class="market-card ${m.isOwnCrop ? 'own-crop' : ''} ${alertHit ? 'alert-hit' : ''}">
                 <div class="market-card-header">
                     <span class="market-name">${escapeHtml(m.label)}</span>
                     ${m.isOwnCrop ? '<span class="market-own-badge">eigene Kultur</span>' : ''}
@@ -1292,9 +1569,39 @@ function renderMarket() {
                 <div class="market-detail-row">
                     <span>Bester Verkaufszeitpunkt: ${escapeHtml(m.bestPeriodLabel)}${m.isAtBest ? ' (jetzt!)' : ''}</span>
                 </div>
+                <div class="market-alert-row">
+                    <label>🔔 Alarm ab</label>
+                    <input type="number" value="${alertValue !== null ? alertValue : ''}" placeholder="z. B. 250" data-fruit="${escapeAttr(m.fruitType)}" onchange="updatePriceAlert(this)">
+                    <span>€</span>
+                </div>
+                ${alertHit ? '<div class="market-alert-hit-badge">🔔 Zielpreis erreicht!</div>' : ''}
             </div>
         `;
     }).join('');
+}
+
+function getPriceAlert(fruitType) {
+    const raw = localStorage.getItem(`priceAlert_${currentFolder}_${fruitType}`);
+    const val = parseFloat(raw);
+    return isNaN(val) ? null : val;
+}
+
+function isAlertHit(m) {
+    const alert = getPriceAlert(m.fruitType);
+    return alert !== null && alert > 0 && m.currentPrice >= alert;
+}
+
+function updatePriceAlert(input) {
+    const fruitType = input.dataset.fruit;
+    const value = parseFloat(input.value);
+    const key = `priceAlert_${currentFolder}_${fruitType}`;
+    if (!input.value || isNaN(value) || value <= 0) {
+        localStorage.removeItem(key);
+    } else {
+        localStorage.setItem(key, String(value));
+    }
+    renderMarket(); // neu sortieren/markieren
+    updateMarketBadge(marketCache.filter(m => isAlertHit(m))); // Badge sofort aktualisieren, nicht erst beim nächsten Aktualisieren der Übersicht
 }
 
 // =================================================================
@@ -1314,7 +1621,8 @@ async function loadMissionsData() {
 
     container.innerHTML = data.missions.map(m => {
         const urgent = m.daysLeft === 0;
-        const cropInfo = m.fieldCrop ? `<span class="mission-extra">Aktuell auf dem Feld: ${escapeHtml(m.fieldCrop)}</span>` : '';
+        const showFieldCrop = m.fieldCrop && m.fieldCrop !== m.detail;
+        const cropInfo = showFieldCrop ? `<span class="mission-extra">Aktuell auf dem Feld: ${escapeHtml(m.fieldCrop)}</span>` : '';
         const rewardInfo = m.reward > 0 ? `<span class="mission-reward">${Math.round(m.reward).toLocaleString('de-DE')} €</span>` : '';
         return `
             <div class="mission-row ${urgent ? 'urgent' : ''}">
@@ -2448,6 +2756,80 @@ async function doDeleteBackup(file) {
     if (data.error) { showToast('Fehler: ' + data.error, 'err'); return; }
     showToast('Backup gelöscht', 'ok');
     openBackupPanel(); // Liste neu laden
+}
+
+// -----------------------------------------------------------------
+// Vollständige Spielstand-Backups (ZIP des kompletten Spielstand-Ordners)
+// -----------------------------------------------------------------
+async function openFullBackupPanel() {
+    const res = await fetch('api.php?action=list_full_backups');
+    const data = await res.json();
+    if (data.error === 'no_savegame_selected') { showToast('Bitte zuerst einen Spielstand auswählen.', 'err'); return; }
+    if (data.error) { showToast(data.error, 'err'); return; }
+    renderFullBackupPanel(data.backups);
+}
+
+function renderFullBackupPanel(backups) {
+    const rows = backups.length === 0
+        ? '<div class="empty-note">Noch keine vollständigen Backups vorhanden.</div>'
+        : backups.map(b => `
+            <div class="backup-row">
+                <span class="ts">${escapeHtml(b.formatted)}</span>
+                <span class="size">${(b.size / 1024 / 1024).toFixed(1)} MB</span>
+                <button class="small" onclick="window.location.href='api.php?action=download_full_backup&file=${encodeURIComponent(b.file)}'">Herunterladen</button>
+                <button class="small danger" onclick="deleteFullBackupEntry('${b.file}')" title="Backup dauerhaft löschen">✕</button>
+            </div>
+        `).join('');
+
+    document.getElementById('modalContainer').innerHTML = `
+        <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+            <div class="modal-box">
+                <h2>Vollständige Spielstand-Backups</h2>
+                <div class="modal-sub">Sichert den kompletten Spielstand-Ordner als ZIP (Felder, Gebäude, Fahrzeuge, Terrain-Caches usw.) – unabhängig von den automatischen AutoDrive-Backups oben. Kann je nach Spielstandgröße einige Sekunden dauern, währenddessen ist der Server kurz blockiert.</div>
+                <div style="margin-bottom:14px">
+                    <button class="primary" id="createFullBackupBtn" onclick="createFullBackup()">💾 Jetzt Backup erstellen</button>
+                </div>
+                <div class="modal-list" id="fullBackupList">${rows}</div>
+                <div class="modal-close"><button onclick="closeModal()">Schließen</button></div>
+            </div>
+        </div>
+    `;
+}
+
+async function createFullBackup() {
+    const btn = document.getElementById('createFullBackupBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Erstelle Backup …';
+    const res = await fetch('api.php?action=create_full_backup', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) {
+        showToast(data.error, 'err');
+        btn.disabled = false;
+        btn.textContent = '💾 Jetzt Backup erstellen';
+        return;
+    }
+    showToast(`Vollständiges Backup erstellt (${(data.size / 1024 / 1024).toFixed(1)} MB)`, 'ok');
+    openFullBackupPanel(); // Liste aktualisieren
+}
+
+function deleteFullBackupEntry(file) {
+    showConfirmModal(
+        'Dieses vollständige Backup dauerhaft löschen? Das kann nicht rückgängig gemacht werden.',
+        () => doDeleteFullBackup(file),
+        'Löschen'
+    );
+}
+
+async function doDeleteFullBackup(file) {
+    const res = await fetch('api.php?action=delete_full_backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file })
+    });
+    const data = await res.json();
+    if (data.error) { showToast('Fehler: ' + data.error, 'err'); return; }
+    showToast('Backup gelöscht', 'ok');
+    openFullBackupPanel();
 }
 
 function exportJson() {
