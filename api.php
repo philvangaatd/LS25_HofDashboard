@@ -340,12 +340,71 @@ const ANIMAL_SPECIES_LABELS = [
     'GOAT' => ['label' => 'Ziegen', 'icon' => '🐐'],
 ];
 
+// Rassen-/Farbbezeichnungen der Tiere sind im Spiel englische Codes (Rassenname bei
+// Rindern/Schweinen/Schafen, Fellfarbe bei Pferden) – hier ins Deutsche übersetzt.
+const ANIMAL_BREED_LABELS = [
+    'LANDRACE' => 'Landrasse',
+    'HOLSTEIN' => 'Holstein',
+    'CHESTNUT' => 'Fuchs',
+    'BAY' => 'Brauner',
+    'GRAY' => 'Schimmel',
+    'BLACK' => 'Rappe',
+    'DUN' => 'Falbe',
+    'PINTO' => 'Schecke',
+    'PALOMINO' => 'Palomino',
+    'SEAL_BROWN' => 'Dunkelbraun',
+];
+
+// Grobe, aber generische Deutsch-Übersetzung von Stall-/Gehege-Dateinamen. Mod-Autoren
+// benennen ihre Dateien fast immer auf Englisch (z. B. "cowBarnSmall.xml"). Eine
+// wörtliche 1:1-Übersetzung ist nicht möglich (Eigennamen von Mods bleiben unangetastet),
+// aber Tierart + Größe + Stalltyp werden erkannt und zu einem deutschen Kompositum
+// zusammengesetzt ("Kleiner Kuhstall", "Schweinestall", "Pferdeunterstand" usw.).
+const BARN_SPECIES_STEMS = [
+    'cow' => 'Kuh', 'pig' => 'Schweine', 'sheep' => 'Schaf',
+    'horse' => 'Pferde', 'chicken' => 'Hühner', 'goat' => 'Ziegen',
+];
+const BARN_SIZE_ADJ = [
+    'small' => ['m' => 'Kleiner', 'f' => 'Kleine'],
+    'medium' => ['m' => 'Mittlerer', 'f' => 'Mittlere'],
+    'large' => ['m' => 'Großer', 'f' => 'Große'],
+    'big' => ['m' => 'Großer', 'f' => 'Große'],
+];
+const BARN_TYPE_WORDS = [
+    'shed' => ['word' => 'schuppen', 'gender' => 'm'],
+    'shelter' => ['word' => 'unterstand', 'gender' => 'm'],
+    'hall' => ['word' => 'halle', 'gender' => 'f'],
+    'coop' => ['word' => 'stall', 'gender' => 'm'],
+    'stable' => ['word' => 'stall', 'gender' => 'm'],
+    'sty' => ['word' => 'stall', 'gender' => 'm'],
+    'barn' => ['word' => 'stall', 'gender' => 'm'],
+];
+
 function readable_barn_name(string $filename): string {
-    // Gleiches Muster wie bei Fahrzeugnamen: Modordner-Präfix entfernen, restlichen
-    // Dateinamen in lesbare Wortgrenzen auftrennen (Heuristik, nicht perfekt).
     $clean = preg_replace('#^\$moddir\$[^/]+/#', '', $filename);
     $parts = explode('/', $clean);
     $base = preg_replace('/\.xml$/i', '', end($parts));
+    $lower = strtolower($base);
+
+    $species = null;
+    foreach (BARN_SPECIES_STEMS as $needle => $stem) {
+        if (str_contains($lower, $needle)) { $species = $stem; break; }
+    }
+
+    if ($species !== null) {
+        $type = ['word' => 'stall', 'gender' => 'm'];
+        foreach (BARN_TYPE_WORDS as $needle => $t) {
+            if (str_contains($lower, $needle)) { $type = $t; break; }
+        }
+        $sizePrefix = '';
+        foreach (BARN_SIZE_ADJ as $needle => $adj) {
+            if (str_contains($lower, $needle)) { $sizePrefix = $adj[$type['gender']] . ' '; break; }
+        }
+        return $sizePrefix . $species . $type['word'];
+    }
+
+    // Kein Tierart-Muster erkannt (z. B. Mod-Eigenname wie "Oudeschuur") -> nur
+    // wortgetrennt anzeigen, unverändert übernommen statt falsch übersetzt.
     $name = preg_replace('/([a-z])([A-Z])/', '$1 $2', $base);
     $name = preg_replace('/([a-zA-Z])(\d)/', '$1 $2', $name);
     $name = ucfirst(trim($name));
@@ -356,7 +415,7 @@ function animal_species_info(string $subType): array {
     $species = strtok($subType, '_');
     $info = ANIMAL_SPECIES_LABELS[$species] ?? ['label' => ucfirst(strtolower($species)), 'icon' => '🐾'];
     $breedRaw = substr($subType, strlen($species) + 1);
-    $breed = $breedRaw !== '' ? ucwords(strtolower(str_replace('_', ' ', $breedRaw))) : '';
+    $breed = $breedRaw !== '' ? (ANIMAL_BREED_LABELS[$breedRaw] ?? ucwords(strtolower(str_replace('_', ' ', $breedRaw)))) : '';
     return ['species' => $info['label'], 'icon' => $info['icon'], 'breed' => $breed];
 }
 
@@ -732,7 +791,9 @@ if ($action === 'list_backups' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 
     $files = list_backups_for($folder);
     $result = array_map(function ($f) {
-        preg_match('/_(\d{4}-\d{2}-\d{2}_\d{6})_\d{3}\.xml$/', $f, $m);
+        // Millisekunden-Suffix ist optional: ältere Backups von vor dessen Einführung
+        // haben nur Datum+Uhrzeit ohne "_XXX" am Ende.
+        preg_match('/_(\d{4}-\d{2}-\d{2}_\d{6})(?:_\d{3})?\.xml$/', $f, $m);
         $ts = $m[1] ?? '';
         $formatted = $ts ? sprintf(
             '%s.%s.%s %s:%s:%s',
@@ -766,7 +827,8 @@ if ($action === 'restore_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true);
     $file = basename($body['file'] ?? ''); // basename() verhindert Path-Traversal
 
-    if (!preg_match('/^' . preg_quote($folder, '/') . '_AutoDrive_config_\d{4}-\d{2}-\d{2}_\d{6}_\d{3}\.xml$/', $file)) {
+    // Millisekunden-Suffix optional (ältere Backups von vor dessen Einführung haben ihn nicht)
+    if (!preg_match('/^' . preg_quote($folder, '/') . '_AutoDrive_config_\d{4}-\d{2}-\d{2}_\d{6}(?:_\d{3})?\.xml$/', $file)) {
         http_response_code(400);
         echo json_encode(['error' => 'Ungültiger Backup-Dateiname.']);
         exit;
@@ -804,7 +866,8 @@ if ($action === 'delete_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true);
     $file = basename($body['file'] ?? ''); // basename() verhindert Path-Traversal
 
-    if (!preg_match('/^' . preg_quote($folder, '/') . '_AutoDrive_config_\d{4}-\d{2}-\d{2}_\d{6}_\d{3}\.xml$/', $file)) {
+    // Millisekunden-Suffix optional (ältere Backups von vor dessen Einführung haben ihn nicht)
+    if (!preg_match('/^' . preg_quote($folder, '/') . '_AutoDrive_config_\d{4}-\d{2}-\d{2}_\d{6}(?:_\d{3})?\.xml$/', $file)) {
         http_response_code(400);
         echo json_encode(['error' => 'Ungültiger Backup-Dateiname.']);
         exit;

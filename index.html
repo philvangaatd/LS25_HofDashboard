@@ -885,7 +885,7 @@
         <div id="tabFields" style="display:none">
             <div class="toolbar">
                 <button onclick="loadFieldsData()">↻ Aktualisieren</button>
-                <input type="text" id="fieldFilterInput" placeholder="Filtern nach Fruchtart oder Feldnummer …" style="width:280px" oninput="renderFields()">
+                <input type="text" id="fieldFilterInput" placeholder="Filtern nach Fruchtart oder Feldnummer …" style="width:280px; margin-left:auto" oninput="renderFields()">
             </div>
             <div id="fieldsContainer"></div>
         </div>
@@ -905,8 +905,8 @@
                     </div>
                 </div>
                 <input type="file" id="importFileInput" accept="application/json" style="display:none" onchange="importJson(this)">
-                <input type="text" id="filterInput" placeholder="Filtern nach Name oder Gruppe …" style="width:260px" oninput="renderTable()">
-                <button onclick="reloadOrDiscard()" style="margin-left:auto">↻ Neu laden</button>
+                <input type="text" id="filterInput" placeholder="Filtern nach Name oder Gruppe …" style="width:260px; margin-left:auto" oninput="renderTable()">
+                <button onclick="reloadOrDiscard()">↻ Neu laden</button>
             </div>
 
             <div id="bulkBar" style="display:none"></div>
@@ -926,7 +926,7 @@
                     <button class="mode-btn" id="modeBtnDelete" onclick="setEditMode('delete')">🗑️ Löschen</button>
                 </div>
                 <button onclick="mapResetView()">⤢ Alle anzeigen</button>
-                <select id="mapJumpSelect" style="width:220px" onchange="mapJumpToMarker(this.value)">
+                <select id="mapJumpSelect" style="width:220px; margin-left:auto" onchange="mapJumpToMarker(this.value)">
                     <option value="">— Zu Marker springen —</option>
                 </select>
                 <div class="toolbar-more">
@@ -967,8 +967,8 @@
         <div id="tabVehicles" style="display:none">
             <div class="toolbar">
                 <button onclick="loadVehiclesData()">↻ Aktualisieren</button>
-                <input type="text" id="vehicleFilterInput" placeholder="Filtern nach Marke/Modell …" style="width:280px" oninput="renderVehicles()">
-                <select id="vehicleSortSelect" style="width:220px; margin-left:auto" onchange="renderVehicles()">
+                <input type="text" id="vehicleFilterInput" placeholder="Filtern nach Marke/Modell …" style="flex:1" oninput="renderVehicles()">
+                <select id="vehicleSortSelect" style="width:220px" onchange="renderVehicles()">
                     <option value="wear">Sortieren: Verschleiß (höchster zuerst)</option>
                     <option value="dirt">Sortieren: Dreckgrad</option>
                     <option value="hours">Sortieren: Betriebsstunden</option>
@@ -996,7 +996,7 @@
         <div id="tabMarket" style="display:none">
             <div class="toolbar">
                 <button onclick="loadMarketData()">↻ Aktualisieren</button>
-                <input type="text" id="marketFilterInput" placeholder="Filtern nach Kultur …" style="width:280px" oninput="renderMarket()">
+                <input type="text" id="marketFilterInput" placeholder="Filtern nach Kultur …" style="flex:1" oninput="renderMarket()">
                 <span class="map-hint" id="marketPeriodLabel"></span>
             </div>
             <div class="legend-line">Preise je Kultur für den aktuellen Zeitpunkt im Jahresverlauf · Preise schwanken saisonal · gelber Strich zeigt, wo der aktuelle Preis innerhalb der Jahresspanne liegt · 🔔 Preis-Alarm: Zielpreis je Kultur festlegen, Karte wird hervorgehoben und nach oben sortiert sobald erreicht</div>
