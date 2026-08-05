@@ -896,7 +896,10 @@
             </div>
             <div class="masthead-text">
                 <span class="mark">LS25 · HOF-DASHBOARD</span>
-                <h1 id="farmHeading">Lade …</h1>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <h1 id="farmHeading">Lade …</h1>
+                    <button class="small" onclick="editFarmName()" title="Hofnamen ändern (im Singleplayer im Spiel selbst nicht möglich)" style="opacity:0.65">✏️</button>
+                </div>
                 <div class="masthead-sub" id="farmSub"></div>
             </div>
             <div class="tabbar">
@@ -989,6 +992,7 @@
                             <option value="swap">Ausrichtung: X/Z vertauscht</option>
                         </select>
                         <input type="file" id="terrainFileInput" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="uploadTerrainImage(this)">
+                        <button onclick="searchMapImage(); closeAllMoreMenus()">🔍 Kartenbild online suchen</button>
                         <button onclick="document.getElementById('terrainFileInput').click(); closeAllMoreMenus()">🖼️ Hintergrundbild hochladen</button>
                         <button id="removeTerrainBtn" onclick="removeTerrainImage(); closeAllMoreMenus()" disabled>🗑️ Hintergrundbild entfernen</button>
                         <div style="padding:4px 4px 2px; display:flex; flex-direction:column; gap:4px;">
@@ -1087,6 +1091,8 @@ let uidCounter = 0;
 let currentFolder = null;
 let hasAutoDrive = false;
 let activeTab = 'home';
+let currentFarmName = '';
+let currentMapTitle = '';
 const UNGROUPED = '(ohne Gruppe)';
 
 function applyAutoDriveTabVisibility() {
@@ -1162,6 +1168,8 @@ async function loadFarmOverview() {
     if (data.error) { grid.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
 
     document.getElementById('farmHeading').textContent = data.farmName || 'Unbenannter Hof';
+    currentFarmName = data.farmName || '';
+    currentMapTitle = data.mapTitle || '';
     document.getElementById('farmSub').textContent = data.manager
         ? `Bewirtschaftet von ${data.manager} · ${data.mapTitle}`
         : data.mapTitle;
@@ -1210,6 +1218,28 @@ function renderLastSavedInfo(lastSaved) {
     if (!lastSaved) { el.style.display = 'none'; return; }
     el.style.display = 'block';
     el.textContent = `ℹ Diese Daten stammen vom letzten Speicherpunkt im Spiel: ${lastSaved}. Wurde seitdem weitergespielt, weichen Werte (Markt, Verschleiß, Wachstum, Tierbestand …) vom aktuellen Live-Stand ab – im Spiel speichern und hier auf „↻ Aktualisieren“ klicken, um wieder gleichzuziehen.`;
+}
+
+// -----------------------------------------------------------------
+// Hofnamen ändern – im Singleplayer im Spiel selbst nicht möglich (steht dort
+// immer als "Mein Hof" fest), lässt sich aber direkt in farms.xml ändern.
+// -----------------------------------------------------------------
+function editFarmName() {
+    showPromptModal('Neuer Hofname:', currentFarmName, (name) => {
+        updateFarmName(name.trim());
+    }, 'Hofnamen ändern');
+}
+
+async function updateFarmName(name) {
+    const res = await fetch('api.php?action=update_farm_name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, 'err'); return; }
+    showToast(`Hofname geändert zu "${data.name}"`, 'ok');
+    loadFarmOverview();
 }
 
 async function checkPriceAlerts() {
@@ -2145,6 +2175,23 @@ function resetTerrainAlign() {
     saveTerrainAlign({ offsetX: 0, offsetZ: 0, scale: 1 });
     populateTerrainAlignInputs();
     mapRedraw();
+}
+
+// -----------------------------------------------------------------
+// Kartenbild online suchen – öffnet eine vorausgefüllte Bildersuche mit dem
+// tatsächlichen Kartennamen ("Karte auswerten" ist mangels allgemeinem
+// Internetzugriff aus der App heraus nicht möglich, und ein automatisch
+// gewähltes Bild ohne Kontrolle wäre auch riskant – der schnelle Umweg über
+// die Bildersuche spart aber das manuelle Formulieren des Suchbegriffs).
+// -----------------------------------------------------------------
+function searchMapImage() {
+    if (!currentMapTitle) {
+        showToast('Kartenname noch nicht geladen – zuerst die Übersicht öffnen.', 'err');
+        return;
+    }
+    const query = encodeURIComponent(`Farming Simulator 25 ${currentMapTitle} Kartenübersicht`);
+    window.open(`https://www.google.com/search?q=${query}&tbm=isch`, '_blank');
+    showToast('Suche geöffnet – gewünschtes Bild speichern und über "Hintergrundbild hochladen" auswählen.', 'ok');
 }
 
 function uploadTerrainImage(input) {

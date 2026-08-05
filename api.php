@@ -662,8 +662,23 @@ function mission_type_label(string $tag): string {
         'sowMission' => 'Säen',
         'weedMission' => 'Unkraut entfernen',
         'destoneMission' => 'Steine sammeln',
+        // Forstwirtschafts-Verträge (fehlten bisher komplett, fielen auf den rohen
+        // internen Tag-Namen zurück statt auf eine Übersetzung)
+        'deadwoodMission' => 'Totholz entfernen',
+        'treeTransportMission' => 'Baumstämme transportieren',
+        'treeCuttingMission' => 'Bäume fällen',
+        'treePlantingMission' => 'Bäume pflanzen',
+        // Weitere im echten Spielbetrieb aufgetauchte Lücken
+        'herbicideMission' => 'Herbizid spritzen',
     ];
-    return $map[$tag] ?? $tag;
+    if (isset($map[$tag])) return $map[$tag];
+
+    // Fallback für noch unbekannte Vertragstypen: statt des rohen internen Tags
+    // wenigstens eine lesbare, wortgetrennte Näherung zeigen (z. B. "someNewMission"
+    // -> "Some New") statt gar keine Übersetzung.
+    $name = preg_replace('/Mission$/', '', $tag);
+    $name = preg_replace('/([a-z])([A-Z])/', '$1 $2', $name);
+    return ucfirst(trim($name));
 }
 
 function parse_missions(string $savegameDir, int $currentDay): array {
@@ -694,6 +709,12 @@ function parse_missions(string $savegameDir, int $currentDay): array {
         if ($node->tagName === 'harvestMission') {
             $harvestNode = $node->getElementsByTagName('harvest')->item(0);
             if ($harvestNode) $detail = fruit_type_label($harvestNode->getAttribute('fruitType'));
+        } elseif ($node->tagName === 'deadwoodMission') {
+            $treeCount = $node->getElementsByTagName('originalTree')->length;
+            $detail = $treeCount . ' Baum' . ($treeCount === 1 ? '' : 'stämme');
+        } elseif ($node->tagName === 'treeTransportMission') {
+            $numTrees = $node->getAttribute('numTrees');
+            $detail = $numTrees !== '' ? $numTrees . ' Bäume' : '';
         } elseif ($node->hasAttribute('fruitType')) {
             $detail = fruit_type_label($node->getAttribute('fruitType'));
         } elseif ($node->hasAttribute('targetSprayLevel')) {
@@ -765,6 +786,28 @@ function prune_old_full_backups(string $folder, int $keep): void {
 function make_full_backup_filename(string $folder): string {
     $ms = sprintf('%03d', (int)(microtime(true) * 1000) % 1000);
     return full_backup_dir() . '/' . $folder . '_full_' . date('Y-m-d_His') . '_' . $ms . '.zip';
+}
+
+// -----------------------------------------------------------------
+// Backups für farms.xml (eigener, kleiner Satz an Sicherungen, unabhängig von den
+// AutoDrive-Backups, da eine andere Datei betroffen ist)
+// -----------------------------------------------------------------
+function list_farms_backups_for(string $folder): array {
+    $files = glob(BACKUP_DIR . '/' . $folder . '_farms_*.xml');
+    rsort($files);
+    return $files;
+}
+
+function prune_old_farms_backups(string $folder, int $keep): void {
+    $files = list_farms_backups_for($folder);
+    foreach (array_slice($files, $keep) as $old) {
+        @unlink($old);
+    }
+}
+
+function make_farms_backup_filename(string $folder): string {
+    $ms = sprintf('%03d', (int)(microtime(true) * 1000) % 1000);
+    return BACKUP_DIR . '/' . $folder . '_farms_' . date('Y-m-d_His') . '_' . $ms . '.xml';
 }
 
 $action = $_GET['action'] ?? ($_POST['action'] ?? '');
@@ -1630,6 +1673,83 @@ if ($action === 'production_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         'productionPoints' => $points,
         'pointCount' => count($points),
     ]);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Hofnamen ändern (im Singleplayer im Spiel selbst nicht möglich, steht dort
+// immer als "Mein Hof" o. ä. fest – der Name lässt sich aber direkt in farms.xml
+// ändern, ohne dass das Spiel etwas dagegen hat)
+// ---------------------------------------------------------------
+if ($action === 'update_farm_name' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $folder = $_SESSION['savegame_folder'] ?? null;
+    if (!$folder) {
+        http_response_code(409);
+        echo json_encode(['error' => 'no_savegame_selected']);
+        exit;
+    }
+    $dir = get_general_savegame_dir($folder);
+    if (!$dir) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Spielstand nicht gefunden.']);
+        exit;
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    $name = trim($body['name'] ?? '');
+    if ($name === '') {
+        http_response_code(422);
+        echo json_encode(['error' => 'Hofname darf nicht leer sein.']);
+        exit;
+    }
+    if (strlen($name) > 96) {
+        http_response_code(422);
+        echo json_encode(['error' => 'Hofname darf maximal 64 Zeichen lang sein.']);
+        exit;
+    }
+
+    $farmsFile = $dir . DIRECTORY_SEPARATOR . 'farms.xml';
+    if (!file_exists($farmsFile)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'farms.xml nicht gefunden.']);
+        exit;
+    }
+
+    $dom = new DOMDocument('1.0', 'utf-8');
+    $dom->preserveWhiteSpace = true;
+    $dom->formatOutput = false;
+    libxml_use_internal_errors(true);
+    if (!$dom->load($farmsFile, LIBXML_PARSEHUGE)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'farms.xml konnte nicht gelesen werden.']);
+        exit;
+    }
+
+    // Gleiche Logik wie get_farm_info(): erste echte Farm (farmId != 0, das ist die
+    // Umwelt-/Vorbesitzer-Sammelfarm)
+    $targetFarm = null;
+    foreach ($dom->getElementsByTagName('farm') as $farmNode) {
+        if ($farmNode->getAttribute('farmId') !== '0') { $targetFarm = $farmNode; break; }
+    }
+    if (!$targetFarm) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Keine eigene Farm in diesem Spielstand gefunden.']);
+        exit;
+    }
+
+    // Backup vor dem Schreiben, gleiches Sicherheitsnetz wie bei den AutoDrive-Speicherungen
+    $backupFile = make_farms_backup_filename($folder);
+    copy($farmsFile, $backupFile);
+    prune_old_farms_backups($folder, 10);
+
+    // Zeitstempel erhalten, damit Steam Cloud keinen falschen Synchronisationskonflikt meldet
+    $originalMTime = filemtime($farmsFile);
+
+    $targetFarm->setAttribute('name', $name);
+    $dom->save($farmsFile);
+    if ($originalMTime !== false) touch($farmsFile, $originalMTime);
+
+    echo json_encode(['success' => true, 'name' => $name]);
     exit;
 }
 
