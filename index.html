@@ -646,6 +646,7 @@
     .bar-label { width: 70px; flex-shrink: 0; color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
     .bar-track { flex: 1; height: 8px; background: var(--ink-950); border-radius: 4px; overflow: hidden; border: 1px solid var(--ink-700); }
     .bar-fill { height: 100%; border-radius: 4px; }
+    .bar-fill-progress { height: 100%; border-radius: 4px; background: var(--wheat-500); }
     .bar-fill.ok { background: var(--moss-500); }
     .bar-fill.warn { background: var(--wheat-500); }
     .bar-fill.bad { background: var(--rust-500); }
@@ -897,6 +898,7 @@
 
     /* Zucht-/Gesundheitsdaten (Tiere) */
     .animal-breeding-line { font-family: var(--font-mono); font-size: 10px; color: var(--moss-400); margin: 0 0 8px 24px; }
+    .animal-group-label { font-family: var(--font-display); font-size: 11px; font-weight: 600; color: var(--muted); margin: 4px 0 2px 24px; text-transform: uppercase; letter-spacing: 0.03em; }
 
     /* Footer */
     .app-footer {
@@ -1431,14 +1433,6 @@ function renderQuickAccess(data) {
 // Feld-Dashboard
 // =================================================================
 let fieldsCache = [];
-const GROUND_TYPE_LABELS = {
-    HARVEST_READY: 'Erntereif',
-    SOWN: 'Gesät',
-    CULTIVATED: 'Bearbeitet',
-    PLOWED: 'Gepflügt',
-    GRASS: 'Wiese/Weide',
-    STUBBLE_CULTIVATED: 'Stoppelbearbeitet',
-};
 
 function fieldChecklistKey(fieldId, step) {
     return `fieldCheck_${currentFolder}_${fieldId}_${step}`;
@@ -1459,9 +1453,10 @@ function renderFields() {
     const container = document.getElementById('fieldsContainer');
 
     const sorted = fieldsCache.slice().sort((a, b) => {
-        const aReady = a.groundType === 'HARVEST_READY' ? 0 : 1;
-        const bReady = b.groundType === 'HARVEST_READY' ? 0 : 1;
-        if (aReady !== bReady) return aReady - bReady;
+        const order = { READY: 0, SOWN_GROWING: 1, TILLED: 2 };
+        const aOrd = order[a.groundStatus] ?? 3;
+        const bOrd = order[b.groundStatus] ?? 3;
+        if (aOrd !== bOrd) return aOrd - bOrd;
         return parseInt(a.id) - parseInt(b.id);
     });
 
@@ -1472,7 +1467,8 @@ function renderFields() {
 
     const visible = sorted.filter(f => {
         if (!filter) return true;
-        return f.fruitTypeLabel.toLowerCase().includes(filter) ||
+        const label = f.fruitTypeLabel || '';
+        return label.toLowerCase().includes(filter) ||
                f.fruitType.toLowerCase().includes(filter) ||
                f.id.includes(filter);
     });
@@ -1483,8 +1479,11 @@ function renderFields() {
     }
 
     container.innerHTML = visible.map(f => {
-        const ready = f.groundType === 'HARVEST_READY';
-        const groundLabel = GROUND_TYPE_LABELS[f.groundType] || f.groundType;
+        const ready = f.groundStatus === 'READY';
+        // Fruchtart wird immer so gezeigt, wie sie tatsächlich im Spielstand steht – "–"
+        // nur, wenn wirklich keine Frucht dort steht (UNKNOWN/FALLOW).
+        const fruitLabel = f.fruitTypeLabel === null ? '–' : f.fruitTypeLabel;
+
         const stepsHtml = f.steps.map(step => {
             const key = fieldChecklistKey(f.id, step);
             const checked = localStorage.getItem(key) === '1' ? 'checked' : '';
@@ -1496,15 +1495,35 @@ function renderFields() {
             `;
         }).join('');
 
+        // Fortschrittsbalken für Wachstum (je nach Fruchtart unterschiedliches Maximum),
+        // Kalk, Düngen und Unkraut – nur relevante Balken je nach Zustand anzeigen.
+        const bars = [];
+        if (f.groundStatus === 'SOWN_GROWING') {
+            bars.push(['Wachstum', f.growthPercent, `${f.growthState}/${f.maxGrowthState}`]);
+        }
+        if (f.groundStatus !== 'READY') {
+            bars.push(['Kalk', f.limePercent, `${f.limeLevel}/3`]);
+            bars.push(['Düngen', f.sprayPercent, `${f.sprayLevel}/2`]);
+        }
+        bars.push(['Unkraut', f.weedPercent, `${f.weedState}`]);
+
+        const barsHtml = bars.map(([label, percent, valueText]) => `
+            <div class="bar-row">
+                <span class="bar-label">${label}</span>
+                <div class="bar-track"><div class="bar-fill-progress" style="width:${percent}%"></div></div>
+                <span class="bar-value">${valueText}</span>
+            </div>
+        `).join('');
+
         return `
             <div class="field-card ${ready ? 'field-ready' : ''}">
                 <div class="field-card-header">
                     <span class="field-name">Feld ${escapeHtml(f.id)}</span>
-                    <span class="field-fruit">${escapeHtml(f.fruitTypeLabel)}</span>
-                    <span class="field-status ${ready ? 'field-status-ready' : ''}">${escapeHtml(groundLabel)}</span>
+                    <span class="field-fruit">${escapeHtml(fruitLabel)}</span>
+                    <span class="field-status ${ready ? 'field-status-ready' : ''}">${escapeHtml(f.groundStatusLabel)}</span>
                 </div>
                 <div class="field-card-body">
-                    <div class="field-meta">Wachstumsstufe ${f.growthState}/9 · Unkraut ${f.weedState} · Kalk ${f.limeLevel} · Pflug ${f.plowLevel}</div>
+                    ${barsHtml}
                     <div class="field-steps">${stepsHtml || '<span class="field-meta">Keine offenen Schritte erkannt.</span>'}</div>
                 </div>
             </div>
@@ -1598,9 +1617,21 @@ function renderVehicles() {
 
     container.innerHTML = visible.map(v => {
         const needsAttention = v.wear > 0.5 || v.dirt > 0.5;
-        const fuelHtml = v.fuel && v.fuel.length > 0
-            ? `<div class="vehicle-fuel-row">⛽ ${v.fuel.map(f => `${escapeHtml(f.label)}: ${f.liters} L`).join(' · ')}</div>`
-            : '';
+        const fillBarsHtml = [...(v.fuel || []), ...(v.cargo || [])].map(f => {
+            if (f.percent !== undefined) {
+                return `
+                    <div class="bar-row">
+                        <span class="bar-label">${escapeHtml(f.label)}</span>
+                        <div class="bar-track"><div class="bar-fill ${barClass(1 - f.percent / 100)}" style="width:${f.percent}%"></div></div>
+                        <span class="bar-value">${f.percent}%</span>
+                    </div>
+                `;
+            }
+            // Keine Kapazität ermittelbar (z. B. Mod-Fahrzeug ohne auffindbare ZIP) – nur
+            // den reinen Literwert zeigen statt eines irreführenden Balkens ohne Bezugsgröße.
+            return `<div class="vehicle-fuel-row">${escapeHtml(f.label)}: ${f.liters.toLocaleString('de-DE')} L</div>`;
+        }).join('');
+
         return `
             <div class="vehicle-card ${needsAttention ? 'needs-attention' : ''}">
                 <div class="vehicle-card-header">
@@ -1618,7 +1649,7 @@ function renderVehicles() {
                     <div class="bar-track"><div class="bar-fill ${barClass(v.dirt)}" style="width:${(v.dirt * 100).toFixed(0)}%"></div></div>
                     <span class="bar-value">${(v.dirt * 100).toFixed(0)}%</span>
                 </div>
-                ${fuelHtml}
+                ${fillBarsHtml}
             </div>
         `;
     }).join('');
@@ -1628,6 +1659,7 @@ function renderVehicles() {
 // Tierbestände
 // =================================================================
 let animalsCache = [];
+let beehivesCache = { hiveCount: 0, pendingHoneyLiters: 0, hasSpawner: false };
 
 async function loadAnimalsData() {
     const container = document.getElementById('animalsContainer');
@@ -1636,6 +1668,7 @@ async function loadAnimalsData() {
     const data = await res.json();
     if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
     animalsCache = data.husbandries;
+    beehivesCache = data.beehives || { hiveCount: 0, pendingHoneyLiters: 0, hasSpawner: false };
 
     document.getElementById('animalStatGrid').innerHTML = `
         <div class="stat-card">
@@ -1646,6 +1679,11 @@ async function loadAnimalsData() {
             <div class="stat-label">Tiere gesamt</div>
             <div class="stat-value">${data.totalAnimals}</div>
         </div>
+        ${beehivesCache.hiveCount > 0 ? `
+        <div class="stat-card">
+            <div class="stat-label">🐝 Bienenstöcke</div>
+            <div class="stat-value">${beehivesCache.hiveCount}</div>
+        </div>` : ''}
     `;
     renderAnimals();
 }
@@ -1653,28 +1691,63 @@ async function loadAnimalsData() {
 function renderAnimals() {
     const container = document.getElementById('animalsContainer');
 
-    if (animalsCache.length === 0) {
+    const beehiveCard = beehivesCache.hiveCount > 0 ? `
+        <div class="animal-card">
+            <div class="animal-card-header">
+                <span class="animal-name">🐝 Bienenstöcke</span>
+                <span class="animal-total-badge">${beehivesCache.hiveCount}</span>
+            </div>
+            ${beehivesCache.hasSpawner ? `
+                <div class="animal-meadow-row">
+                    <div class="animal-meadow-label">Honig-Palette: ${beehivesCache.percent}% (${beehivesCache.pendingHoneyLiters} / ${beehivesCache.capacity} L) · ${beehivesCache.finishedPallets} fertig</div>
+                    <div class="bar-track"><div class="bar-fill-progress" style="width:${beehivesCache.percent}%"></div></div>
+                </div>
+            ` : '<div class="animal-breed-line">Kein Sammelpunkt (beeHivePalletSpawner) in Reichweite gefunden</div>'}
+        </div>
+    ` : '';
+
+    if (animalsCache.length === 0 && !beehiveCard) {
         container.innerHTML = '<div class="empty-note">Keine Tierbestände in diesem Spielstand gefunden.</div>';
         return;
     }
 
     container.innerHTML = animalsCache.map(barn => {
         const speciesHtml = barn.species.map(s => {
-            const breedLines = s.breeds.map(breed => {
-                const clusterText = breed.clusters
-                    .map(c => `${c.age} Mon.: ${c.count}`)
-                    .join(' · ');
-                const showBreedName = breed.name !== s.label;
-                const prefix = showBreedName ? `${escapeHtml(breed.name)}: ` : '';
-                return `<div class="animal-breed-line">${prefix}${clusterText}</div>`;
-            }).join('');
+            const formatLine = (prefix, c) => {
+                const healthPart = c.health > 0 ? ` - ${c.health}%` : '';
+                return `${prefix}${c.age} Mon.: ${c.count}${healthPart}`;
+            };
+
+            let bodyHtml;
+            if (s.label === 'Hühner') {
+                // Sonderformat für Hühner: getrennt nach Hennen/Hähnen statt Rassenname,
+                // da "Hahn" technisch als eigene Rasse geführt wird.
+                const roosterBreeds = s.breeds.filter(b => b.name === 'Hahn');
+                const henBreeds = s.breeds.filter(b => b.name !== 'Hahn');
+                const henLines = henBreeds.flatMap(b => b.clusters.map(c => formatLine('', c)));
+                const roosterLines = roosterBreeds.flatMap(b => b.clusters.map(c => formatLine('', c)));
+                bodyHtml = '';
+                if (henLines.length > 0) {
+                    bodyHtml += `<div class="animal-group-label">Hennen</div>`;
+                    bodyHtml += henLines.map(l => `<div class="animal-breed-line">${escapeHtml(l)}</div>`).join('');
+                }
+                if (roosterLines.length > 0) {
+                    bodyHtml += `<div class="animal-group-label">Hähne</div>`;
+                    bodyHtml += roosterLines.map(l => `<div class="animal-breed-line">${escapeHtml(l)}</div>`).join('');
+                }
+            } else {
+                // Kuh/Schwein/Schaf/Pferd/Ziege: "RASSE - Alter: Anzahl - Gesundheit%"
+                bodyHtml = s.breeds.flatMap(b => b.clusters.map(c => formatLine(`${b.name} - `, c)))
+                    .map(l => `<div class="animal-breed-line">${escapeHtml(l)}</div>`).join('');
+            }
+
             return `
                 <div class="animal-species-row">
                     <span class="animal-species-icon">${s.icon}</span>
                     <span>${escapeHtml(s.label)}</span>
                     <span class="animal-species-count">${s.total}</span>
                 </div>
-                ${breedLines}
+                ${bodyHtml}
             `;
         }).join('');
 
@@ -1685,6 +1758,14 @@ function renderAnimals() {
             </div>
         ` : '';
 
+        const producesPallets = barn.species.some(s => s.label === 'Hühner'); // aktuell nur für Eier verifiziert
+        const productHtml = barn.pendingProduct ? `
+            <div class="animal-meadow-row">
+                <div class="animal-meadow-label">${barn.pendingProduct.label ? escapeHtml(barn.pendingProduct.label) : 'Produkt'}-Palette: ${barn.pendingProduct.percent}% (${barn.pendingProduct.pendingLiters} / ${barn.pendingProduct.capacity} L) · ${barn.pendingProduct.finishedPallets} fertig</div>
+                <div class="bar-track"><div class="bar-fill-progress" style="width:${barn.pendingProduct.percent}%"></div></div>
+            </div>
+        ` : (producesPallets ? `<div class="animal-breed-line">Kein Paletten-Sammelfortschritt in den Spieldaten gefunden (evtl. noch bei 0% nicht gespeichert)</div>` : '');
+
         return `
             <div class="animal-card">
                 <div class="animal-card-header">
@@ -1693,9 +1774,10 @@ function renderAnimals() {
                 </div>
                 ${speciesHtml}
                 ${meadowHtml}
+                ${productHtml}
             </div>
         `;
-    }).join('');
+    }).join('') + beehiveCard;
 }
 
 // =================================================================
@@ -3007,11 +3089,14 @@ function mapRedraw() {
         mapCtx.restore();
     }
 
-    // Wegpunkt-Netz (Kanten)
+    // Wegpunkt-Netz (Kanten). Kräftiges Cyan statt des bisherigen gedämpften Grüns –
+    // das ging im olivfarbenen Kartenhintergrund praktisch unter. Cyan hebt sich von den
+    // warmen Erd-/Grüntönen der Karte klar ab, ohne mit dem Gold der Marker oder dem Rot
+    // der isolierten Stränge zu kollidieren.
     {
         const cx0 = rect.width / 2, cy0 = rect.height / 2;
-        mapCtx.strokeStyle = 'rgba(123, 153, 112, 0.35)';
-        mapCtx.lineWidth = 1;
+        mapCtx.strokeStyle = 'rgba(0, 217, 255, 0.65)';
+        mapCtx.lineWidth = 1.2;
         mapCtx.beginPath();
         for (const [idA, idB] of edgesList) {
             const a = points.get(idA), b = points.get(idB);

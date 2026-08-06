@@ -160,6 +160,71 @@ function count_vehicles_for_farm(string $savegameDir, string $farmId): int {
     return $count;
 }
 
+// Maximale Wachstumsstufe je Fruchtart, direkt aus den Foliage-Definitionsdateien des
+// Spiels ausgezählt (Kommentarblock mit den einzelnen Wachstumsstufen je Fruchtart, z. B.
+// data/foliage/wheat/wheat.xml – dort steht buchstäblich "invisible / green small / ... /
+// harvest ready" mit fortlaufender Nummerierung). VERIFIZIERT an echten Spieldateien:
+// WHEAT=7, BARLEY=6, CANOLA=8, OAT=4, MAIZE=6, SUNFLOWER=7, SOYBEAN=6, POTATO=5,
+// SUGARBEET=7, PARSNIP=4, GRASS=3. Für alle anderen Fruchtarten liegt noch keine
+// Verifikation an der echten Datei vor – dort wird ein plausibler Näherungswert (8,
+// das häufigste beobachtete Maximum) verwendet, bis sie einzeln nachgeprüft sind.
+const FRUIT_TYPE_MAX_GROWTH_STATE = [
+    'WHEAT' => 7, 'WINTERWHEAT' => 7,
+    'BARLEY' => 6, 'WINTERBARLEY' => 6,
+    'CANOLA' => 8, 'WINTERCANOLA' => 8,
+    'OAT' => 4,
+    'MAIZE' => 6,
+    'SILAGEMAIZE' => 4, // wird grün/früher geerntet als Körnermais (siehe Kommentar in maize.xml)
+    'SUNFLOWER' => 7,
+    'SOYBEAN' => 6,
+    'POTATO' => 5,
+    'SUGARBEET' => 7, 'BEETROOT' => 7,
+    'PARSNIP' => 4,
+    'GRASS' => 3, 'DRYGRASS' => 3, 'ALFALFA' => 3,
+    'RYE' => 6, 'WINTERRYE' => 6, 'TRITICALE' => 6, 'SPELT' => 6, 'MILLET' => 6,
+];
+const FRUIT_TYPE_MAX_GROWTH_STATE_DEFAULT = 8;
+
+function fruit_max_growth_state(string $fruitType): int {
+    return FRUIT_TYPE_MAX_GROWTH_STATE[$fruitType] ?? FRUIT_TYPE_MAX_GROWTH_STATE_DEFAULT;
+}
+
+// Vereinfachte, dreiteilige Statusanzeige statt der 16 internen groundType-Rohwerte –
+// entspricht dem, was im Spiel grob unterschieden wird: Boden bearbeitet (kein Bewuchs),
+// Kultur gesät/wächst, oder erntereif.
+const GROUND_STATUS_TILLED = 'TILLED';
+const GROUND_STATUS_SOWN = 'SOWN_GROWING';
+const GROUND_STATUS_READY = 'READY';
+
+const GROUND_TYPE_TO_STATUS = [
+    'PLOWED' => GROUND_STATUS_TILLED, 'CULTIVATED' => GROUND_STATUS_TILLED,
+    'SEEDBED' => GROUND_STATUS_TILLED, 'ROLLED_SEEDBED' => GROUND_STATUS_TILLED,
+    'ROLLER_LINES' => GROUND_STATUS_TILLED, 'STUBBLE_TILLAGE' => GROUND_STATUS_TILLED,
+    'RIDGE' => GROUND_STATUS_TILLED, 'NONE' => GROUND_STATUS_TILLED, 'GRASS_CUT' => GROUND_STATUS_TILLED,
+    'SOWN' => GROUND_STATUS_SOWN, 'DIRECT_SOWN' => GROUND_STATUS_SOWN,
+    'RIDGE_SOWN' => GROUND_STATUS_SOWN, 'PLANTED' => GROUND_STATUS_SOWN, 'GRASS' => GROUND_STATUS_SOWN,
+    'HARVEST_READY' => GROUND_STATUS_READY, 'HARVEST_READY_OTHER' => GROUND_STATUS_READY,
+];
+
+const GROUND_STATUS_LABELS = [
+    GROUND_STATUS_TILLED => 'Gepflügt',
+    GROUND_STATUS_SOWN => 'Gesät',
+    GROUND_STATUS_READY => 'Erntereif',
+];
+
+function ground_status_for(string $groundType): string {
+    return GROUND_TYPE_TO_STATUS[$groundType] ?? GROUND_STATUS_TILLED;
+}
+
+// Referenzwerte für die Fortschrittsbalken (Kalk/Düngen/Unkraut). Kalk (0–3) und Düngen
+// (0–2) entsprechen der bereits zuvor im Tool verwendeten Schwelle ("limeLevel < 3" /
+// "sprayLevel < 2" galt schon immer als "fertig"). Unkraut (0–9) stammt aus
+// maps_weed.xml: dort sind Kartenfarben/Faktoren bis Zustand 9 definiert, verifizierte
+// echte Spielstand-Werte gingen bereits bis 7.
+const FIELD_LIME_MAX = 3;
+const FIELD_SPRAY_MAX = 2;
+const FIELD_WEED_MAX = 9;
+
 function parse_fields(string $savegameDir): array {
     $file = $savegameDir . DIRECTORY_SEPARATOR . 'fields.xml';
     if (!file_exists($file)) return [];
@@ -169,16 +234,31 @@ function parse_fields(string $savegameDir): array {
 
     $result = [];
     foreach ($xml->field as $f) {
+        $fruitType = (string)$f['fruitType'];
+        $groundType = (string)$f['groundType'];
+        $growthState = (int)$f['growthState'];
+        $weedState = (int)$f['weedState'];
+        $sprayLevel = (int)$f['sprayLevel'];
+        $limeLevel = (int)$f['limeLevel'];
+        $maxGrowth = fruit_max_growth_state($fruitType);
+
         $result[] = [
             'id' => (string)$f['id'],
-            'fruitType' => (string)$f['fruitType'],
+            'fruitType' => $fruitType,
             'plannedFruit' => (string)$f['plannedFruit'],
-            'growthState' => (int)$f['growthState'],
-            'groundType' => (string)$f['groundType'],
-            'weedState' => (int)$f['weedState'],
+            'growthState' => $growthState,
+            'maxGrowthState' => $maxGrowth,
+            'growthPercent' => $maxGrowth > 0 ? round(min(100, $growthState / $maxGrowth * 100)) : 0,
+            'groundType' => $groundType,
+            'groundStatus' => ground_status_for($groundType),
+            'weedState' => $weedState,
+            'weedPercent' => round(min(100, $weedState / FIELD_WEED_MAX * 100)),
             'stoneLevel' => (int)$f['stoneLevel'],
-            'sprayLevel' => (int)$f['sprayLevel'],
-            'limeLevel' => (int)$f['limeLevel'],
+            'sprayLevel' => $sprayLevel,
+            'sprayPercent' => round(min(100, $sprayLevel / FIELD_SPRAY_MAX * 100)),
+            'sprayType' => (string)$f['sprayType'],
+            'limeLevel' => $limeLevel,
+            'limePercent' => round(min(100, $limeLevel / FIELD_LIME_MAX * 100)),
             'plowLevel' => (int)$f['plowLevel'],
             'stubbleShredLevel' => (int)$f['stubbleShredLevel'],
         ];
@@ -221,45 +301,50 @@ function fruit_type_label(string $fruitType): string {
         'MILLET' => 'Hirse', 'LETTUCE' => 'Kopfsalat', 'CABBAGE' => 'Kohl',
         'REDCABBAGE' => 'Rotkohl', 'BEETROOT' => 'Rote Bete', 'ALFALFA' => 'Luzerne',
         'SPELT' => 'Dinkel', 'FALLOW' => 'Brache', 'UNKNOWN' => 'Unbekannt',
+        'SPRING_ONION' => 'Frühlingszwiebeln', 'TOMATO' => 'Tomaten', 'STRAWBERRY' => 'Erdbeeren',
+        'CHILI' => 'Chili', 'CUCUMBER' => 'Gurken', 'PEPPER' => 'Paprika', 'EGGPLANT' => 'Auberginen',
+        'BLUEBERRY' => 'Heidelbeeren', 'RASPBERRY' => 'Himbeeren', 'NAPACABBAGE' => 'Chinakohl',
     ];
     return $map[$fruitType] ?? $fruitType;
 }
 
-// Generiert eine grobe, verallgemeinerte Vorschlagsliste für die nächsten Arbeitsschritte
-// auf einem Feld. Das ist eine Annäherung anhand der gespeicherten Werte, keine exakte
-// Simulation der Spiellogik (die hängt zusätzlich von Fruchtart/Mods ab).
+// Spritzmittel-Typ (sprayType) – aus dem offiziellen Schema (fields_savegame.xsd).
+const SPRAY_TYPE_LABELS = [
+    'FERTILIZER' => 'Dünger',
+    'LIME' => 'Kalk',
+    'LIQUID_MANURE' => 'Gülle',
+    'MANURE' => 'Mist',
+    'NONE' => 'Keins',
+];
+
+// Vorschlagsliste für die nächsten Arbeitsschritte, an drei Grundzuständen orientiert
+// (siehe ground_status_for): Gepflügt -> Kalken/Säen, Gesät/wächst -> NUR Düngen und/oder
+// Unkraut entfernen (kein Pflügen/Säen mehr, das ist bereits erledigt; keine
+// "Ernten"-Vorhersage anhand der Wachstumsstufe, die Reife wird ausschließlich am
+// Bodenzustand erkannt), Erntereif -> Ernten.
 function suggest_field_steps(array $field, bool $limeRequired): array {
-    $steps = [];
-    $gt = $field['groundType'];
+    $status = $field['groundStatus'];
 
-    if ($gt === 'HARVEST_READY') {
-        $steps[] = 'Ernten';
-        return $steps;
-    }
-    if ($gt === 'GRASS') {
-        $steps[] = 'Mähen (wenn hoch genug gewachsen)';
-        return $steps;
+    if ($status === GROUND_STATUS_READY) {
+        return ['Ernten'];
     }
 
-    // Reihenfolge orientiert sich an der üblichen Bewirtschaftungsfolge:
-    // Boden bearbeiten -> Kalken -> Säen -> Düngen/Pflegen -> Unkraut -> abwarten.
-    if ($gt !== 'SOWN' && $gt !== 'CULTIVATED' && $gt !== 'PLOWED' && $field['growthState'] === 0) {
-        $steps[] = 'Pflügen/Grubbern';
-    }
-    if ($limeRequired && $field['limeLevel'] < 3) {
-        $steps[] = 'Kalken';
-    }
-    if ($field['growthState'] === 0 && $gt !== 'SOWN') {
+    if ($status === GROUND_STATUS_TILLED) {
+        $steps = [];
+        if ($limeRequired && $field['limeLevel'] < FIELD_LIME_MAX) {
+            $steps[] = 'Kalken';
+        }
         $steps[] = 'Säen';
+        return $steps;
     }
-    if ($field['sprayLevel'] < 2 && $gt === 'SOWN') {
-        $steps[] = 'Düngen/Spritzen';
+
+    // GROUND_STATUS_SOWN: Kultur steht bereits und wächst.
+    $steps = [];
+    if ($field['sprayLevel'] < FIELD_SPRAY_MAX) {
+        $steps[] = 'Düngen';
     }
     if ($field['weedState'] >= 5) {
         $steps[] = 'Unkraut entfernen';
-    }
-    if (empty($steps) && $field['growthState'] > 0) {
-        $steps[] = 'Wächst – abwarten';
     }
     return $steps;
 }
@@ -302,6 +387,99 @@ const FUEL_TYPE_LABELS = [
     'METHANE' => 'Methan',
 ];
 
+// Nicht-Kraftstoff-Ladungen (Anhänger, Sämaschinen, Streugeräte, Mähdrescher-Tank
+// usw.) – Erntegut selbst wird über fruit_type_label() abgedeckt, das hier deckt
+// nur die restlichen gängigen Materialtypen ab, die keine Fruchtart sind.
+const MATERIAL_TYPE_LABELS = [
+    'LIME' => 'Kalk',
+    'SEEDS' => 'Saatgut',
+    'WATER' => 'Wasser',
+    'MANURE' => 'Mist',
+    'LIQUIDMANURE' => 'Gülle',
+    'DIGESTATE' => 'Gärrest',
+    'SILAGE' => 'Silage',
+    'SILAGE_ADDITIVE' => 'Silagezusatz',
+    'STONE' => 'Steine',
+    'SAND' => 'Sand',
+    'MILK' => 'Milch',
+    'STRAW' => 'Stroh',
+    'WOODCHIPS' => 'Hackschnitzel',
+    'FERTILIZER' => 'Mineraldünger',
+    'LIQUIDFERTILIZER' => 'Flüssigdünger',
+    'HERBICIDE' => 'Herbizid',
+    'EGG' => 'Eier',
+    'WOOL' => 'Wolle',
+    'HONEY' => 'Honig',
+];
+
+// Platzhalter/Nicht-Ladung-Typen, die in fillUnit auftauchen können, aber nicht als
+// Ladung angezeigt werden sollen.
+const NON_CARGO_FILL_TYPES = ['AIR', 'BALE_NET', 'UNKNOWN'];
+
+function fill_type_label(string $t): string {
+    if (isset(FUEL_TYPE_LABELS[$t])) return FUEL_TYPE_LABELS[$t];
+    if (isset(MATERIAL_TYPE_LABELS[$t])) return MATERIAL_TYPE_LABELS[$t];
+    $asFruit = fruit_type_label($t);
+    if ($asFruit !== $t) return $asFruit;
+    return ucfirst(strtolower($t));
+}
+
+// Tankkapazitäten stehen NICHT im Spielstand (nur der aktuelle Füllstand), sondern in der
+// Fahrzeug-Modelldatei selbst – gleiches Prinzip wie bei der Kartengröße (siehe find_map_size).
+// Verifiziert an echten Spieldateien: MF 8570 Getreidetank capacity="8000", Dieseltank
+// capacity="378"; Bredal K105 Kalktank capacity="9000". Reihenfolge der <fillUnit>-Einträge
+// in der ersten <fillUnitConfiguration> entspricht dem "index"-Attribut im Spielstand.
+// Funktioniert nur, wenn die Modelldatei erreichbar ist (offizielles Fahrzeug im
+// Installationsordner, oder Mod-Fahrzeug mit auffindbarer ZIP im mods-Ordner) – sonst wird
+// einfach keine Kapazität geliefert und nur der reine Literwert angezeigt.
+function find_vehicle_fill_capacities(string $filename): array {
+    static $cache = [];
+    if (isset($cache[$filename])) return $cache[$filename];
+
+    $xmlContent = null;
+    if (str_starts_with($filename, '$moddir$')) {
+        $rest = substr($filename, strlen('$moddir$'));
+        $slashPos = strpos($rest, '/');
+        if ($slashPos !== false && class_exists('ZipArchive')) {
+            $modName = substr($rest, 0, $slashPos);
+            $innerPath = substr($rest, $slashPos + 1);
+            $zipPath = FS_BASE_DIR . DIRECTORY_SEPARATOR . 'mods' . DIRECTORY_SEPARATOR . $modName . '.zip';
+            if (file_exists($zipPath)) {
+                $zip = new ZipArchive();
+                if ($zip->open($zipPath) === true) {
+                    $data = $zip->getFromName($innerPath);
+                    $zip->close();
+                    if ($data !== false) $xmlContent = $data;
+                }
+            }
+        }
+    } elseif (defined('FS_INSTALL_DIR') && FS_INSTALL_DIR !== '') {
+        $path = FS_INSTALL_DIR . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $filename);
+        if (file_exists($path)) {
+            $xmlContent = @file_get_contents($path);
+        }
+    }
+
+    $capacities = [];
+    if ($xmlContent !== null) {
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_string($xmlContent);
+        if ($xml) {
+            // XPath statt starrem Objekt-Pfad, da die genaue Verschachtelung leicht variieren
+            // kann; nimmt die erste fillUnitConfiguration (Standard-/Basiskonfiguration).
+            $nodes = $xml->xpath('(//fillUnitConfigurations/fillUnitConfiguration)[1]/fillUnits/fillUnit');
+            if ($nodes) {
+                foreach ($nodes as $node) {
+                    $capacities[] = isset($node['capacity']) ? (float)$node['capacity'] : null;
+                }
+            }
+        }
+    }
+
+    $cache[$filename] = $capacities;
+    return $capacities;
+}
+
 function parse_vehicles(string $savegameDir, string $farmId): array {
     $file = $savegameDir . DIRECTORY_SEPARATOR . 'vehicles.xml';
     if (!file_exists($file)) return [];
@@ -312,6 +490,12 @@ function parse_vehicles(string $savegameDir, string $farmId): array {
     $result = [];
     foreach ($dom->getElementsByTagName('vehicle') as $v) {
         if ($v->getAttribute('farmId') !== $farmId) continue;
+
+        // Paletten (Dünger-/Honig-/Eier-Boxen usw.) landen in vehicles.xml als ganz normale
+        // <vehicle>-Einträge (data/objects/pallets/...), haben aber weder drivable/enterable
+        // noch trailer-Kindtags und werden daher von classify_vehicle_type() faelschlich als
+        // IMPLEMENT eingestuft und im Fuhrpark gelistet. Paletten gehören dort nicht hin.
+        if (str_contains(strtolower($v->getAttribute('filename')), '/pallets/')) continue;
 
         // Der im Spiel angezeigte Verschleiß-/Schaden-Wert steht direkt als "damage"-Attribut
         // am <wearable>-Element. Die einzelnen <wearNode>-Kindelemente sind ein interner
@@ -326,20 +510,36 @@ function parse_vehicles(string $savegameDir, string $farmId): array {
             $dirtCount++;
         }
 
-        // Tankinhalt: <fillUnit><unit fillType="DIESEL" fillLevel="..."/></fillUnit>. Nur
-        // echte Kraftstoffarten herausfiltern (AIR = Druckluft für Anbaugeräte, BALE_NET =
-        // Ballennetz, UNKNOWN = Platzhalter – keine Kraftstoffe). Eine maximale Tankgröße
-        // steht nirgends im Spielstand (nur in den Mod-Fahrzeugdaten selbst), daher zeigen
-        // wir absolute Liter statt eines Prozent-Balkens.
+        // Tankinhalt: <fillUnit><unit fillType="DIESEL" fillLevel="..."/></fillUnit>. Kraftstoff
+        // und sonstige Ladung (Erntegut, Kalk, Saatgut usw.) stecken in derselben Struktur –
+        // wir trennen sie hier in zwei Listen und ergänzen die Kapazität aus der Fahrzeug-
+        // Modelldatei (siehe find_vehicle_fill_capacities), sofern erreichbar. Das "index"-
+        // Attribut im Spielstand entspricht der Reihenfolge der fillUnit-Einträge dort (1-basiert).
+        $capacities = find_vehicle_fill_capacities($v->getAttribute('filename'));
         $fuelLevels = [];
+        $cargoLevels = [];
         foreach ($v->getElementsByTagName('unit') as $unit) {
             $fillType = $unit->getAttribute('fillType');
-            if (!isset(FUEL_TYPE_LABELS[$fillType])) continue;
-            $fuelLevels[] = [
-                'fillType' => $fillType,
-                'label' => FUEL_TYPE_LABELS[$fillType],
-                'liters' => round((float)$unit->getAttribute('fillLevel'), 1),
-            ];
+            $liters = round((float)$unit->getAttribute('fillLevel'), 1);
+            if ($liters <= 0) continue; // leere Kammern nicht auflisten
+            if (in_array($fillType, NON_CARGO_FILL_TYPES, true) && !isset(FUEL_TYPE_LABELS[$fillType])) continue;
+
+            $unitIdx = (int)$unit->getAttribute('index');
+            $capacity = ($unitIdx >= 1 && isset($capacities[$unitIdx - 1]) && $capacities[$unitIdx - 1] > 0)
+                ? $capacities[$unitIdx - 1] : null;
+            $entry = ['fillType' => $fillType, 'liters' => $liters];
+            if ($capacity !== null) {
+                $entry['capacity'] = $capacity;
+                $entry['percent'] = round(min(100, $liters / $capacity * 100));
+            }
+
+            if (isset(FUEL_TYPE_LABELS[$fillType])) {
+                $entry['label'] = FUEL_TYPE_LABELS[$fillType];
+                $fuelLevels[] = $entry;
+            } else {
+                $entry['label'] = fill_type_label($fillType);
+                $cargoLevels[] = $entry;
+            }
         }
 
         $result[] = [
@@ -352,6 +552,7 @@ function parse_vehicles(string $savegameDir, string $farmId): array {
             'dirt' => $dirtCount > 0 ? $dirtSum / $dirtCount : 0.0,
             'propertyState' => $v->getAttribute('propertyState'),
             'fuel' => $fuelLevels,
+            'cargo' => $cargoLevels,
         ];
     }
     return $result;
@@ -475,6 +676,114 @@ function animal_species_info(string $subType): array {
     return ['species' => $info['label'], 'icon' => $info['icon'], 'breed' => $breed];
 }
 
+// Bienenstöcke sind KEINE husbandryAnimals-Gebäude – es sind einfache Placeables ohne
+// Tierzahl (nur Position/Preis), die passiv die Bestäubung in der Umgebung verbessern.
+// Ein separates "beeHivePalletSpawner"-Placeable sammelt den daraus entstehenden Honig
+// und speichert den Fortschritt bis zur nächsten Honig-Palette als "pendingLiters".
+function parse_beehives(string $savegameDir, string $farmId): array {
+    $file = $savegameDir . DIRECTORY_SEPARATOR . 'placeables.xml';
+    if (!file_exists($file)) return ['hiveCount' => 0, 'pendingHoneyLiters' => 0.0, 'hasSpawner' => false];
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $dom->load($file, LIBXML_PARSEHUGE);
+
+    $hiveCount = 0;
+    $pendingLiters = 0.0;
+    $hasSpawner = false;
+    foreach ($dom->getElementsByTagName('placeable') as $p) {
+        if ($p->getAttribute('farmId') !== $farmId) continue;
+        $filename = strtolower($p->getAttribute('filename'));
+        if (!str_contains($filename, 'beehive')) continue;
+
+        $spawnerNode = $p->getElementsByTagName('beehivePalletSpawner')->item(0);
+        if ($spawnerNode) {
+            $hasSpawner = true;
+            $inner = $spawnerNode->getElementsByTagName('beehivePalletSpawner')->item(0);
+            if ($inner) $pendingLiters += (float)$inner->getAttribute('pendingLiters');
+            continue; // der Sammler selbst ist kein Bienenstock, nicht mitzählen
+        }
+        $hiveCount++;
+    }
+
+    return ['hiveCount' => $hiveCount, 'pendingHoneyLiters' => round($pendingLiters, 1), 'hasSpawner' => $hasSpawner, 'capacity' => PALLET_CAPACITY_LITERS, 'percent' => round(min(100, $pendingLiters / PALLET_CAPACITY_LITERS * 100), 1), 'finishedPallets' => $hasSpawner ? count_finished_pallets($savegameDir, $farmId, 'HONEY') : 0];
+}
+
+// Paletten-Kapazität: bei allen bekannten Paletten-Fülltypen (Eier, Honig, Wolle usw.)
+// einheitlich 1000 Liter pro Palette – verifiziert an den echten Spieldateien
+// (eggBoxPallet.xml und honeyBoxPallet.xml haben beide capacity="1000").
+const PALLET_CAPACITY_LITERS = 1000.0;
+
+// Dateiname-Fragmente der Paletten-Objekte je Fülltyp (aus maps_fillTypes.xml:
+// <pallet filename="$data/objects/pallets/eggBoxPallet/eggBoxPallet.xml" /> usw.).
+// Fertige, bereits abgeworfene Paletten liegen als eigenständige Objekte in
+// vehicles.xml (physische, aufsammelbare Objekte werden dort geführt, nicht nur
+// klassische Fahrzeuge) – ACHTUNG: konnte mangels eines Spielstands mit bereits
+// fertigen Paletten nicht mit echten Daten verifiziert werden, nur die Kapazität
+// selbst wurde bestätigt.
+const PALLET_OBJECT_NAME_FRAGMENTS = [
+    'EGG' => 'eggboxpallet',
+    'HONEY' => 'honeyboxpallet',
+    'WOOL' => 'woolpallet',
+    'MILK' => 'milkpallet',
+];
+
+function count_finished_pallets(string $savegameDir, string $farmId, string $fillType): int {
+    if (!isset(PALLET_OBJECT_NAME_FRAGMENTS[$fillType])) return 0;
+    $needle = PALLET_OBJECT_NAME_FRAGMENTS[$fillType];
+    $file = $savegameDir . DIRECTORY_SEPARATOR . 'vehicles.xml';
+    if (!file_exists($file)) return 0;
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $dom->load($file, LIBXML_PARSEHUGE);
+
+    $count = 0;
+    foreach ($dom->getElementsByTagName('vehicle') as $v) {
+        if ($v->getAttribute('farmId') !== $farmId) continue;
+        if (str_contains(strtolower($v->getAttribute('filename')), $needle)) $count++;
+    }
+    return $count;
+}
+
+// Sucht nach dem Paletten-Sammelfortschritt (z. B. Eier/Honig) im Placeable-Baum –
+// verifiziert existieren dabei ZWEI unterschiedliche Strukturen in freier Wildbahn:
+// Hühnerställe nutzen ein eigenes Element <pendingLiters fillType="EGG" liters="..."/>
+// (Attribut heißt "liters"), Bienenstock-Sammler dagegen ein Attribut NAMENS
+// "pendingLiters" auf einem gleichnamigen Element (<beehivePalletSpawner
+// pendingLiters="..."/>). Beide Muster werden hier abgedeckt statt nur eines.
+function find_pending_pallet_output(DOMElement $placeableNode): ?array {
+    $xpath = new DOMXPath($placeableNode->ownerDocument);
+
+    $byElement = $xpath->query('.//pendingLiters', $placeableNode);
+    if ($byElement->length > 0) {
+        $node = $byElement->item(0);
+        $fillType = $node->getAttribute('fillType');
+        $liters = (float)$node->getAttribute('liters');
+        return [
+            'pendingLiters' => round($liters, 1),
+            'capacity' => PALLET_CAPACITY_LITERS,
+            'percent' => round(min(100, $liters / PALLET_CAPACITY_LITERS * 100), 1),
+            'fillType' => $fillType !== '' ? $fillType : null,
+            'label' => $fillType !== '' ? fill_type_label($fillType) : null,
+        ];
+    }
+
+    $byAttribute = $xpath->query('.//*[@pendingLiters]', $placeableNode);
+    if ($byAttribute->length > 0) {
+        $node = $byAttribute->item(0);
+        $fillType = $node->getAttribute('fillType');
+        $liters = (float)$node->getAttribute('pendingLiters');
+        return [
+            'pendingLiters' => round($liters, 1),
+            'capacity' => PALLET_CAPACITY_LITERS,
+            'percent' => round(min(100, $liters / PALLET_CAPACITY_LITERS * 100), 1),
+            'fillType' => $fillType !== '' ? $fillType : null,
+            'label' => $fillType !== '' ? fill_type_label($fillType) : null,
+        ];
+    }
+
+    return null;
+}
+
 function parse_husbandries(string $savegameDir, string $farmId): array {
     $file = $savegameDir . DIRECTORY_SEPARATOR . 'placeables.xml';
     if (!file_exists($file)) return [];
@@ -498,8 +807,22 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
             // health/reproduction sind bei manchen Ställen/Mods nicht befuellt (immer 0) –
             // wir lesen sie trotzdem aus, blenden die Anzeige im Frontend aber nur ein, wenn
             // mindestens ein Tier im Bestand tatsächlich einen Wert > 0 hat (siehe $anyBreedingData).
-            $health = (float)$a->getAttribute('health');
-            $reproduction = (float)$a->getAttribute('reproduction');
+            // Skalierung ist uneinheitlich und konnte an ECHTEN Spielständen in drei
+            // verschiedenen Varianten beobachtet werden: Bruchteil 0–1 (z. B. 0.85), direkte
+            // 0–10-Skala (z. B. "10" bei einem Huhn) und direkte 0–100-Skala (z. B. "100"/"50"
+            // bei einem anderen Spielstand). Eine reine ">1 => ×10"-Heuristik hatte den dritten
+            // Fall falsch behandelt (reproduction="50" wurde fälschlich zu 500% → auf 100%
+            // gekappt statt korrekt 50% zu zeigen). Dreistufige Heuristik: Werte >10 gelten als
+            // bereits 0–100, Werte >1 bis 10 als 0–10-Skala (×10), Werte ≤1 als Bruchteil (×100).
+            $healthRaw = (float)$a->getAttribute('health');
+            $reproductionRaw = (float)$a->getAttribute('reproduction');
+            $scaleToPercent = function (float $raw): float {
+                if ($raw > 10) return min(100, $raw);
+                if ($raw > 1) return min(100, $raw * 10);
+                return $raw * 100;
+            };
+            $health = $scaleToPercent($healthRaw);
+            $reproduction = $scaleToPercent($reproductionRaw);
             $isPregnant = $a->getAttribute('isPregnant') === 'true';
             $isParent = $a->getAttribute('isParent') === 'true';
             if ($health > 0 || $reproduction > 0 || $isPregnant) $anyBreedingData = true;
@@ -518,8 +841,8 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
             $bySpecies[$info['species']]['breeds'][$breedKey]['clusters'][] = [
                 'age' => $age,
                 'count' => $num,
-                'health' => round($health * 100),
-                'reproduction' => round($reproduction * 100),
+                'health' => round($health),
+                'reproduction' => round($reproduction),
                 'isPregnant' => $isPregnant,
                 'isParent' => $isParent,
             ];
@@ -563,6 +886,11 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
         }
         usort($speciesList, fn($a, $b) => $b['total'] <=> $a['total']);
 
+        $pendingProduct = find_pending_pallet_output($p);
+        if ($pendingProduct && $pendingProduct['fillType']) {
+            $pendingProduct['finishedPallets'] = count_finished_pallets($savegameDir, $farmId, $pendingProduct['fillType']);
+        }
+
         $result[] = [
             'uniqueId' => $p->getAttribute('uniqueId'),
             'name' => readable_barn_name($p->getAttribute('filename')),
@@ -570,6 +898,7 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
             'species' => $speciesList,
             'meadow' => $meadow,
             'hasBreedingData' => $anyBreedingData,
+            'pendingProduct' => $pendingProduct,
         ];
     }
     usort($result, fn($a, $b) => $b['totalAnimals'] <=> $a['totalAnimals']);
@@ -598,6 +927,8 @@ const PRODUCTION_ID_LABELS = [
     'strawberry' => 'Erdbeeren', 'tomato' => 'Tomaten', 'chilli' => 'Chili', 'chili' => 'Chili',
     'cucumber' => 'Gurken', 'pepper' => 'Paprika', 'eggplant' => 'Auberginen',
     'blueberry' => 'Heidelbeeren', 'raspberry' => 'Himbeeren',
+    'springOnion' => 'Frühlingszwiebeln', 'greenBean' => 'Grüne Bohnen', 'napaCabbage' => 'Chinakohl',
+    'greenbean' => 'Grüne Bohnen',
 ];
 
 function production_id_label(string $id): string {
@@ -2119,7 +2450,7 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $fields = parse_fields($dir);
     $ownedIds = $farmInfo['farmId'] ? get_owned_field_ids($dir, $farmInfo['farmId']) : [];
     $ownedFields = array_filter($fields, fn($f) => isset($ownedIds[$f['id']]));
-    $harvestReadyCount = count(array_filter($ownedFields, fn($f) => $f['groundType'] === 'HARVEST_READY'));
+    $harvestReadyCount = count(array_filter($ownedFields, fn($f) => $f['groundStatus'] === GROUND_STATUS_READY));
 
     $vehicleCount = $farmInfo['farmId'] ? count_vehicles_for_farm($dir, $farmInfo['farmId']) : 0;
 
@@ -2127,7 +2458,7 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     // konkrete nächste Schritte zeigt.
     $harvestReadyFields = array_values(array_map(
         fn($f) => ['id' => $f['id'], 'fruitTypeLabel' => fruit_type_label($f['fruitType'])],
-        array_filter($ownedFields, fn($f) => $f['groundType'] === 'HARVEST_READY')
+        array_filter($ownedFields, fn($f) => $f['groundStatus'] === GROUND_STATUS_READY)
     ));
 
     $vehicles = $farmInfo['farmId'] ? parse_vehicles($dir, $farmInfo['farmId']) : [];
@@ -2191,7 +2522,11 @@ if ($action === 'fields_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 
     foreach ($fields as &$f) {
         $f['steps'] = suggest_field_steps($f, $limeRequired);
-        $f['fruitTypeLabel'] = fruit_type_label($f['fruitType']);
+        // Fruchtart wird immer so gezeigt, wie sie tatsächlich im Spielstand steht –
+        // UNKNOWN/FALLOW (kein Bewuchs) wird als "–" dargestellt, alles andere unverändert
+        // übersetzt. Keine Unterdrückung/Heuristik mehr, die Daten anzweifelt.
+        $f['fruitTypeLabel'] = in_array($f['fruitType'], ['UNKNOWN', 'FALLOW'], true) ? null : fruit_type_label($f['fruitType']);
+        $f['groundStatusLabel'] = GROUND_STATUS_LABELS[$f['groundStatus']];
     }
     unset($f);
 
@@ -2265,11 +2600,13 @@ if ($action === 'animals_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
     $farmInfo = get_farm_info($dir);
     $husbandries = $farmInfo['farmId'] ? parse_husbandries($dir, $farmInfo['farmId']) : [];
+    $beehives = $farmInfo['farmId'] ? parse_beehives($dir, $farmInfo['farmId']) : ['hiveCount' => 0, 'pendingHoneyLiters' => 0.0, 'hasSpawner' => false];
 
     echo json_encode([
         'husbandries' => $husbandries,
         'barnCount' => count($husbandries),
         'totalAnimals' => array_sum(array_column($husbandries, 'totalAnimals')),
+        'beehives' => $beehives,
     ]);
     exit;
 }
