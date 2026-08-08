@@ -2582,26 +2582,139 @@ if ($action === 'vehicles_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 // ---------------------------------------------------------------
-// Tierbestände
+// Tierbestände – kanonische Live-Daten aus Lua
 // ---------------------------------------------------------------
 if ($action === 'animals_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
+    $liveData = get_live_mod_data();
+
+    if (($liveData['status'] ?? 'error') === 'no_mod') {
+        echo json_encode(['error' => 'Mod nicht aktiv. FS25_AutoDriveFlurkarte aktivieren und Spiel starten.']);
         exit;
     }
-    $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
-    $farmInfo = get_farm_info($dir);
-    $husbandries = $farmInfo['farmId'] ? parse_husbandries($dir, $farmInfo['farmId']) : [];
-    $beehives    = $farmInfo['farmId'] ? parse_beehives($dir, $farmInfo['farmId'])
-                 : ['hiveCount' => 0, 'pendingHoneyLiters' => 0.0, 'hasSpawner' => false];
+    if (($liveData['status'] ?? 'error') === 'error') {
+        echo json_encode(['error' => $liveData['message'] ?? 'Live-Tierdaten konnten nicht gelesen werden.']);
+        exit;
+    }
+
+    $playerFarmId = (int)($liveData['farm']['farmId'] ?? 0);
+    $husbandries = is_array($liveData['animals'] ?? null) ? array_values($liveData['animals']) : [];
+    if ($playerFarmId > 0) {
+        $husbandries = array_values(array_filter(
+            $husbandries,
+            fn($barn) => (int)($barn['farmId'] ?? 0) === $playerFarmId
+        ));
+    }
+
+    $clampFactor = static fn($value): float => round(max(0.0, min(1.0, (float)$value)), 3);
+    $clampPercent = static fn($value): int => (int)max(0, min(100, round((float)$value)));
+    $normalized = [];
+
+    foreach ($husbandries as $barn) {
+        $clusters = [];
+        foreach (($barn['clusters'] ?? []) as $cluster) {
+            $clusters[] = [
+                'subTypeIndex' => (int)($cluster['subTypeIndex'] ?? 0),
+                'subType' => (string)($cluster['subType'] ?? ''),
+                'breedTitle' => (string)($cluster['breedTitle'] ?? $cluster['subType'] ?? 'Unbekannt'),
+                'ageMonths' => round(max(0.0, (float)($cluster['ageMonths'] ?? 0)), 1),
+                'numAnimals' => max(0, (int)($cluster['numAnimals'] ?? 0)),
+                'health' => $clampFactor($cluster['health'] ?? 0),
+                'reproduction' => $clampFactor($cluster['reproduction'] ?? 0),
+                'isPregnant' => (bool)($cluster['isPregnant'] ?? false),
+                'isParent' => (bool)($cluster['isParent'] ?? false),
+            ];
+        }
+
+        $normalizeResource = static function($resource) use ($clampPercent): array {
+            $resource = is_array($resource) ? $resource : [];
+            return array_merge($resource, [
+                'enabled' => (bool)($resource['enabled'] ?? false),
+                'level' => round(max(0.0, (float)($resource['level'] ?? 0)), 1),
+                'capacity' => round(max(0.0, (float)($resource['capacity'] ?? 0)), 1),
+                'percent' => $clampPercent($resource['percent'] ?? 0),
+            ]);
+        };
+
+        $food = $normalizeResource($barn['food'] ?? []);
+        $food['fillTypes'] = is_array($food['fillTypes'] ?? null) ? array_values($food['fillTypes']) : [];
+        $food['groups'] = is_array($food['groups'] ?? null) ? array_values($food['groups']) : [];
+        $water = $normalizeResource($barn['water'] ?? []);
+        $water['automatic'] = (bool)($water['automatic'] ?? false);
+        $water['litersPerHour'] = round(max(0.0, (float)($water['litersPerHour'] ?? 0)), 2);
+        $straw = $normalizeResource($barn['straw'] ?? []);
+        $straw['litersPerHour'] = round(max(0.0, (float)($straw['litersPerHour'] ?? 0)), 2);
+        $meadow = $normalizeResource($barn['meadow'] ?? []);
+        $meadow['fillTypes'] = is_array($meadow['fillTypes'] ?? null) ? array_values($meadow['fillTypes']) : [];
+
+        $outputs = [];
+        foreach (($barn['outputs'] ?? []) as $output) {
+            $capacity = max(0.0, (float)($output['capacity'] ?? 0));
+            $level = max(0.0, (float)($output['level'] ?? 0));
+            $outputs[] = [
+                'kind' => strtoupper((string)($output['kind'] ?? 'PRODUCT')),
+                'fillType' => strtoupper((string)($output['fillType'] ?? 'UNKNOWN')),
+                'title' => (string)($output['title'] ?? $output['fillType'] ?? 'Produkt'),
+                'level' => round($level, 1),
+                'capacity' => round($capacity, 1),
+                'percent' => $capacity > 0 ? (int)min(100, max(0, round($level / $capacity * 100))) : 0,
+                'pendingLiters' => round(max(0.0, (float)($output['pendingLiters'] ?? 0)), 1),
+                'litersPerHour' => round(max(0.0, (float)($output['litersPerHour'] ?? 0)), 2),
+                'palletLimitReached' => (bool)($output['palletLimitReached'] ?? false),
+            ];
+        }
+
+        $normalized[] = [
+            'uniqueId' => (string)($barn['uniqueId'] ?? ''),
+            'name' => (string)($barn['name'] ?? 'Tierhaltung'),
+            'farmId' => (int)($barn['farmId'] ?? 0),
+            'animalType' => strtoupper((string)($barn['animalType'] ?? 'UNKNOWN')),
+            'animalTypeIndex' => (int)($barn['animalTypeIndex'] ?? 0),
+            'totalAnimals' => max(0, (int)($barn['totalAnimals'] ?? 0)),
+            'maxAnimals' => max(0, (int)($barn['maxAnimals'] ?? 0)),
+            'freeSlots' => max(0, (int)($barn['freeSlots'] ?? 0)),
+            'occupancyPercent' => $clampPercent($barn['occupancyPercent'] ?? 0),
+            'productivity' => $clampFactor($barn['productivity'] ?? 0),
+            'health' => $clampFactor($barn['health'] ?? 0),
+            'reproduction' => $clampFactor($barn['reproduction'] ?? 0),
+            'clusters' => $clusters,
+            'food' => $food,
+            'water' => $water,
+            'straw' => $straw,
+            'meadow' => $meadow,
+            'outputs' => $outputs,
+            'liveSource' => true,
+        ];
+    }
+
+    usort($normalized, static function(array $a, array $b): int {
+        $countCmp = $b['totalAnimals'] <=> $a['totalAnimals'];
+        return $countCmp !== 0 ? $countCmp : strnatcasecmp($a['name'], $b['name']);
+    });
+
+    $beehivesRaw = is_array($liveData['beehives'] ?? null) ? $liveData['beehives'] : [];
+    $beehives = [
+        'hiveCount' => max(0, (int)($beehivesRaw['hiveCount'] ?? 0)),
+        'activeHiveCount' => max(0, (int)($beehivesRaw['activeHiveCount'] ?? 0)),
+        'honeyLitersPerHour' => round(max(0.0, (float)($beehivesRaw['honeyLitersPerHour'] ?? 0)), 2),
+        'pendingHoneyLiters' => round(max(0.0, (float)($beehivesRaw['pendingHoneyLiters'] ?? 0)), 1),
+        'finishedPallets' => max(0, (int)($beehivesRaw['finishedPallets'] ?? 0)),
+        'honeyOnPalletsLiters' => round(max(0.0, (float)($beehivesRaw['honeyOnPalletsLiters'] ?? 0)), 1),
+        'hasSpawner' => (bool)($beehivesRaw['hasSpawner'] ?? false),
+        'palletLimitReached' => (bool)($beehivesRaw['palletLimitReached'] ?? false),
+        'hives' => is_array($beehivesRaw['hives'] ?? null) ? array_values($beehivesRaw['hives']) : [],
+    ];
 
     echo json_encode([
-        'husbandries'  => $husbandries,
-        'barnCount'    => count($husbandries),
-        'totalAnimals' => array_sum(array_column($husbandries, 'totalAnimals')),
-        'beehives'     => $beehives,
+        'husbandries' => $normalized,
+        'barnCount' => count($normalized),
+        'totalAnimals' => array_sum(array_column($normalized, 'totalAnimals')),
+        'beehives' => $beehives,
+        'diagnostics' => $liveData['animalDiagnostics'] ?? null,
+        'source' => 'lua-live',
+        'modVersion' => $liveData['version'] ?? '',
+        'liveStatus' => $liveData['status'] ?? 'unknown',
+        'liveAge' => $liveData['fileAgeSeconds'] ?? 0,
+        'timestamp' => $liveData['timestamp'] ?? null,
     ]);
     exit;
 }
