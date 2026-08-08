@@ -211,19 +211,6 @@ function get_weather_forecast(string $savegameDir, int $currentDay, int $daysAhe
     return $result;
 }
 
-function count_vehicles_for_farm(string $savegameDir, string $farmId): int {
-    $file = $savegameDir . DIRECTORY_SEPARATOR . 'vehicles.xml';
-    if (!file_exists($file)) return 0;
-    libxml_use_internal_errors(true);
-    $xml = simplexml_load_file($file);
-    if (!$xml) return 0;
-    $count = 0;
-    foreach ($xml->vehicle as $v) {
-        if ((string)$v['farmId'] === $farmId) $count++;
-    }
-    return $count;
-}
-
 // Maximale Wachstumsstufe je Fruchtart, direkt aus den Foliage-Definitionsdateien des
 // Spiels ausgezählt (Kommentarblock mit den einzelnen Wachstumsstufen je Fruchtart, z. B.
 // data/foliage/wheat/wheat.xml – dort steht buchstäblich "invisible / green small / ... /
@@ -2253,14 +2240,8 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         $harvestReady
     );
 
-    // Fahrzeuge aus XML zählen (zuverlässig), Warnungen aus Live-Daten
-    $xmlFolderOv = $_SESSION['savegame_folder'] ?? null;
-    $xmlVehicleCount = 0;
-    if ($xmlFolderOv) {
-        $xmlDirOv = FS_BASE_DIR . DIRECTORY_SEPARATOR . $xmlFolderOv;
-        $xmlFarmOv = get_farm_info($xmlDirOv);
-        $xmlVehicleCount = $xmlFarmOv['farmId'] ? count_vehicles_for_farm($xmlDirOv, $xmlFarmOv['farmId']) : 0;
-    }
+    // Fuhrpark vollständig aus demselben Lua-Live-Export wie der Fuhrpark-Tab.
+    $vehicleCount = count($vehicles);
 
     // Fahrzeuge mit Wartungsbedarf
     $vehiclesNeedingAttention = array_values(array_map(
@@ -2284,7 +2265,7 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         'season'                 => $periodLabel ?? '',
         'fieldCount'             => $fieldCount,
         'harvestReadyCount'      => count($harvestReady),
-        'vehicleCount'           => $xmlVehicleCount,
+        'vehicleCount'           => $vehicleCount,
         'harvestReadyFields'     => $harvestReadyFields,
         'vehiclesNeedingAttention' => array_slice($vehiclesNeedingAttention, 0, 5),
         'missionsTodayCount'     => $missionsTodayCount,
