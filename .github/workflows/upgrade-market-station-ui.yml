@@ -1,0 +1,54 @@
+name: Upgrade live station market UI
+
+on:
+  push:
+    paths:
+      - '.github/workflows/upgrade-market-station-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply dashboard market upgrade
+        run: python3 .github/scripts/upgrade_market_station_ui.py
+
+      - name: Validate PHP syntax
+        run: php -l api.php
+
+      - name: Validate JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+          if not scripts:
+              raise SystemExit('No inline script found')
+          Path('/tmp/dashboard.js').write_text('\n'.join(scripts), encoding='utf-8')
+          PY
+          node --check /tmp/dashboard.js
+
+      - name: Verify live station market UI
+        run: |
+          grep -q "'source'             => 'lua-live-stations'" api.php
+          grep -q "'stations'        => \$stations" api.php
+          grep -q 'id="marketSortSelect"' index.html
+          grep -q 'Bester Livepreis' index.html
+          grep -q '€ / 1.000 L' index.html
+          grep -q 'market-station-row' index.html
+
+      - name: Validate diff
+        run: git diff --check
+
+      - name: Commit application changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api.php index.html
+          git diff --cached --quiet || git commit -m "feat: show live prices per selling station"
+          git push
