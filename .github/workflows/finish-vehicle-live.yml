@@ -1,0 +1,35 @@
+name: Finish live vehicle cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/finish_vehicle_live.py'
+      - '.github/workflows/finish-vehicle-live.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 .github/scripts/finish_vehicle_live.py
+      - run: php -l api.php
+      - run: |
+          grep -q '\$vehicleCount = count(\$vehicles);' api.php
+          ! grep -q 'count_vehicles_for_farm(' api.php
+          ! grep -q '\$xmlVehicleCount' api.php
+      - run: git diff --check
+      - name: Commit application change
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api.php
+          if ! git diff --cached --quiet; then
+            git commit -m 'refactor: use live vehicle count everywhere'
+            git push
+          fi
