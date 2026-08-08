@@ -1,0 +1,53 @@
+name: Upgrade live animal dashboard
+
+on:
+  push:
+    paths:
+      - '.github/workflows/upgrade-animals-live-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply live animal dashboard upgrade
+        run: python3 .github/scripts/upgrade_animals_live_ui.py
+
+      - name: Validate PHP syntax
+        run: php -l api.php
+
+      - name: Validate JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+          Path('/tmp/dashboard.js').write_text('\n'.join(scripts), encoding='utf-8')
+          PY
+          node --check /tmp/dashboard.js
+
+      - name: Verify live animal contract
+        run: |
+          grep -q "'source' => 'lua-live'" api.php
+          grep -q "\$liveData\['animals'\]" api.php
+          grep -q "animalDiagnostics" api.php
+          grep -q 'Bestand nach Rasse und Alter' index.html
+          grep -q 'Honigproduktion' index.html
+          grep -q 'Basisrate' index.html
+          grep -q 'Live aus FS25' index.html
+
+      - name: Validate diff
+        run: git diff --check
+
+      - name: Commit application changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api.php index.html
+          git diff --cached --quiet || git commit -m "feat: render live animal husbandry data"
+          git push
