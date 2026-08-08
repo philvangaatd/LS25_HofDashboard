@@ -583,6 +583,7 @@
         overflow: hidden;
     }
     .field-card.field-ready { border-left-color: var(--accent); }
+    .field-card.field-mixed { border-left-color: var(--wheat-600); }
     .field-card-header {
         padding: 10px 14px;
         display: flex;
@@ -607,6 +608,7 @@
         color: var(--muted);
     }
     .field-status-ready { color: var(--ink-950); background: var(--accent); padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+    .field-status-mixed { color: var(--wheat-500); }
     .field-card-body { padding: 10px 14px 12px; }
     .field-meta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-bottom: 8px; }
     .field-steps { display: flex; flex-direction: column; gap: 5px; }
@@ -1304,9 +1306,9 @@ async function loadFarmOverview() {
 
 function renderLastSavedInfo(lastSaved) {
     const el = document.getElementById('lastSavedInfo');
-    if (!lastSaved) { el.style.display = 'none'; return; }
     el.style.display = 'block';
-    el.textContent = `ℹ Diese Daten stammen vom letzten Speicherpunkt im Spiel: ${lastSaved}. Wurde seitdem weitergespielt, weichen Werte (Markt, Verschleiß, Wachstum, Tierbestand …) vom aktuellen Live-Stand ab – im Spiel speichern und hier auf „↻ Aktualisieren“ klicken, um wieder gleichzuziehen.`;
+    const savedPart = lastSaved ? ` Letzter gespeicherter Spielstand: ${lastSaved}.` : '';
+    el.textContent = `ℹ Live-Werte werden automatisch über FS25_AutoDriveFlurkarte aktualisiert.${savedPart} Bereiche, die weiterhin direkt Spielstand-Dateien lesen oder schreiben, beziehen sich auf diesen Speicherstand.`;
 }
 
 // -----------------------------------------------------------------
@@ -1461,163 +1463,81 @@ function renderQuickAccess(data) {
 // Feld-Dashboard
 // =================================================================
 let fieldsCache = [];
+let liveDataInterval = null;
+const LIVE_POLL_MS = 15000;
+let lastLiveTimestamp = null;
 
-// --- Live-Mod-Integration ---
-let liveFieldsData   = null;   // Rohdaten aus liveData.json
-let liveDataInterval = null;   // Polling-Timer
-const LIVE_POLL_MS   = 15000;  // 15 Sekunden
+const FIELD_STATUS_ORDER = {
+    READY: 0,
+    MIXED: 1,
+    GROWING: 2,
+    WITHERED: 3,
+    HARVESTED: 4,
+    TILLED: 5,
+    FALLOW: 6,
+};
+
+const FIELD_MIX_LABELS = {
+    ready: 'Erntereif',
+    growing: 'Im Wachstum',
+    harvested: 'Abgeerntet',
+    tilled: 'Bearbeitet',
+    withered: 'Vertrocknet',
+    fallow: 'Brache',
+};
 
 /** Startet das Live-Polling (idempotent – kein Doppel-Interval). */
 function startLivePolling() {
     if (liveDataInterval !== null) return;
-    pollLiveData();             // Sofortiger erster Aufruf
+    pollLiveData();
     liveDataInterval = setInterval(pollLiveData, LIVE_POLL_MS);
 }
 
-/** Stoppt das Live-Polling. */
 function stopLivePolling() {
     if (liveDataInterval === null) return;
     clearInterval(liveDataInterval);
     liveDataInterval = null;
-    // Badge zurücksetzen wenn kein Spiel läuft
+    lastLiveTimestamp = null;
     updateLiveStatusBadge({ status: 'no_mod' });
 }
 
-/** Fragt api.php?action=live_data ab und aktualisiert Badge. Bei neuen Daten Auto-Refresh des aktiven Tabs. */
-let lastLiveTimestamp = null;
+/** Bei einem neuen Lua-Export wird nur der aktive Tab neu geladen. */
 async function pollLiveData() {
     try {
-        const res  = await fetch('api.php?action=live_data');
+        const res = await fetch('api.php?action=live_data');
         const data = await res.json();
         updateLiveStatusBadge(data);
 
-        if (data.status === 'ok' || data.status === 'stale') {
-            // Auto-Refresh des aktiven Tabs wenn neue Live-Daten vorliegen
-            if (data.status === 'ok' && data.timestamp && data.timestamp !== lastLiveTimestamp) {
-                lastLiveTimestamp = data.timestamp;
-                autoRefreshActiveTab();
-            }
+        if (data.status === 'ok' && data.timestamp && data.timestamp !== lastLiveTimestamp) {
+            lastLiveTimestamp = data.timestamp;
+            autoRefreshActiveTab();
         }
     } catch (e) {
         updateLiveStatusBadge({ status: 'error', message: String(e) });
     }
 }
 
-/** Aktuellen Tab bei neuen Live-Daten automatisch neu laden. */
 function autoRefreshActiveTab() {
     switch (activeTab) {
         case 'home':       loadFarmOverview(); break;
-        case 'fields':     loadFieldsData();   break;
-        case 'vehicles':   loadVehiclesData();  break;
-        case 'animals':    loadAnimalsData();   break;
+        case 'fields':     loadFieldsData(); break;
+        case 'vehicles':   loadVehiclesData(); break;
+        case 'animals':    loadAnimalsData(); break;
         case 'production': if (typeof loadProductionData === 'function') loadProductionData(); break;
-        case 'market':     if (typeof loadMarketData     === 'function') loadMarketData();     break;
-        case 'missions':   if (typeof loadMissionsData   === 'function') loadMissionsData();   break;
+        case 'market':     if (typeof loadMarketData === 'function') loadMarketData(); break;
+        case 'missions':   if (typeof loadMissionsData === 'function') loadMissionsData(); break;
     }
 }
 
-/** Überlagert fieldsCache-Einträge mit echten Live-Wachstumsdaten vom Mod. */
-function mergeLiveIntoFields() {
-    if (!liveFieldsData || !fieldsCache.length) return;
-
-    const liveById = {};
-    for (const lf of liveFieldsData) liveById[String(lf.id)] = lf;
-
-    // groundType → groundStatus (entspricht PHP GROUND_TYPE_TO_STATUS)
-    const GT_TO_STATUS = {
-        PLOWED:'TILLED', CULTIVATED:'TILLED', SEEDBED:'TILLED', ROLLED_SEEDBED:'TILLED',
-        ROLLER_LINES:'TILLED', STUBBLE_TILLAGE:'TILLED', RIDGE:'TILLED', NONE:'TILLED', GRASS_CUT:'TILLED',
-        SOWN:'SOWN_GROWING', DIRECT_SOWN:'SOWN_GROWING', RIDGE_SOWN:'SOWN_GROWING',
-        PLANTED:'SOWN_GROWING', GRASS:'SOWN_GROWING',
-        HARVEST_READY:'READY', HARVEST_READY_OTHER:'READY',
-    };
-    const STATUS_LABELS = { TILLED:'Gepflügt', SOWN_GROWING:'Gesät', READY:'Erntereif' };
-
-    for (const f of fieldsCache) {
-        const live = liveById[String(f.id)];
-        if (!live) continue;
-
-        // Zielonka-Bug-Schutz:
-        // getFieldState() liefert für bestimmte Felder (Polygon-Offset in densityMap)
-        // fälschlicherweise fruitType=NONE, obwohl eine Frucht wächst.
-        // Wenn Live NONE meldet, aber die XML-Basis eine Frucht kennt →
-        // Live-Daten für dieses Feld NICHT übernehmen (wäre falsche Verschlechterung).
-        const liveFruitKnown = live.fruitType && live.fruitType !== 'NONE';
-        const xmlFruitKnown  = f.fruitType   && f.fruitType   !== 'NONE' && f.fruitType !== '';
-
-        if (!liveFruitKnown && xmlFruitKnown) {
-            // Mod-Daten nicht vertrauenswürdig für dieses Feld – XML beibehalten.
-            // Nur weed/spray/lime übernehmen falls plausibel (sind unabhängig von Polygon).
-            // Nichts überschreiben – XML-Stand bleibt sichtbar.
-            f._liveSuspect = true;
-            continue;
-        }
-
-        // Fruchtart live übernehmen (nur wenn Live etwas Sinnvolles liefert)
-        if (liveFruitKnown) {
-            f.fruitType      = live.fruitType;
-            f.fruitTypeLabel = live.fruitTitle || f.fruitTypeLabel;
-        }
-
-        // Bodenzustand aus groundType ableiten (authoritativ in FS25)
-        const newStatus = GT_TO_STATUS[live.groundType] || f.groundStatus;
-        f.groundStatus      = newStatus;
-        f.groundStatusLabel = STATUS_LABELS[newStatus] || f.groundStatusLabel;
-
-        // harvestReady als zusätzliche Absicherung
-        if (live.harvestReady) {
-            f.groundStatus      = 'READY';
-            f.groundStatusLabel = 'Erntereif';
-        }
-
-        // Wachstumsstufe
-        f.growthState   = live.growthState;
-        f.growthPercent = (live.growthState === -1 || live.harvestReady)
-            ? 100
-            : (f.maxGrowthState > 0
-                ? Math.round(Math.min(100, live.growthState / f.maxGrowthState * 100))
-                : 0);
-
-        // Bodenpflege-Werte live übernehmen
-        if (live.weedState  !== undefined) { f.weedState  = live.weedState;  f.weedPercent  = Math.round(Math.min(100, live.weedState  / 9 * 100)); }
-        if (live.sprayLevel !== undefined) { f.sprayLevel = live.sprayLevel; f.sprayPercent = Math.round(Math.min(100, live.sprayLevel / 2 * 100)); }
-        if (live.limeLevel  !== undefined) { f.limeLevel  = live.limeLevel;  f.limePercent  = Math.round(Math.min(100, live.limeLevel  / 3 * 100)); }
-
-        // Empfohlene Schritte neu berechnen
-        f.steps = computeFieldStepsFromLive(live, f.groundStatus);
-
-        if (live.isWithered) f.groundStatusLabel = '⚠️ Vertrocknet';
-        f._liveSource = true;
-    }
-}
-
-/** Berechnet nächste Arbeitsschritte aus Live-Daten. */
-function computeFieldStepsFromLive(live, groundStatus) {
-    if (groundStatus === 'READY') return ['Ernten'];
-    if (groundStatus === 'TILLED') {
-        const steps = [];
-        if ((live.limeLevel || 0) < 3) steps.push('Kalken');
-        steps.push('Säen');
-        return steps;
-    }
-    // SOWN_GROWING
-    const steps = [];
-    if ((live.sprayLevel || 0) < 2) steps.push('Düngen');
-    if ((live.weedState  || 0) >= 5) steps.push('Unkraut entfernen');
-    return steps;
-}
-
-/** Aktualisiert den Live-Status-Badge im Felder-Tab. */
 function updateLiveStatusBadge(data) {
     const el = document.getElementById('liveStatusBadge');
     if (!el) return;
     const status = data.status || 'error';
-    const ICONS   = { ok: '🟢', stale: '🟡', no_mod: '⚫', error: '🔴' };
-    const LABELS  = { ok: 'Live', stale: 'Veraltet', no_mod: 'Kein Mod', error: 'Fehler' };
-    el.innerHTML  = `<span class="live-pulse"></span>${LABELS[status] || status}`;
-    el.className  = `live-badge live-badge-${status}`;
-    el.title      = data.message
-        || (data.timestamp ? `Letzter Mod-Export: ${data.timestamp.replace('T',' ')}` : '');
+    const labels = { ok: 'Live', stale: 'Veraltet', no_mod: 'Kein Mod', error: 'Fehler' };
+    el.innerHTML = `<span class="live-pulse"></span>${labels[status] || status}`;
+    el.className = `live-badge live-badge-${status}`;
+    el.title = data.message
+        || (data.timestamp ? `Letzter Mod-Export: ${data.timestamp.replace('T', ' ')}` : '');
 }
 
 function fieldChecklistKey(fieldId, step) {
@@ -1629,11 +1549,33 @@ async function loadFieldsData() {
     container.innerHTML = '<div class="empty-note">Lade Felddaten …</div>';
     const res = await fetch('api.php?action=fields_data');
     const data = await res.json();
-    if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
-    fieldsCache = data.fields;
-    // Wenn Live-Daten bereits im Cache: sofort einmergen
-    if (liveFieldsData) mergeLiveIntoFields();
+    if (data.error) {
+        container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`;
+        return;
+    }
+    fieldsCache = Array.isArray(data.fields) ? data.fields : [];
     renderFields();
+}
+
+function renderMixedFieldBars(field) {
+    if (field.fieldStatus !== 'MIXED') return '';
+    const percentages = field.statusPercentages || {};
+    const rows = Object.entries(FIELD_MIX_LABELS)
+        .map(([key, label]) => [label, Number(percentages[key] || 0)])
+        .filter(([, percent]) => percent >= 0.1)
+        .sort((a, b) => b[1] - a[1]);
+
+    if (rows.length === 0) return '';
+    return `
+        <div class="field-meta">Flächenzustand · ${field.sampleCount || 0} Messpunkte</div>
+        ${rows.map(([label, percent]) => `
+            <div class="bar-row">
+                <span class="bar-label">${escapeHtml(label)}</span>
+                <div class="bar-track"><div class="bar-fill-progress" style="width:${Math.min(100, percent)}%"></div></div>
+                <span class="bar-value">${percent.toLocaleString('de-DE', { maximumFractionDigits: 1 })}%</span>
+            </div>
+        `).join('')}
+    `;
 }
 
 function renderFields() {
@@ -1641,11 +1583,10 @@ function renderFields() {
     const container = document.getElementById('fieldsContainer');
 
     const sorted = fieldsCache.slice().sort((a, b) => {
-        const order = { READY: 0, SOWN_GROWING: 1, TILLED: 2 };
-        const aOrd = order[a.groundStatus] ?? 3;
-        const bOrd = order[b.groundStatus] ?? 3;
+        const aOrd = FIELD_STATUS_ORDER[a.fieldStatus] ?? 99;
+        const bOrd = FIELD_STATUS_ORDER[b.fieldStatus] ?? 99;
         if (aOrd !== bOrd) return aOrd - bOrd;
-        return parseInt(a.id) - parseInt(b.id);
+        return Number(a.id) - Number(b.id);
     });
 
     if (sorted.length === 0) {
@@ -1653,12 +1594,12 @@ function renderFields() {
         return;
     }
 
-    const visible = sorted.filter(f => {
+    const visible = sorted.filter(field => {
         if (!filter) return true;
-        const label = f.fruitTypeLabel || '';
-        return label.toLowerCase().includes(filter) ||
-               f.fruitType.toLowerCase().includes(filter) ||
-               f.id.includes(filter);
+        const label = field.fruitTypeLabel || '';
+        return label.toLowerCase().includes(filter)
+            || String(field.fruitType || '').toLowerCase().includes(filter)
+            || String(field.id).includes(filter);
     });
 
     if (visible.length === 0) {
@@ -1666,14 +1607,13 @@ function renderFields() {
         return;
     }
 
-    container.innerHTML = visible.map(f => {
-        const ready = f.groundStatus === 'READY';
-        // Fruchtart wird immer so gezeigt, wie sie tatsächlich im Spielstand steht – "–"
-        // nur, wenn wirklich keine Frucht dort steht (UNKNOWN/FALLOW).
-        const fruitLabel = f.fruitTypeLabel === null ? '–' : f.fruitTypeLabel;
+    container.innerHTML = visible.map(field => {
+        const ready = field.fieldStatus === 'READY';
+        const mixed = field.fieldStatus === 'MIXED';
+        const fruitLabel = field.fruitTypeLabel === null ? '–' : field.fruitTypeLabel;
 
-        const stepsHtml = f.steps.map(step => {
-            const key = fieldChecklistKey(f.id, step);
+        const stepsHtml = (field.steps || []).map(step => {
+            const key = fieldChecklistKey(field.id, step);
             const checked = localStorage.getItem(key) === '1' ? 'checked' : '';
             return `
                 <label class="field-step">
@@ -1683,21 +1623,15 @@ function renderFields() {
             `;
         }).join('');
 
-        // Fortschrittsbalken für Wachstum (je nach Fruchtart unterschiedliches Maximum),
-        // Kalk, Düngen und Unkraut – nur relevante Balken je nach Zustand anzeigen.
         const bars = [];
-        if (f.groundStatus === 'SOWN_GROWING') {
-            // growthState = -1 ist FS25-intern "erntereif" – nie als "-1/X" anzeigen
-            const growthText = f.growthState === -1
-                ? 'Erntereif'
-                : `${f.growthState}/${f.maxGrowthState}`;
-            bars.push(['Wachstum', f.growthPercent, growthText]);
+        if (field.fieldStatus === 'GROWING') {
+            bars.push(['Wachstum', field.growthPercent, `${field.growthState}/${field.maxGrowthState}`]);
         }
-        if (f.groundStatus !== 'READY') {
-            bars.push(['Kalk', f.limePercent, `${f.limeLevel}/3`]);
-            bars.push(['Düngen', f.sprayPercent, `${f.sprayLevel}/2`]);
+        if (field.fieldStatus !== 'READY') {
+            bars.push(['Kalk', field.limePercent, `${field.limeLevel}/3`]);
+            bars.push(['Düngen', field.sprayPercent, `${field.sprayLevel}/2`]);
         }
-        bars.push(['Unkraut', f.weedPercent, `${f.weedState}`]);
+        bars.push(['Unkraut', field.weedPercent, `${field.weedState}`]);
 
         const barsHtml = bars.map(([label, percent, valueText]) => `
             <div class="bar-row">
@@ -1708,13 +1642,14 @@ function renderFields() {
         `).join('');
 
         return `
-            <div class="field-card ${ready ? 'field-ready' : ''}">
+            <div class="field-card ${ready ? 'field-ready' : ''} ${mixed ? 'field-mixed' : ''}">
                 <div class="field-card-header">
-                    <span class="field-name">Feld ${escapeHtml(f.id)}${f._liveSuspect ? ' <span title="Felddaten vom Mod nicht verfügbar (Karten-Bug) – zeige letzten gespeicherten Stand" style="color:#ffc107;font-size:11px">&#9888;</span>' : ''}</span>
+                    <span class="field-name">Feld ${escapeHtml(field.id)}</span>
                     <span class="field-fruit">${escapeHtml(fruitLabel)}</span>
-                    <span class="field-status ${ready ? 'field-status-ready' : ''}">${escapeHtml(f.groundStatusLabel)}</span>
+                    <span class="field-status ${ready ? 'field-status-ready' : ''} ${mixed ? 'field-status-mixed' : ''}">${escapeHtml(field.statusLabel)}</span>
                 </div>
                 <div class="field-card-body">
+                    ${renderMixedFieldBars(field)}
                     ${barsHtml}
                     <div class="field-steps">${stepsHtml || '<span class="field-meta">Keine offenen Schritte erkannt.</span>'}</div>
                 </div>

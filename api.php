@@ -17,16 +17,10 @@ header('Content-Type: application/json; charset=utf-8');
  * Für Linux/Mac (zukünftige Nutzung) wird ein alternativer Pfad zurückgegeben.
  */
 function get_live_data_file_path(): string {
-    $sep = DIRECTORY_SEPARATOR;
-    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-        $userProfile = getenv('USERPROFILE') ?: '';
-        return $userProfile . $sep . 'Documents' . $sep
-             . 'My Games' . $sep . 'FarmingSimulator2025' . $sep
-             . 'modSettings' . $sep . 'AutoDriveFlurkarte' . $sep . 'liveData.json';
-    }
-    // Linux / Mac
-    $home = getenv('HOME') ?: '';
-    return $home . '/My Games/FarmingSimulator2025/modSettings/AutoDriveFlurkarte/liveData.json';
+    return rtrim(FS_BASE_DIR, "/\\")
+         . DIRECTORY_SEPARATOR . 'modSettings'
+         . DIRECTORY_SEPARATOR . 'AutoDriveFlurkarte'
+         . DIRECTORY_SEPARATOR . 'liveData.json';
 }
 
 /**
@@ -2406,9 +2400,11 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
 
-    // Erntereife Felder: NUR harvestReady-Flag aus FSDensityMapUtil
-    // (groundType nicht verwenden - Polygon-Durchschnitt ist beim Pflügen falsch)
-    $harvestReady = array_values(array_filter($fields, fn($f) => ($f['harvestReady'] ?? false)));
+    // Feldzustände werden ausschließlich vom Lua-Mod ermittelt.
+    $harvestReady = array_values(array_filter(
+        $fields,
+        fn($f) => strtoupper((string)($f['fieldStatus'] ?? '')) === 'READY'
+    ));
     $fieldCount   = count($fields);
     $harvestReadyFields = array_map(
         fn($f) => ['id' => $f['id'], 'fruitTypeLabel' => $f['fruitTitle'] ?? $f['fruitType'] ?? ''],
@@ -2460,108 +2456,167 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 // ---------------------------------------------------------------
-// Feld-Dashboard
+// Feld-Dashboard – kanonische Live-Daten aus Lua
 // ---------------------------------------------------------------
 if ($action === 'fields_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $liveData = get_live_mod_data();
+    $liveData   = get_live_mod_data();
     $liveFields = $liveData['fields'] ?? [];
 
-    if ($liveData['status'] === 'no_mod' || empty($liveFields)) {
+    if (($liveData['status'] ?? 'error') === 'no_mod' || empty($liveFields)) {
         echo json_encode(['error' => 'Mod nicht aktiv. FS25_AutoDriveFlurkarte aktivieren und Spiel starten.']);
         exit;
     }
 
     $playerFarmId = (int)($liveData['farm']['farmId'] ?? 0);
+    if ($playerFarmId > 0) {
+        $liveFields = array_values(array_filter(
+            $liveFields,
+            fn($field) => (int)($field['farmId'] ?? 0) === $playerFarmId
+        ));
+    }
 
-    // Mit korrekter farmId aus g_farmlandManager.farmlands (Lua v4+) filtert
-    // einfacher Vergleich zuverlässig. XML-Fallback nicht mehr nötig.
-    $filteredFields = $playerFarmId > 0
-        ? array_filter($liveFields, fn($f) => (int)($f['farmId'] ?? 0) === $playerFarmId)
-        : $liveFields;
-    // Sicherheits-Fallback: wenn Filter leer (alter Mod-Stand), alle zeigen
-    $liveFields = array_values(!empty($filteredFields) ? $filteredFields : $liveFields);
-
-    // groundType → groundStatus Mapping
-    $GT_MAP = [
-        'HARVEST_READY'       => 'READY',   'HARVEST_READY_OTHER' => 'READY',
-        'SOWN'                => 'SOWN_GROWING', 'DIRECT_SOWN' => 'SOWN_GROWING',
-        'RIDGE_SOWN'          => 'SOWN_GROWING', 'PLANTED'     => 'SOWN_GROWING',
-        'GRASS'               => 'SOWN_GROWING',
-        'PLOWED'              => 'TILLED',   'CULTIVATED'  => 'TILLED',
-        'SEEDBED'             => 'TILLED',   'ROLLED_SEEDBED' => 'TILLED',
-        'ROLLER_LINES'        => 'TILLED',   'STUBBLE_TILLAGE' => 'TILLED',
-        'RIDGE'               => 'TILLED',   'NONE'        => 'TILLED',
-        'GRASS_CUT'           => 'TILLED',
+    // PHP interpretiert keine FS25-GroundTypes oder Wachstumszustände mehr neu.
+    // fieldStatus und statusPercentages werden vom Lua-Mod festgelegt. PHP übernimmt
+    // nur noch Darstellung, Prozentwerte für UI-Balken und Handlungsempfehlungen.
+    $statusLabels = [
+        'READY'     => 'Erntereif',
+        'GROWING'   => 'Im Wachstum',
+        'HARVESTED' => 'Abgeerntet',
+        'TILLED'    => 'Bearbeitet',
+        'WITHERED'  => 'Vertrocknet',
+        'FALLOW'    => 'Brache',
+        'MIXED'     => 'Teilweise bearbeitet',
     ];
-    $STATUS_LABEL = ['READY' => 'Erntereif', 'SOWN_GROWING' => 'Gesät', 'TILLED' => 'Gepflügt'];
+    $validStatuses = array_fill_keys(array_keys($statusLabels), true);
+
+    // Nur die Beschriftung eines bereits von Lua als TILLED klassifizierten Feldes
+    // darf anhand des GroundTypes genauer formuliert werden. Der Status selbst ändert
+    // sich dadurch ausdrücklich nicht.
+    $tilledLabels = [
+        'PLOWED'          => 'Gepflügt',
+        'CULTIVATED'      => 'Gegrubbert',
+        'STUBBLE_TILLAGE' => 'Stoppelsturz',
+        'SEEDBED'         => 'Saatbett',
+        'ROLLED_SEEDBED'  => 'Saatbett gewalzt',
+        'ROLLER_LINES'    => 'Gewalzt',
+        'RIDGE'           => 'Dämme gezogen',
+        'GRASS_CUT'       => 'Gemäht',
+    ];
 
     $fields = [];
     foreach ($liveFields as $lf) {
-        // farmId-Filter wurde bereits vor dieser Schleife angewendet
-        $lfFarmId = (int)($lf['farmId'] ?? 0);
-
-        $gt           = $lf['groundType'] ?? 'NONE';
-        $groundStatus = $GT_MAP[$gt] ?? 'TILLED';
-        // Ernte-Status NUR aus Lua harvestReady-Flag (von FSDensityMapUtil).
-        // groundType HARVEST_READY wird ignoriert wenn harvestReady=false
-        // (passiert beim Pflügen: Polygon sagt noch HARVEST_READY aber Feld ist schon bearbeitet)
-        if ($lf['harvestReady'] ?? false) {
-            $groundStatus = 'READY';
-        } elseif ($groundStatus === 'READY') {
-            // groundType sagt HARVEST_READY aber harvestReady=false → gerade bearbeitet
-            $groundStatus = 'TILLED';
+        $fieldStatus = strtoupper((string)($lf['fieldStatus'] ?? 'FALLOW'));
+        if (!isset($validStatuses[$fieldStatus])) {
+            $fieldStatus = 'FALLOW';
         }
 
-        $maxGs  = (int)($lf['maxGrowthState'] ?? 0);
-        $gs     = (int)($lf['growthState']    ?? 0);
-        $gPct   = ($maxGs > 0 && $groundStatus === 'SOWN_GROWING')
-                  ? (int)min(100, round($gs / $maxGs * 100)) : 0;
+        $groundType = strtoupper((string)($lf['groundType'] ?? 'NONE'));
+        $statusLabel = $statusLabels[$fieldStatus];
+        if ($fieldStatus === 'TILLED' && isset($tilledLabels[$groundType])) {
+            $statusLabel = $tilledLabels[$groundType];
+        }
 
-        $weed   = (int)($lf['weedState']  ?? 0);
-        $spray  = (int)($lf['sprayLevel'] ?? 0);
-        $lime   = (int)($lf['limeLevel']  ?? 0);
-        $plow   = (int)($lf['plowLevel']  ?? 0);
-        $ft     = $lf['fruitType'] ?? 'NONE';
+        $maxGs = max(0, (int)($lf['maxGrowthState'] ?? 0));
+        $gs    = (int)($lf['growthState'] ?? 0);
+        $growthPercent = ($fieldStatus === 'GROWING' && $maxGs > 0)
+            ? (int)min(100, max(0, round($gs / $maxGs * 100)))
+            : 0;
 
-        // Schritte berechnen (Live-Version von suggest_field_steps)
+        $weed  = max(0, (int)($lf['weedState']  ?? 0));
+        $spray = max(0, (int)($lf['sprayLevel'] ?? 0));
+        $lime  = max(0, (int)($lf['limeLevel']  ?? 0));
+        $plow  = max(0, (int)($lf['plowLevel']  ?? 0));
+        $ft    = strtoupper((string)($lf['fruitType'] ?? 'NONE'));
+
+        $percentages = array_merge([
+            'ready' => 0.0,
+            'growing' => 0.0,
+            'harvested' => 0.0,
+            'tilled' => 0.0,
+            'withered' => 0.0,
+            'fallow' => 0.0,
+        ], is_array($lf['statusPercentages'] ?? null) ? $lf['statusPercentages'] : []);
+        foreach ($percentages as $key => $value) {
+            $percentages[$key] = round(max(0.0, min(100.0, (float)$value)), 1);
+        }
+
         $steps = [];
-        if ($groundStatus === 'READY') {
-            $steps[] = 'Ernten';
-        } elseif ($groundStatus === 'TILLED') {
-            if ($lime < 3) $steps[] = 'Kalken';
-            $steps[] = 'Säen';
-        } else { // SOWN_GROWING
-            if ($spray < 2) $steps[] = 'Düngen';
-            if ($weed >= 5)  $steps[] = 'Unkraut entfernen';
+        switch ($fieldStatus) {
+            case 'READY':
+                $steps[] = 'Ernten';
+                break;
+            case 'GROWING':
+                if ($spray < 2) $steps[] = 'Düngen';
+                if ($weed >= 5) $steps[] = 'Unkraut entfernen';
+                break;
+            case 'HARVESTED':
+                $steps[] = 'Boden bearbeiten';
+                break;
+            case 'TILLED':
+                if ($lime < 3) $steps[] = 'Kalken';
+                $steps[] = 'Säen';
+                break;
+            case 'MIXED':
+                if ($percentages['ready'] > 0) {
+                    $steps[] = 'Ernte auf Restfläche abschließen';
+                }
+                if ($percentages['harvested'] > 0) {
+                    $steps[] = 'Bodenbearbeitung abschließen';
+                }
+                if (empty($steps)) {
+                    $steps[] = 'Teilflächen prüfen';
+                }
+                break;
+            case 'WITHERED':
+                $steps[] = 'Bestand räumen';
+                break;
+            case 'FALLOW':
+                if ($lime < 3) $steps[] = 'Kalken';
+                $steps[] = 'Säen';
+                break;
         }
 
         $fields[] = [
-            'id'               => (int)($lf['id']   ?? 0),
-            'farmId'           => (int)($lf['farmId'] ?? 0),
-            'area'             => (float)($lf['area'] ?? 0),
-            'fruitType'        => $ft,
-            'fruitTypeLabel'   => in_array($ft, ['NONE','UNKNOWN'], true) ? null
-                                  : ($lf['fruitTitle'] ?? fruit_type_label($ft)),
-            'maxGrowthState'   => $maxGs,
-            'growthState'      => $gs,
-            'growthPercent'    => $gPct,
-            'groundStatus'     => $groundStatus,
-            'groundStatusLabel'=> $STATUS_LABEL[$groundStatus] ?? $groundStatus,
-            'groundType'       => $gt,
-            'weedState'        => $weed,
-            'weedPercent'      => (int)min(100, round($weed / 9 * 100)),
-            'sprayLevel'       => $spray,
-            'sprayPercent'     => (int)min(100, round($spray / 2 * 100)),
-            'limeLevel'        => $lime,
-            'limePercent'      => (int)min(100, round($lime / 3 * 100)),
-            'plowLevel'        => $plow,
-            'steps'            => $steps,
-            'liveSource'       => true,
+            'id'                 => (int)($lf['id'] ?? 0),
+            'farmId'             => (int)($lf['farmId'] ?? 0),
+            'farmlandId'         => (int)($lf['farmlandId'] ?? 0),
+            'area'               => (float)($lf['area'] ?? 0),
+            'fieldStatus'        => $fieldStatus,
+            'statusLabel'        => $statusLabel,
+            'statusPercentages'  => $percentages,
+            'sampleCount'        => (int)($lf['sampleCount'] ?? 0),
+            'fruitType'          => $ft,
+            'fruitTypeLabel'     => in_array($ft, ['NONE', 'UNKNOWN'], true)
+                                    ? null
+                                    : ($lf['fruitTitle'] ?? fruit_type_label($ft)),
+            'growthName'         => (string)($lf['growthName'] ?? ''),
+            'maxGrowthState'     => $maxGs,
+            'growthState'        => $gs,
+            'growthPercent'      => $growthPercent,
+            'groundType'         => $groundType,
+            'weedState'          => $weed,
+            'weedPercent'        => (int)min(100, round($weed / 9 * 100)),
+            'sprayLevel'         => $spray,
+            'sprayPercent'       => (int)min(100, round($spray / 2 * 100)),
+            'limeLevel'          => $lime,
+            'limePercent'        => (int)min(100, round($lime / 3 * 100)),
+            'plowLevel'          => $plow,
+            'stoneLevel'         => (int)($lf['stoneLevel'] ?? 0),
+            'rollerLevel'        => (int)($lf['rollerLevel'] ?? 0),
+            'stubbleShredLevel'  => (int)($lf['stubbleShredLevel'] ?? 0),
+            'waterLevel'         => (int)($lf['waterLevel'] ?? 0),
+            'steps'              => $steps,
+            'liveSource'         => true,
         ];
     }
 
-    usort($fields, fn($a, $b) => $a['id'] - $b['id']);
-    echo json_encode(['fields' => $fields, 'fileAgeSeconds' => $liveData['fileAgeSeconds'] ?? 0]);
+    usort($fields, fn($a, $b) => $a['id'] <=> $b['id']);
+    echo json_encode([
+        'fields' => $fields,
+        'fileAgeSeconds' => $liveData['fileAgeSeconds'] ?? 0,
+        'timestamp' => $liveData['timestamp'] ?? null,
+        'source' => 'lua-live',
+    ]);
     exit;
 }
 
