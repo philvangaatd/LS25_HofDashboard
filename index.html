@@ -824,6 +824,17 @@
     .market-trend-inline { font-size: 13px; margin-left: 4px; }
     .market-trend-inline.up { color: var(--moss-400); }
     .market-trend-inline.down { color: var(--rust-500); }
+    .market-live-price-row { display: flex; align-items: baseline; gap: 6px; }
+    .market-live-unit { color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
+    .market-best-station { color: var(--moss-400); font-family: var(--font-mono); font-size: 11px; margin: 2px 0 10px; }
+    .market-stations { border-top: 1px solid var(--ink-800); border-bottom: 1px solid var(--ink-800); margin: 8px 0; }
+    .market-station-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 6px 0; font-size: 11px; font-family: var(--font-mono); }
+    .market-station-row + .market-station-row { border-top: 1px solid var(--ink-800); }
+    .market-station-row.best .market-station-name,
+    .market-station-row.best .market-station-price { color: var(--accent); font-weight: 500; }
+    .market-station-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+    .market-station-price { white-space: nowrap; color: var(--text); }
+    .market-station-empty { color: var(--muted); font-family: var(--font-mono); font-size: 11px; padding: 7px 0; }
     .market-detail-row {
         display: flex;
         justify-content: space-between;
@@ -1150,10 +1161,18 @@
                     <button class="mode-btn" data-cat="crop" onclick="setMarketFilter('crop')">🌾 Kulturen</button>
                     <button class="mode-btn" data-cat="product" onclick="setMarketFilter('product')">🏭 Produkte</button>
                 </div>
-                <input type="text" id="marketFilterInput" placeholder="Filtern nach Kultur …" style="flex:1" oninput="renderMarket()">
+                <input type="text" id="marketFilterInput" placeholder="Filtern nach Ware oder Verkaufsstation …" style="flex:1" oninput="renderMarket()">
+                <select id="marketSortSelect" onchange="setMarketSort(this.value)" style="width:auto">
+                    <option value="smart">Sortieren: Empfohlen</option>
+                    <option value="best_desc">Bestpreis: hoch → niedrig</option>
+                    <option value="best_asc">Bestpreis: niedrig → hoch</option>
+                    <option value="name_asc">Name: A → Z</option>
+                    <option value="stations_desc">Meiste Verkaufsstationen</option>
+                    <option value="spread_desc">Größte Preisspanne</option>
+                </select>
                 <span class="map-hint" id="marketPeriodLabel"></span>
             </div>
-            <div class="legend-line">Basispreis der Marktentwicklung (aus der wirtschaftlichen Saison-Kalkulation) · einzelne Verkaufsstationen im Spiel (Genossenschaften, Werke) zahlen häufig einen Auf- oder Abschlag darauf – diese Zahl zeigt daher die saisonale Tendenz, nicht zwingend den Preis an einer bestimmten Station gerade jetzt · gelber Strich zeigt, wo der aktuelle Preis innerhalb der Jahresspanne liegt · 🔔 Preis-Alarm: Zielpreis je Kultur festlegen, Karte wird hervorgehoben und nach oben sortiert sobald erreicht</div>
+            <div class="legend-line">Live-Verkaufspreise direkt aus den FS25-Verkaufsstationen · der große Preis ist der aktuell beste erzielbare Preis je 1.000 L · darunter stehen alle Stationen mit ihrem echten Livepreis · 🔔 Preis-Alarm wird gegen den aktuellen Bestpreis geprüft und Treffer werden hervorgehoben</div>
             <div id="marketContainer"></div>
         </div>
 
@@ -1383,7 +1402,7 @@ function renderPriceAlertQuickAccess(hits) {
             ${hits.map(m => `
                 <div class="quick-row" onclick="switchTab('market')">
                     <span class="quick-title">${escapeHtml(m.label)}</span>
-                    <span class="quick-meta">${m.currentPrice.toLocaleString('de-DE')} €</span>
+                    <span class="quick-meta">${Number(m.currentPrice || 0).toLocaleString('de-DE')} €${m.bestStation ? ` · ${escapeHtml(m.bestStation)}` : ''}</span>
                 </div>
             `).join('')}
         </div>
@@ -2025,6 +2044,7 @@ function renderProduction() {
 // Marktpreise / Verkaufsplaner
 // =================================================================
 let marketCache = [];
+let marketSortMode = 'smart';
 
 async function loadMarketData() {
     const container = document.getElementById('marketContainer');
@@ -2033,7 +2053,7 @@ async function loadMarketData() {
     const data = await res.json();
     if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
     marketCache = data.market;
-    document.getElementById('marketPeriodLabel').textContent = `Aktuelle Saisonperiode: ${data.currentPeriodLabel}`;
+    document.getElementById('marketPeriodLabel').textContent = `Livepreise · ${data.currentPeriodLabel} · ${Number(data.liveAge || 0)} s alt`;
     renderMarket();
 }
 
@@ -2047,60 +2067,88 @@ function setMarketFilter(cat) {
     renderMarket();
 }
 
+function setMarketSort(mode) {
+    marketSortMode = mode || 'smart';
+    renderMarket();
+}
+
 function renderMarket() {
-    const filter = document.getElementById('marketFilterInput').value.toLowerCase();
+    const filter = document.getElementById('marketFilterInput').value.toLowerCase().trim();
     const container = document.getElementById('marketContainer');
 
     const sorted = marketCache.slice().sort((a, b) => {
         const aHit = isAlertHit(a);
         const bHit = isAlertHit(b);
         if (aHit !== bHit) return aHit ? -1 : 1;
-        if (a.isOwnCrop !== b.isOwnCrop) return a.isOwnCrop ? -1 : 1;
-        return b.currentPrice - a.currentPrice;
+
+        switch (marketSortMode) {
+            case 'best_desc':
+                return Number(b.currentPrice || 0) - Number(a.currentPrice || 0) || a.label.localeCompare(b.label, 'de');
+            case 'best_asc':
+                return Number(a.currentPrice || 0) - Number(b.currentPrice || 0) || a.label.localeCompare(b.label, 'de');
+            case 'name_asc':
+                return a.label.localeCompare(b.label, 'de');
+            case 'stations_desc':
+                return Number(b.stationCount || 0) - Number(a.stationCount || 0) || Number(b.currentPrice || 0) - Number(a.currentPrice || 0);
+            case 'spread_desc':
+                return Number(b.priceSpread || 0) - Number(a.priceSpread || 0) || Number(b.currentPrice || 0) - Number(a.currentPrice || 0);
+            case 'smart':
+            default:
+                if (a.isOwnCrop !== b.isOwnCrop) return a.isOwnCrop ? -1 : 1;
+                return Number(b.currentPrice || 0) - Number(a.currentPrice || 0) || a.label.localeCompare(b.label, 'de');
+        }
     });
+
     const visible = sorted.filter(m => {
-        if (filter && !m.label.toLowerCase().includes(filter)) return false;
         if (marketCategoryFilter !== 'ALL' && m.category !== marketCategoryFilter) return false;
-        return true;
+        if (!filter) return true;
+        const stationText = (m.stations || []).map(s => s.name || '').join(' ');
+        return `${m.label || ''} ${m.fruitType || ''} ${stationText}`.toLowerCase().includes(filter);
     });
 
     if (visible.length === 0) {
-        container.innerHTML = '<div class="empty-note">Keine Treffer.</div>';
+        container.innerHTML = '<div class="empty-note">Keine passenden Marktpreise gefunden.</div>';
         return;
     }
 
     container.innerHTML = visible.map(m => {
-        const span = m.maxPrice - m.minPrice || 1;
-        const markerPos = ((m.currentPrice - m.minPrice) / span) * 100;
-        const trendArrow = m.trend === 'up' ? '▲ steigt' : (m.trend === 'down' ? '▼ fällt' : '– stabil');
         const alertValue = getPriceAlert(m.fruitType);
         const alertHit = isAlertHit(m);
+        const stations = Array.isArray(m.stations) ? m.stations : [];
+        const stationRows = stations.length > 0
+            ? stations.map((s, idx) => `
+                <div class="market-station-row ${idx === 0 ? 'best' : ''}">
+                    <span class="market-station-name">${idx === 0 ? '★ ' : ''}${escapeHtml(s.name || 'Verkaufsstation')}</span>
+                    <span class="market-station-price">${Number(s.price || 0).toLocaleString('de-DE')} €</span>
+                </div>
+              `).join('')
+            : '<div class="market-station-empty">Keine sichtbaren Verkaufsstationen gemeldet.</div>';
+
+        const bestStation = m.bestStation ? escapeHtml(m.bestStation) : '–';
+        const rangeText = Number(m.stationCount || 0) > 1
+            ? `${Number(m.minPrice || 0).toLocaleString('de-DE')}–${Number(m.maxPrice || 0).toLocaleString('de-DE')} €`
+            : `${Number(m.currentPrice || 0).toLocaleString('de-DE')} €`;
+
         return `
             <div class="market-card ${m.isOwnCrop ? 'own-crop' : ''} ${alertHit ? 'alert-hit' : ''}">
                 <div class="market-card-header">
                     <span class="market-name">${escapeHtml(m.label)}</span>
                     ${m.isOwnCrop ? '<span class="market-own-badge">eigene Kultur</span>' : ''}
                 </div>
-                <div>
-                    <span class="market-current-price">${m.currentPrice.toLocaleString('de-DE')} €</span>
-                    <span class="market-trend-inline ${m.trend}">${trendArrow}</span>
+                <div class="market-live-price-row">
+                    <span class="market-current-price">${Number(m.currentPrice || 0).toLocaleString('de-DE')} €</span>
+                    <span class="market-live-unit">/ 1.000 L</span>
                 </div>
-                <div class="market-detail-row"><span>Basispreis pro Einheit, aktuelle Saisonperiode</span></div>
-                <div class="market-range-track" title="Spanne über das ganze Jahr: ${m.minPrice}–${m.maxPrice} €">
-                    <div class="market-range-marker" style="left:${markerPos.toFixed(0)}%"></div>
-                </div>
+                <div class="market-best-station">Bester Livepreis · ${bestStation}</div>
+                <div class="market-stations">${stationRows}</div>
                 <div class="market-detail-row">
-                    <span>Preisspanne im Jahr: ${m.minPrice}–${m.maxPrice} €</span>
-                </div>
-                <div class="market-detail-row">
-                    <span>Bester Verkaufszeitpunkt: ${escapeHtml(m.bestPeriodLabel)}${m.isAtBest ? ' (jetzt!)' : ''}</span>
+                    <span>${Number(m.stationCount || 0)} Verkaufsstation${Number(m.stationCount || 0) === 1 ? '' : 'en'} · Spanne ${rangeText} / 1.000 L</span>
                 </div>
                 <div class="market-alert-row">
                     <label>🔔 Alarm ab</label>
-                    <input type="number" value="${alertValue !== null ? alertValue : ''}" placeholder="z. B. 250" data-fruit="${escapeAttr(m.fruitType)}" onchange="updatePriceAlert(this)">
-                    <span>€</span>
+                    <input type="number" value="${alertValue !== null ? alertValue : ''}" placeholder="z. B. 400" data-fruit="${escapeAttr(m.fruitType)}" onchange="updatePriceAlert(this)">
+                    <span>€ / 1.000 L</span>
                 </div>
-                ${alertHit ? '<div class="market-alert-hit-badge">🔔 Zielpreis erreicht!</div>' : ''}
             </div>
         `;
     }).join('');

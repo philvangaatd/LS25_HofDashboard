@@ -2723,72 +2723,92 @@ if ($action === 'update_farm_name' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ---------------------------------------------------------------
-// Marktpreise / Verkaufsplaner
+// Marktpreise / Verkaufsplaner – echte Livepreise je Verkaufsstation
 // ---------------------------------------------------------------
 if ($action === 'market_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $liveData = get_live_mod_data();
 
-    if ($liveData['status'] === 'no_mod') {
+    if (($liveData['status'] ?? '') === 'no_mod') {
         echo json_encode(['error' => 'Mod nicht aktiv.']);
         exit;
     }
+    if (($liveData['status'] ?? '') === 'error') {
+        echo json_encode(['error' => $liveData['message'] ?? 'Live-Daten konnten nicht gelesen werden.']);
+        exit;
+    }
 
-    $liveMarket = $liveData['market'] ?? [];
-    // Eigene Fruchtsärten aus Live-Felddaten ermitteln
-    $playerFarmId2 = (int)($liveData['farm']['farmId'] ?? 0);
     $ownCrops = [];
-    foreach ($liveData['fields'] ?? [] as $lf) {
-        if (!empty($lf['fruitType']) && $lf['fruitType'] !== 'NONE'
-            && ($playerFarmId2 === 0 || ($lf['farmId'] ?? 0) === $playerFarmId2)) {
-            $ownCrops[$lf['fruitType']] = true;
+    foreach (($liveData['fields'] ?? []) as $field) {
+        $fruitType = strtoupper((string)($field['fruitType'] ?? ''));
+        if ($fruitType !== '' && $fruitType !== 'NONE' && $fruitType !== 'UNKNOWN') {
+            $ownCrops[$fruitType] = true;
         }
     }
 
-    // Saisonperiode aus Live-Daten berechnen (currentDay + daysPerPeriod aus Mod)
-    $currentDayLive    = (int)($liveData['currentDay']    ?? 0);
-    $daysPerPeriodLive = (int)($liveData['daysPerPeriod'] ?? 24);
-    $periodLabel = 'Live-Daten';
+    $market = [];
+    foreach (($liveData['market'] ?? []) as $m) {
+        $ft = strtoupper((string)($m['fillType'] ?? ''));
+        if ($ft === '') continue;
+
+        $stations = [];
+        foreach (($m['stations'] ?? []) as $station) {
+            $price = (float)($station['pricePer1000L'] ?? 0);
+            if ($price <= 0) continue;
+            $stations[] = [
+                'name'  => (string)($station['name'] ?? 'Verkaufsstation'),
+                'price' => (int)round($price),
+            ];
+        }
+
+        usort($stations, static function(array $a, array $b): int {
+            $priceCmp = $b['price'] <=> $a['price'];
+            return $priceCmp !== 0 ? $priceCmp : strcasecmp($a['name'], $b['name']);
+        });
+
+        $currentPrice = $stations[0]['price'] ?? (int)round((float)($m['bestPrice'] ?? $m['pricePerTon'] ?? 0));
+        if ($currentPrice <= 0) continue;
+
+        $bestStation = $stations[0]['name'] ?? (string)($m['bestStation'] ?? '');
+        $minPrice = $stations ? min(array_column($stations, 'price')) : $currentPrice;
+        $maxPrice = $stations ? max(array_column($stations, 'price')) : $currentPrice;
+
+        $market[] = [
+            'fruitType'       => $ft,
+            'label'           => (string)($m['title'] ?? $ft),
+            'category'        => (string)($m['category'] ?? 'product'),
+            'unit'            => '1000L',
+            'currentPrice'    => $currentPrice,
+            'bestPrice'       => $currentPrice,
+            'bestStation'     => $bestStation,
+            'stationCount'    => count($stations),
+            'stations'        => $stations,
+            'minPrice'        => $minPrice,
+            'maxPrice'        => $maxPrice,
+            'priceSpread'     => max(0, $maxPrice - $minPrice),
+            'basePricePerTon' => (int)round((float)($m['basePriceTon'] ?? 0)),
+            'isOwnCrop'       => isset($ownCrops[$ft]),
+        ];
+    }
+
+    usort($market, static function(array $a, array $b): int {
+        $priceCmp = $b['currentPrice'] <=> $a['currentPrice'];
+        return $priceCmp !== 0 ? $priceCmp : strcasecmp($a['label'], $b['label']);
+    });
+
+    $periodLabel = 'Unbekannt';
+    $currentDayLive = (int)($liveData['currentDay'] ?? 0);
+    $daysPerPeriodLive = (int)($liveData['daysPerPeriod'] ?? 0);
     if ($currentDayLive > 0 && $daysPerPeriodLive > 0) {
         $pidx = get_current_period_index($currentDayLive, $daysPerPeriodLive);
         $periodLabel = MARKET_PERIOD_LABELS_DE[MARKET_PERIOD_ORDER[$pidx]] ?? 'Unbekannt';
     }
 
-    // Live-Preisdaten in JS-kompatibles Format umwandeln
-    $market = array_values(array_filter(array_map(function($m) use ($ownCrops) {
-        $currentPrice = (float)($m['pricePerTon']  ?? 0);
-        $basePrice    = (float)($m['basePriceTon'] ?? $currentPrice);
-        if ($currentPrice <= 0) return null;
-
-        $ft    = $m['fillType'] ?? '';
-        $title = $m['title']    ?? $ft;
-        if (empty($title)) return null;
-
-        // Preisabweichung vom Basispreis als synthetische Spanne (da Min/Max aus Mod nicht verfügbar)
-        $deviation  = abs($currentPrice - $basePrice);
-        $minPrice   = max(1, $basePrice - $deviation * 1.5);
-        $maxPrice   = $basePrice + $deviation * 1.5;
-        if ($minPrice >= $maxPrice) { $minPrice = $currentPrice * 0.8; $maxPrice = $currentPrice * 1.2; }
-
-        return [
-            'fruitType'      => $ft,
-            'label'          => $title,
-            'category'       => $m['category'] ?? 'product',
-            'currentPrice'   => (int)$currentPrice,
-            'basePricePerTon'=> (int)$basePrice,
-            'minPrice'       => (int)$minPrice,
-            'maxPrice'       => (int)$maxPrice,
-            'trend'          => ($currentPrice > $basePrice * 1.05 ? 'up'
-                                : ($currentPrice < $basePrice * 0.95 ? 'down' : 'stable')),
-            'bestPeriodLabel'=> '–',
-            'isAtBest'       => false,
-            'isOwnCrop'      => isset($ownCrops[$ft]),
-        ];
-    }, $liveMarket), fn($x) => $x !== null));
-
     echo json_encode([
+        'source'             => 'lua-live-stations',
+        'modVersion'         => $liveData['version'] ?? '',
         'currentPeriodLabel' => $periodLabel,
-        'market'  => $market,
-        'liveAge' => $liveData['fileAgeSeconds'] ?? 0,
+        'market'             => $market,
+        'liveAge'            => $liveData['fileAgeSeconds'] ?? 0,
     ]);
     exit;
 }
