@@ -416,32 +416,7 @@ function suggest_field_steps(array $field, bool $limeRequired): array {
 // -----------------------------------------------------------------
 // Fuhrpark
 // -----------------------------------------------------------------
-function readable_vehicle_name(string $filename): string {
-    // Erwartetes Muster: data/vehicles/<marke>/<modellordner>/<datei>.xml
-    $parts = explode('/', $filename);
-    $brand = count($parts) >= 3 ? ucfirst($parts[2]) : '';
-    $modelRaw = count($parts) >= 1 ? preg_replace('/\.xml$/i', '', end($parts)) : $filename;
-
-    // camelCase / Ziffern grob in lesbare Wortgrenzen auftrennen (Heuristik, nicht perfekt)
-    $model = preg_replace('/([a-z])([A-Z])/', '$1 $2', $modelRaw);
-    $model = preg_replace('/([a-zA-Z])(\d)/', '$1 $2', $model);
-    $model = preg_replace('/(\d)([a-zA-Z])/', '$1 $2', $model);
-    $model = ucfirst(trim($model));
-
-    return trim($brand . ' ' . $model);
-}
-
-function classify_vehicle_type(DOMElement $v): string {
-    $childTags = [];
-    foreach ($v->childNodes as $c) {
-        if ($c->nodeType === XML_ELEMENT_NODE) $childTags[$c->nodeName] = true;
-    }
-    if (isset($childTags['drivable']) || isset($childTags['enterable'])) return 'VEHICLE';
-    if (isset($childTags['trailer'])) return 'TRAILER';
-    return 'IMPLEMENT';
-}
-
-// Echte Kraftstoffarten in <fillUnit>-Tanks (nicht ALLE fillType-Werte dort sind
+// Echte Kraftstoffarten in <fillUnit>-Tanks// Echte Kraftstoffarten in <fillUnit>-Tanks (nicht ALLE fillType-Werte dort sind
 // Kraftstoff – AIR ist Druckluft für Anbaugeräte, BALE_NET Ballennetz usw., die
 // tauchen ebenfalls in fillUnit auf, sind aber kein Sprit).
 const FUEL_TYPE_LABELS = [
@@ -488,141 +463,8 @@ function fill_type_label(string $t): string {
     return ucfirst(strtolower($t));
 }
 
-// Tankkapazitäten stehen NICHT im Spielstand (nur der aktuelle Füllstand), sondern in der
-// Fahrzeug-Modelldatei selbst – gleiches Prinzip wie bei der Kartengröße (siehe find_map_size).
-// Verifiziert an echten Spieldateien: MF 8570 Getreidetank capacity="8000", Dieseltank
-// capacity="378"; Bredal K105 Kalktank capacity="9000". Reihenfolge der <fillUnit>-Einträge
-// in der ersten <fillUnitConfiguration> entspricht dem "index"-Attribut im Spielstand.
-// Funktioniert nur, wenn die Modelldatei erreichbar ist (offizielles Fahrzeug im
-// Installationsordner, oder Mod-Fahrzeug mit auffindbarer ZIP im mods-Ordner) – sonst wird
-// einfach keine Kapazität geliefert und nur der reine Literwert angezeigt.
-function find_vehicle_fill_capacities(string $filename): array {
-    static $cache = [];
-    if (isset($cache[$filename])) return $cache[$filename];
-
-    $xmlContent = null;
-    if (str_starts_with($filename, '$moddir$')) {
-        $rest = substr($filename, strlen('$moddir$'));
-        $slashPos = strpos($rest, '/');
-        if ($slashPos !== false && class_exists('ZipArchive')) {
-            $modName = substr($rest, 0, $slashPos);
-            $innerPath = substr($rest, $slashPos + 1);
-            $zipPath = FS_BASE_DIR . DIRECTORY_SEPARATOR . 'mods' . DIRECTORY_SEPARATOR . $modName . '.zip';
-            if (file_exists($zipPath)) {
-                $zip = new ZipArchive();
-                if ($zip->open($zipPath) === true) {
-                    $data = $zip->getFromName($innerPath);
-                    $zip->close();
-                    if ($data !== false) $xmlContent = $data;
-                }
-            }
-        }
-    } elseif (defined('FS_INSTALL_DIR') && FS_INSTALL_DIR !== '') {
-        $path = FS_INSTALL_DIR . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $filename);
-        if (file_exists($path)) {
-            $xmlContent = @file_get_contents($path);
-        }
-    }
-
-    $capacities = [];
-    if ($xmlContent !== null) {
-        libxml_use_internal_errors(true);
-        $xml = simplexml_load_string($xmlContent);
-        if ($xml) {
-            // XPath statt starrem Objekt-Pfad, da die genaue Verschachtelung leicht variieren
-            // kann; nimmt die erste fillUnitConfiguration (Standard-/Basiskonfiguration).
-            $nodes = $xml->xpath('(//fillUnitConfigurations/fillUnitConfiguration)[1]/fillUnits/fillUnit');
-            if ($nodes) {
-                foreach ($nodes as $node) {
-                    $capacities[] = isset($node['capacity']) ? (float)$node['capacity'] : null;
-                }
-            }
-        }
-    }
-
-    $cache[$filename] = $capacities;
-    return $capacities;
-}
-
-function parse_vehicles(string $savegameDir, string $farmId): array {
-    $file = $savegameDir . DIRECTORY_SEPARATOR . 'vehicles.xml';
-    if (!file_exists($file)) return [];
-    libxml_use_internal_errors(true);
-    $dom = new DOMDocument();
-    $dom->load($file, LIBXML_PARSEHUGE);
-
-    $result = [];
-    foreach ($dom->getElementsByTagName('vehicle') as $v) {
-        if ($v->getAttribute('farmId') !== $farmId) continue;
-
-        // Paletten (Dünger-/Honig-/Eier-Boxen usw.) landen in vehicles.xml als ganz normale
-        // <vehicle>-Einträge (data/objects/pallets/...), haben aber weder drivable/enterable
-        // noch trailer-Kindtags und werden daher von classify_vehicle_type() faelschlich als
-        // IMPLEMENT eingestuft und im Fuhrpark gelistet. Paletten gehören dort nicht hin.
-        if (str_contains(strtolower($v->getAttribute('filename')), '/pallets/')) continue;
-
-        // Der im Spiel angezeigte Verschleiß-/Schaden-Wert steht direkt als "damage"-Attribut
-        // am <wearable>-Element. Die einzelnen <wearNode>-Kindelemente sind ein interner
-        // Detailwert je Bauteil (z. B. für visuelle Kratzer) und entsprechen NICHT der im
-        // Spiel gezeigten Prozentzahl – das hatte vorher zu falschen Werten geführt.
-        $wearableNode = $v->getElementsByTagName('wearable')->item(0);
-        $wear = $wearableNode ? (float)$wearableNode->getAttribute('damage') : 0.0;
-
-        $dirtSum = 0.0; $dirtCount = 0;
-        foreach ($v->getElementsByTagName('dirtNode') as $dn) {
-            $dirtSum += (float)$dn->getAttribute('amount');
-            $dirtCount++;
-        }
-
-        // Tankinhalt: <fillUnit><unit fillType="DIESEL" fillLevel="..."/></fillUnit>. Kraftstoff
-        // und sonstige Ladung (Erntegut, Kalk, Saatgut usw.) stecken in derselben Struktur –
-        // wir trennen sie hier in zwei Listen und ergänzen die Kapazität aus der Fahrzeug-
-        // Modelldatei (siehe find_vehicle_fill_capacities), sofern erreichbar. Das "index"-
-        // Attribut im Spielstand entspricht der Reihenfolge der fillUnit-Einträge dort (1-basiert).
-        $capacities = find_vehicle_fill_capacities($v->getAttribute('filename'));
-        $fuelLevels = [];
-        $cargoLevels = [];
-        foreach ($v->getElementsByTagName('unit') as $unit) {
-            $fillType = $unit->getAttribute('fillType');
-            $liters = round((float)$unit->getAttribute('fillLevel'), 1);
-            if ($liters <= 0) continue; // leere Kammern nicht auflisten
-            if (in_array($fillType, NON_CARGO_FILL_TYPES, true) && !isset(FUEL_TYPE_LABELS[$fillType])) continue;
-
-            $unitIdx = (int)$unit->getAttribute('index');
-            $capacity = ($unitIdx >= 1 && isset($capacities[$unitIdx - 1]) && $capacities[$unitIdx - 1] > 0)
-                ? $capacities[$unitIdx - 1] : null;
-            $entry = ['fillType' => $fillType, 'liters' => $liters];
-            if ($capacity !== null) {
-                $entry['capacity'] = $capacity;
-                $entry['percent'] = round(min(100, $liters / $capacity * 100));
-            }
-
-            if (isset(FUEL_TYPE_LABELS[$fillType])) {
-                $entry['label'] = FUEL_TYPE_LABELS[$fillType];
-                $fuelLevels[] = $entry;
-            } else {
-                $entry['label'] = fill_type_label($fillType);
-                $cargoLevels[] = $entry;
-            }
-        }
-
-        $result[] = [
-            'uniqueId' => $v->getAttribute('uniqueId'),
-            'name' => readable_vehicle_name($v->getAttribute('filename')),
-            'vehicleType' => classify_vehicle_type($v),
-            'price' => (float)$v->getAttribute('price'),
-            'operatingHours' => round((float)$v->getAttribute('operatingTime') / 3600, 1),
-            'wear' => $wear,
-            'dirt' => $dirtCount > 0 ? $dirtSum / $dirtCount : 0.0,
-            'propertyState' => $v->getAttribute('propertyState'),
-            'fuel' => $fuelLevels,
-            'cargo' => $cargoLevels,
-        ];
-    }
-    return $result;
-}
-
 // -----------------------------------------------------------------
+// Tierbestände (Herden/Ställe aus placeables.xml)// -----------------------------------------------------------------
 // Tierbestände (Herden/Ställe aus placeables.xml)
 // -----------------------------------------------------------------
 const ANIMAL_SPECIES_LABELS = [
@@ -2636,81 +2478,124 @@ function get_environment_info(string $dir): array {
 }
 
 // ---------------------------------------------------------------
-// Fuhrpark-Dashboard
+// Fuhrpark-Dashboard – kanonische Live-Daten aus Lua
 // ---------------------------------------------------------------
 if ($action === 'vehicles_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    // Fahrzeugliste aus XML (zuverlässig), Kraftstoff/Verschleiß live aus Mod
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
+    $liveData = get_live_mod_data();
+    if (($liveData['status'] ?? 'error') === 'no_mod') {
+        echo json_encode(['error' => 'Mod nicht aktiv. FS25_AutoDriveFlurkarte aktivieren und Spiel starten.']);
         exit;
     }
-    $dir      = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
-    $farmInfo = get_farm_info($dir);
-    $vehicles = $farmInfo['farmId'] ? parse_vehicles($dir, $farmInfo['farmId']) : [];
 
-    // Live-Daten für Kraftstoff & Verschleiß (falls Mod aktiv)
-    $FUEL_LABELS = [
-        'DIESEL' => 'Diesel', 'DEF' => 'AdBlue',
-        'ELECTRICCHARGE' => 'Strom', 'METHANE' => 'Methan', 'GASOLINE' => 'Benzin',
-    ];
-    $liveData     = get_live_mod_data();
-    $liveVehicles = $liveData['vehicles'] ?? [];
-
-    // Live-Fahrzeuge nach uniqueId (primär) und Name (Fallback) indexieren
-    $liveByUniqueId = [];
-    $liveByName     = [];
-    foreach ($liveVehicles as $lv) {
-        $uid = $lv['uniqueId'] ?? '';
-        if ($uid !== '') $liveByUniqueId[$uid] = $lv;
-        $name = strtolower($lv['name'] ?? '');
-        if ($name !== '') $liveByName[$name] = $lv;
+    $liveVehicles = is_array($liveData['vehicles'] ?? null) ? $liveData['vehicles'] : [];
+    $playerFarmId = (int)($liveData['farm']['farmId'] ?? 0);
+    if ($playerFarmId > 0) {
+        $liveVehicles = array_values(array_filter(
+            $liveVehicles,
+            fn($vehicle) => (int)($vehicle['farmId'] ?? 0) === $playerFarmId
+        ));
     }
 
-    foreach ($vehicles as &$v) {
-        // 1. Versuch: uniqueId (100% zuverlässig)
-        $lv = isset($v['uniqueId']) && $v['uniqueId'] !== ''
-              ? ($liveByUniqueId[$v['uniqueId']] ?? null)
-              : null;
-        // 2. Fallback: Name case-insensitive
-        if ($lv === null) {
-            $vName = strtolower($v['name'] ?? '');
-            $lv = $liveByName[$vName] ?? null;
-        }
-        if ($lv !== null) {
-            // Verschleiß und Dreck live übernehmen
-            if (isset($lv['wear'])) $v['wear'] = (float)$lv['wear'];
-            if (isset($lv['dirt'])) $v['dirt'] = (float)$lv['dirt'];
-            // Kraftstoffstände live übernehmen (vollständiger als XML)
-            if (!empty($lv['fuel'])) {
-                $v['fuel'] = array_map(fn($f) => array_merge($f, [
-                    'label' => $FUEL_LABELS[$f['fillType'] ?? ''] ?? ($f['fillType'] ?? ''),
-                ]), $lv['fuel']);
+    $validCategories = ['VEHICLE' => true, 'TRAILER' => true, 'IMPLEMENT' => true];
+    $vehicles = [];
+
+    foreach ($liveVehicles as $lv) {
+        $category = strtoupper((string)($lv['vehicleCategory'] ?? $lv['vehicleType'] ?? 'IMPLEMENT'));
+        if (!isset($validCategories[$category])) $category = 'IMPLEMENT';
+
+        $fillUnitsRaw = is_array($lv['fillUnits'] ?? null) ? $lv['fillUnits'] : [];
+
+        // Übergangskompatibilität zu Mod 4.1: weiterhin ausschließlich Live-Daten,
+        // aber alte fuel/cargo-Arrays werden einmalig als FillUnits normalisiert.
+        if (empty($fillUnitsRaw)) {
+            foreach (($lv['fuel'] ?? []) as $fill) {
+                $fillUnitsRaw[] = array_merge($fill, ['kind' => 'FUEL', 'title' => $fill['label'] ?? $fill['title'] ?? $fill['fillType'] ?? 'Kraftstoff']);
+            }
+            foreach (($lv['cargo'] ?? []) as $fill) {
+                $fillUnitsRaw[] = array_merge($fill, ['kind' => 'CARGO', 'title' => $fill['title'] ?? $fill['label'] ?? $fill['fillType'] ?? 'Ladung']);
             }
         }
-        $v['vehicleType'] = $v['vehicleType'] ?? 'VEHICLE';
-    }
-    unset($v);
 
-    // Sortierung: höchster Verschleiß zuerst
-    usort($vehicles, fn($a, $b) => $b['wear'] <=> $a['wear']);
+        $fillUnits = [];
+        foreach ($fillUnitsRaw as $fu) {
+            $capacity = max(0.0, (float)($fu['capacity'] ?? 0));
+            $liters   = max(0.0, (float)($fu['liters'] ?? 0));
+            $percent  = $capacity > 0
+                ? (int)min(100, max(0, round($liters / $capacity * 100)))
+                : (int)min(100, max(0, (int)($fu['percent'] ?? 0)));
+            $kind = strtoupper((string)($fu['kind'] ?? 'CARGO')) === 'FUEL' ? 'FUEL' : 'CARGO';
+            $supported = is_array($fu['supportedFillTypes'] ?? null) ? array_values($fu['supportedFillTypes']) : [];
+
+            $fillUnits[] = [
+                'index' => (int)($fu['index'] ?? 0),
+                'kind' => $kind,
+                'fillType' => strtoupper((string)($fu['fillType'] ?? 'UNKNOWN')),
+                'title' => (string)($fu['title'] ?? $fu['label'] ?? 'Leer'),
+                'liters' => round($liters, 1),
+                'capacity' => round($capacity, 1),
+                'percent' => $percent,
+                'supportedFillTypes' => $supported,
+            ];
+        }
+
+        $shopPrice = max(0, (int)round((float)($lv['shopPrice'] ?? $lv['price'] ?? 0)));
+        $wear = min(1.0, max(0.0, (float)($lv['wear'] ?? 0)));
+        $dirt = min(1.0, max(0.0, (float)($lv['dirt'] ?? 0)));
+
+        $vehicles[] = [
+            'uniqueId' => (string)($lv['uniqueId'] ?? ''),
+            'farmId' => (int)($lv['farmId'] ?? 0),
+            'vehicleType' => $category,
+            'vehicleCategory' => $category,
+            'typeName' => (string)($lv['typeName'] ?? ''),
+            'brand' => (string)($lv['brand'] ?? ''),
+            'model' => (string)($lv['model'] ?? ''),
+            'name' => (string)($lv['name'] ?? $lv['model'] ?? 'Unbekannt'),
+            'shopPrice' => $shopPrice,
+            'price' => $shopPrice,
+            'operatingHours' => round(max(0.0, (float)($lv['operatingHours'] ?? 0)), 1),
+            'wear' => $wear,
+            'dirt' => $dirt,
+            'isWorking' => (bool)($lv['isWorking'] ?? false),
+            'fillUnits' => $fillUnits,
+            'liveSource' => true,
+        ];
+    }
+
+    usort($vehicles, function ($a, $b) {
+        $order = ['VEHICLE' => 0, 'TRAILER' => 1, 'IMPLEMENT' => 2];
+        $typeCmp = ($order[$a['vehicleType']] ?? 9) <=> ($order[$b['vehicleType']] ?? 9);
+        if ($typeCmp !== 0) return $typeCmp;
+        return strnatcasecmp($a['name'], $b['name']);
+    });
 
     $totalDiesel = 0.0;
-    foreach ($vehicles as $v) {
-        foreach ($v['fuel'] ?? [] as $f) {
-            if (($f['fillType'] ?? '') === 'DIESEL') $totalDiesel += $f['liters'] ?? 0;
+    $totalAdBlue = 0.0;
+    $categoryCounts = ['VEHICLE' => 0, 'TRAILER' => 0, 'IMPLEMENT' => 0];
+    foreach ($vehicles as $vehicle) {
+        $categoryCounts[$vehicle['vehicleType']]++;
+        foreach ($vehicle['fillUnits'] as $fillUnit) {
+            if ($fillUnit['kind'] !== 'FUEL') continue;
+            if ($fillUnit['fillType'] === 'DIESEL') $totalDiesel += $fillUnit['liters'];
+            if ($fillUnit['fillType'] === 'DEF') $totalAdBlue += $fillUnit['liters'];
         }
     }
 
     echo json_encode([
-        'vehicles'        => $vehicles,
-        'totalCount'      => count($vehicles),
-        'totalValue'      => array_sum(array_column($vehicles, 'price')),
-        'needsRepairCount'=> count(array_filter($vehicles, fn($v) => $v['wear'] > 0.5)),
-        'needsWashCount'  => count(array_filter($vehicles, fn($v) => $v['dirt'] > 0.5)),
+        'vehicles' => $vehicles,
+        'totalCount' => count($vehicles),
+        'categoryCounts' => $categoryCounts,
+        'totalShopValue' => array_sum(array_column($vehicles, 'shopPrice')),
+        'totalValue' => array_sum(array_column($vehicles, 'shopPrice')), // Kompatibilitätsalias
+        'needsRepairCount' => count(array_filter($vehicles, fn($v) => $v['wear'] > 0.5)),
+        'needsWashCount' => count(array_filter($vehicles, fn($v) => $v['dirt'] > 0.5)),
         'totalDieselLiters' => round($totalDiesel, 1),
-        'liveStatus'      => $liveData['status'] ?? 'unknown',
+        'totalAdBlueLiters' => round($totalAdBlue, 1),
+        'liveStatus' => $liveData['status'] ?? 'unknown',
+        'fileAgeSeconds' => $liveData['fileAgeSeconds'] ?? 0,
+        'timestamp' => $liveData['timestamp'] ?? null,
+        'diagnostics' => $liveData['vehicleDiagnostics'] ?? null,
+        'source' => 'lua-live',
     ]);
     exit;
 }
