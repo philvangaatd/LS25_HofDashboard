@@ -907,6 +907,38 @@
         border-top: 1px solid var(--ink-800);
         text-align: center;
     }
+
+    /* Live-Mod Status-Badge */
+    .live-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: .3px;
+        white-space: nowrap;
+        cursor: default;
+        transition: background .3s;
+    }
+    .live-badge-ok     { background: #1a3a1a; color: #4caf50; border: 1px solid #2e6b2e; }
+    .live-badge-stale  { background: #3a3010; color: #ffc107; border: 1px solid #7a6200; }
+    .live-badge-no_mod { background: #222;    color: #888;    border: 1px solid #444; }
+    .live-badge-error  { background: #3a1010; color: #f44336; border: 1px solid #7a2020; }
+    .live-badge .live-pulse {
+        display: inline-block;
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+    .live-badge-ok .live-pulse {
+        animation: livePulse 2s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: .3; }
+    }
 </style>
 </head>
 <body>
@@ -961,6 +993,7 @@
                 <button class="tab-btn" id="tabBtnSystem" onclick="switchTab('system')">🩺 System</button>
             </div>
             <div class="header-actions">
+                <span id="liveStatusBadge" class="live-badge live-badge-no_mod" title="Mod nicht aktiv"><span class="live-pulse"></span>Kein Mod</span>
                 <button onclick="openFullBackupPanel()">💾 Backup</button>
                 <button onclick="switchSavegame()">⇄ Spielstand wechseln</button>
             </div>
@@ -1014,13 +1047,6 @@
 
         <div id="tabMap" style="display:none">
             <div class="toolbar">
-                <button class="primary" onclick="saveCourse()">💾 Route speichern</button>
-                <div class="mode-switch">
-                    <button class="mode-btn active" id="modeBtnView" onclick="setEditMode('view')">👁 Ansehen</button>
-                    <button class="mode-btn" id="modeBtnDraw" onclick="setEditMode('draw')">✏️ Route zeichnen</button>
-                    <button class="mode-btn" id="modeBtnDisconnect" onclick="setEditMode('disconnect')">🔗✕ Trennen</button>
-                    <button class="mode-btn" id="modeBtnDelete" onclick="setEditMode('delete')">🗑️ Löschen</button>
-                </div>
                 <button onclick="mapResetView()">⤢ Alle anzeigen</button>
                 <select id="mapJumpSelect" style="width:220px; margin-left:auto" onchange="mapJumpToMarker(this.value)">
                     <option value="">— Zu Marker springen —</option>
@@ -1028,9 +1054,6 @@
                 <div class="toolbar-more">
                     <button onclick="toggleMoreMenu('mapMoreMenu')">⋯ Mehr</button>
                     <div class="more-menu" id="mapMoreMenu" style="display:none">
-                        <button onclick="undoCourseEdit()" id="undoBtn" disabled>↺ Rückgängig</button>
-                        <button onclick="markSelectedAsMarker(); closeAllMoreMenus()">📍 Als Marker anlegen</button>
-                        <button onclick="checkConnectivity(); closeAllMoreMenus()">🔍 Stränge prüfen</button>
                         <select id="mapCalibration" onchange="mapRedraw()">
                             <option value="normal">Ausrichtung: Normal</option>
                             <option value="flipz">Ausrichtung: Z gespiegelt</option>
@@ -1110,6 +1133,11 @@
         <div id="tabMarket" style="display:none">
             <div class="toolbar">
                 <button onclick="loadMarketData()">↻ Aktualisieren</button>
+                <div class="mode-switch" id="marketCategorySwitch">
+                    <button class="mode-btn active" data-cat="ALL" onclick="setMarketFilter('ALL')">Alle</button>
+                    <button class="mode-btn" data-cat="crop" onclick="setMarketFilter('crop')">🌾 Kulturen</button>
+                    <button class="mode-btn" data-cat="product" onclick="setMarketFilter('product')">🏭 Produkte</button>
+                </div>
                 <input type="text" id="marketFilterInput" placeholder="Filtern nach Kultur …" style="flex:1" oninput="renderMarket()">
                 <span class="map-hint" id="marketPeriodLabel"></span>
             </div>
@@ -1434,6 +1462,164 @@ function renderQuickAccess(data) {
 // =================================================================
 let fieldsCache = [];
 
+// --- Live-Mod-Integration ---
+let liveFieldsData   = null;   // Rohdaten aus liveData.json
+let liveDataInterval = null;   // Polling-Timer
+const LIVE_POLL_MS   = 15000;  // 15 Sekunden
+
+/** Startet das Live-Polling (idempotent – kein Doppel-Interval). */
+function startLivePolling() {
+    if (liveDataInterval !== null) return;
+    pollLiveData();             // Sofortiger erster Aufruf
+    liveDataInterval = setInterval(pollLiveData, LIVE_POLL_MS);
+}
+
+/** Stoppt das Live-Polling. */
+function stopLivePolling() {
+    if (liveDataInterval === null) return;
+    clearInterval(liveDataInterval);
+    liveDataInterval = null;
+    // Badge zurücksetzen wenn kein Spiel läuft
+    updateLiveStatusBadge({ status: 'no_mod' });
+}
+
+/** Fragt api.php?action=live_data ab und aktualisiert Badge. Bei neuen Daten Auto-Refresh des aktiven Tabs. */
+let lastLiveTimestamp = null;
+async function pollLiveData() {
+    try {
+        const res  = await fetch('api.php?action=live_data');
+        const data = await res.json();
+        updateLiveStatusBadge(data);
+
+        if (data.status === 'ok' || data.status === 'stale') {
+            // Auto-Refresh des aktiven Tabs wenn neue Live-Daten vorliegen
+            if (data.status === 'ok' && data.timestamp && data.timestamp !== lastLiveTimestamp) {
+                lastLiveTimestamp = data.timestamp;
+                autoRefreshActiveTab();
+            }
+        }
+    } catch (e) {
+        updateLiveStatusBadge({ status: 'error', message: String(e) });
+    }
+}
+
+/** Aktuellen Tab bei neuen Live-Daten automatisch neu laden. */
+function autoRefreshActiveTab() {
+    switch (activeTab) {
+        case 'home':       loadFarmOverview(); break;
+        case 'fields':     loadFieldsData();   break;
+        case 'vehicles':   loadVehiclesData();  break;
+        case 'animals':    loadAnimalsData();   break;
+        case 'production': if (typeof loadProductionData === 'function') loadProductionData(); break;
+        case 'market':     if (typeof loadMarketData     === 'function') loadMarketData();     break;
+        case 'missions':   if (typeof loadMissionsData   === 'function') loadMissionsData();   break;
+    }
+}
+
+/** Überlagert fieldsCache-Einträge mit echten Live-Wachstumsdaten vom Mod. */
+function mergeLiveIntoFields() {
+    if (!liveFieldsData || !fieldsCache.length) return;
+
+    const liveById = {};
+    for (const lf of liveFieldsData) liveById[String(lf.id)] = lf;
+
+    // groundType → groundStatus (entspricht PHP GROUND_TYPE_TO_STATUS)
+    const GT_TO_STATUS = {
+        PLOWED:'TILLED', CULTIVATED:'TILLED', SEEDBED:'TILLED', ROLLED_SEEDBED:'TILLED',
+        ROLLER_LINES:'TILLED', STUBBLE_TILLAGE:'TILLED', RIDGE:'TILLED', NONE:'TILLED', GRASS_CUT:'TILLED',
+        SOWN:'SOWN_GROWING', DIRECT_SOWN:'SOWN_GROWING', RIDGE_SOWN:'SOWN_GROWING',
+        PLANTED:'SOWN_GROWING', GRASS:'SOWN_GROWING',
+        HARVEST_READY:'READY', HARVEST_READY_OTHER:'READY',
+    };
+    const STATUS_LABELS = { TILLED:'Gepflügt', SOWN_GROWING:'Gesät', READY:'Erntereif' };
+
+    for (const f of fieldsCache) {
+        const live = liveById[String(f.id)];
+        if (!live) continue;
+
+        // Zielonka-Bug-Schutz:
+        // getFieldState() liefert für bestimmte Felder (Polygon-Offset in densityMap)
+        // fälschlicherweise fruitType=NONE, obwohl eine Frucht wächst.
+        // Wenn Live NONE meldet, aber die XML-Basis eine Frucht kennt →
+        // Live-Daten für dieses Feld NICHT übernehmen (wäre falsche Verschlechterung).
+        const liveFruitKnown = live.fruitType && live.fruitType !== 'NONE';
+        const xmlFruitKnown  = f.fruitType   && f.fruitType   !== 'NONE' && f.fruitType !== '';
+
+        if (!liveFruitKnown && xmlFruitKnown) {
+            // Mod-Daten nicht vertrauenswürdig für dieses Feld – XML beibehalten.
+            // Nur weed/spray/lime übernehmen falls plausibel (sind unabhängig von Polygon).
+            // Nichts überschreiben – XML-Stand bleibt sichtbar.
+            f._liveSuspect = true;
+            continue;
+        }
+
+        // Fruchtart live übernehmen (nur wenn Live etwas Sinnvolles liefert)
+        if (liveFruitKnown) {
+            f.fruitType      = live.fruitType;
+            f.fruitTypeLabel = live.fruitTitle || f.fruitTypeLabel;
+        }
+
+        // Bodenzustand aus groundType ableiten (authoritativ in FS25)
+        const newStatus = GT_TO_STATUS[live.groundType] || f.groundStatus;
+        f.groundStatus      = newStatus;
+        f.groundStatusLabel = STATUS_LABELS[newStatus] || f.groundStatusLabel;
+
+        // harvestReady als zusätzliche Absicherung
+        if (live.harvestReady) {
+            f.groundStatus      = 'READY';
+            f.groundStatusLabel = 'Erntereif';
+        }
+
+        // Wachstumsstufe
+        f.growthState   = live.growthState;
+        f.growthPercent = (live.growthState === -1 || live.harvestReady)
+            ? 100
+            : (f.maxGrowthState > 0
+                ? Math.round(Math.min(100, live.growthState / f.maxGrowthState * 100))
+                : 0);
+
+        // Bodenpflege-Werte live übernehmen
+        if (live.weedState  !== undefined) { f.weedState  = live.weedState;  f.weedPercent  = Math.round(Math.min(100, live.weedState  / 9 * 100)); }
+        if (live.sprayLevel !== undefined) { f.sprayLevel = live.sprayLevel; f.sprayPercent = Math.round(Math.min(100, live.sprayLevel / 2 * 100)); }
+        if (live.limeLevel  !== undefined) { f.limeLevel  = live.limeLevel;  f.limePercent  = Math.round(Math.min(100, live.limeLevel  / 3 * 100)); }
+
+        // Empfohlene Schritte neu berechnen
+        f.steps = computeFieldStepsFromLive(live, f.groundStatus);
+
+        if (live.isWithered) f.groundStatusLabel = '⚠️ Vertrocknet';
+        f._liveSource = true;
+    }
+}
+
+/** Berechnet nächste Arbeitsschritte aus Live-Daten. */
+function computeFieldStepsFromLive(live, groundStatus) {
+    if (groundStatus === 'READY') return ['Ernten'];
+    if (groundStatus === 'TILLED') {
+        const steps = [];
+        if ((live.limeLevel || 0) < 3) steps.push('Kalken');
+        steps.push('Säen');
+        return steps;
+    }
+    // SOWN_GROWING
+    const steps = [];
+    if ((live.sprayLevel || 0) < 2) steps.push('Düngen');
+    if ((live.weedState  || 0) >= 5) steps.push('Unkraut entfernen');
+    return steps;
+}
+
+/** Aktualisiert den Live-Status-Badge im Felder-Tab. */
+function updateLiveStatusBadge(data) {
+    const el = document.getElementById('liveStatusBadge');
+    if (!el) return;
+    const status = data.status || 'error';
+    const ICONS   = { ok: '🟢', stale: '🟡', no_mod: '⚫', error: '🔴' };
+    const LABELS  = { ok: 'Live', stale: 'Veraltet', no_mod: 'Kein Mod', error: 'Fehler' };
+    el.innerHTML  = `<span class="live-pulse"></span>${LABELS[status] || status}`;
+    el.className  = `live-badge live-badge-${status}`;
+    el.title      = data.message
+        || (data.timestamp ? `Letzter Mod-Export: ${data.timestamp.replace('T',' ')}` : '');
+}
+
 function fieldChecklistKey(fieldId, step) {
     return `fieldCheck_${currentFolder}_${fieldId}_${step}`;
 }
@@ -1445,6 +1631,8 @@ async function loadFieldsData() {
     const data = await res.json();
     if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
     fieldsCache = data.fields;
+    // Wenn Live-Daten bereits im Cache: sofort einmergen
+    if (liveFieldsData) mergeLiveIntoFields();
     renderFields();
 }
 
@@ -1499,7 +1687,11 @@ function renderFields() {
         // Kalk, Düngen und Unkraut – nur relevante Balken je nach Zustand anzeigen.
         const bars = [];
         if (f.groundStatus === 'SOWN_GROWING') {
-            bars.push(['Wachstum', f.growthPercent, `${f.growthState}/${f.maxGrowthState}`]);
+            // growthState = -1 ist FS25-intern "erntereif" – nie als "-1/X" anzeigen
+            const growthText = f.growthState === -1
+                ? 'Erntereif'
+                : `${f.growthState}/${f.maxGrowthState}`;
+            bars.push(['Wachstum', f.growthPercent, growthText]);
         }
         if (f.groundStatus !== 'READY') {
             bars.push(['Kalk', f.limePercent, `${f.limeLevel}/3`]);
@@ -1518,7 +1710,7 @@ function renderFields() {
         return `
             <div class="field-card ${ready ? 'field-ready' : ''}">
                 <div class="field-card-header">
-                    <span class="field-name">Feld ${escapeHtml(f.id)}</span>
+                    <span class="field-name">Feld ${escapeHtml(f.id)}${f._liveSuspect ? ' <span title="Felddaten vom Mod nicht verfügbar (Karten-Bug) – zeige letzten gespeicherten Stand" style="color:#ffc107;font-size:11px">&#9888;</span>' : ''}</span>
                     <span class="field-fruit">${escapeHtml(fruitLabel)}</span>
                     <span class="field-status ${ready ? 'field-status-ready' : ''}">${escapeHtml(f.groundStatusLabel)}</span>
                 </div>
@@ -1766,6 +1958,16 @@ function renderAnimals() {
             </div>
         ` : (producesPallets ? `<div class="animal-breed-line">Kein Paletten-Sammelfortschritt in den Spieldaten gefunden (evtl. noch bei 0% nicht gespeichert)</div>` : '');
 
+        // Milch, Wolle und andere Lagerstände aus der Tierhaltung
+        const storageFillsHtml = (barn.storageFills || []).map(sf => {
+            const pct = sf.percent || 0;
+            const warnClass = pct > 85 ? ' bar-fill-warn' : '';
+            return `<div class="animal-meadow-row">
+                <div class="animal-meadow-label">🪣 ${escapeHtml(sf.label || sf.fillType)}: ${pct}% (${sf.level} / ${sf.capacity} L)</div>
+                <div class="bar-track"><div class="bar-fill-progress${warnClass}" style="width:${pct}%"></div></div>
+            </div>`;
+        }).join('');
+
         return `
             <div class="animal-card">
                 <div class="animal-card-header">
@@ -1774,6 +1976,7 @@ function renderAnimals() {
                 </div>
                 ${speciesHtml}
                 ${meadowHtml}
+                ${storageFillsHtml}
                 ${productHtml}
             </div>
         `;
@@ -1847,6 +2050,16 @@ async function loadMarketData() {
     renderMarket();
 }
 
+let marketCategoryFilter = 'ALL';
+
+function setMarketFilter(cat) {
+    marketCategoryFilter = cat;
+    document.querySelectorAll('#marketCategorySwitch .mode-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.cat === cat);
+    });
+    renderMarket();
+}
+
 function renderMarket() {
     const filter = document.getElementById('marketFilterInput').value.toLowerCase();
     const container = document.getElementById('marketContainer');
@@ -1858,7 +2071,11 @@ function renderMarket() {
         if (a.isOwnCrop !== b.isOwnCrop) return a.isOwnCrop ? -1 : 1;
         return b.currentPrice - a.currentPrice;
     });
-    const visible = sorted.filter(m => !filter || m.label.toLowerCase().includes(filter));
+    const visible = sorted.filter(m => {
+        if (filter && !m.label.toLowerCase().includes(filter)) return false;
+        if (marketCategoryFilter !== 'ALL' && m.category !== marketCategoryFilter) return false;
+        return true;
+    });
 
     if (visible.length === 0) {
         container.innerHTML = '<div class="empty-note">Keine Treffer.</div>';
@@ -1943,6 +2160,9 @@ async function loadMissionsData() {
 
     container.innerHTML = data.missions.map(m => {
         const urgent = m.daysLeft === 0;
+        const daysText = m.daysLeft === 0 ? 'läuft heute ab'
+                       : m.daysLeft === 99 ? 'laufend'
+                       : `noch ${m.daysLeft} Tag(e)`;
         const showFieldCrop = m.fieldCrop && m.fieldCrop !== m.detail;
         const cropInfo = showFieldCrop ? `<span class="mission-extra">Aktuell auf dem Feld: ${escapeHtml(m.fieldCrop)}</span>` : '';
         const rewardInfo = m.reward > 0 ? `<span class="mission-reward">${Math.round(m.reward).toLocaleString('de-DE')} €</span>` : '';
@@ -1952,7 +2172,7 @@ async function loadMissionsData() {
                 <span class="mission-field">Feld ${escapeHtml(m.fieldId || '–')}</span>
                 <span class="mission-detail">${escapeHtml(m.detail || '')} ${cropInfo}</span>
                 ${rewardInfo}
-                <span class="mission-days ${urgent ? 'urgent' : ''}">${urgent ? 'läuft heute ab' : `noch ${m.daysLeft} Tag(e)`}</span>
+                <span class="mission-days ${urgent ? 'urgent' : ''}">${daysText}</span>
             </div>
         `;
     }).join('');
@@ -2016,27 +2236,13 @@ function stopFarmOverviewAutoRefresh() {
 }
 
 async function init() {
-    const res = await fetch('api.php?action=current_savegame');
-    const data = await res.json();
-    if (data.folder) {
-        currentFolder = data.folder;
-        hasAutoDrive = !!data.hasAutoDrive;
-        showMainScreen();
-        applyAutoDriveTabVisibility();
-        loadFarmOverview();
-        startFarmOverviewAutoRefresh();
-        if (hasAutoDrive) {
-            loadMarkers();
-        } else {
-            document.getElementById('mapInfo').textContent = 'Kein AutoDrive in diesem Spielstand aktiv – Marker & Karte nicht verfügbar.';
-        }
-    } else {
-        showPickerScreen();
-    }
+    // Immer mit Spielstand-Auswahl starten (kein automatisches Weiterleiten)
+    showPickerScreen();
 }
 
 function showPickerScreen() {
     stopFarmOverviewAutoRefresh();
+    stopLivePolling();
     document.getElementById('pickerScreen').style.display = 'block';
     document.getElementById('mainScreen').style.display = 'none';
     loadSavegameList();
@@ -2045,6 +2251,8 @@ function showPickerScreen() {
 function showMainScreen() {
     document.getElementById('pickerScreen').style.display = 'none';
     document.getElementById('mainScreen').style.display = 'block';
+    // Live-Polling global starten sobald Hauptscreen sichtbar ist
+    startLivePolling();
 }
 
 async function loadSavegameList() {

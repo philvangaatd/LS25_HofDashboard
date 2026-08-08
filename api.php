@@ -7,6 +7,76 @@ require __DIR__ . '/config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+// ---------------------------------------------------------------
+// Live-Mod-Daten: Pfad ermitteln und JSON-Datei einlesen
+// ---------------------------------------------------------------
+
+/**
+ * Ermittelt plattformunabhängig den Pfad zur liveData.json des FS25-Mods.
+ * Funktioniert auf jedem Windows-Rechner ohne feste Pfade dank USERPROFILE-Variable.
+ * Für Linux/Mac (zukünftige Nutzung) wird ein alternativer Pfad zurückgegeben.
+ */
+function get_live_data_file_path(): string {
+    $sep = DIRECTORY_SEPARATOR;
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $userProfile = getenv('USERPROFILE') ?: '';
+        return $userProfile . $sep . 'Documents' . $sep
+             . 'My Games' . $sep . 'FarmingSimulator2025' . $sep
+             . 'modSettings' . $sep . 'AutoDriveFlurkarte' . $sep . 'liveData.json';
+    }
+    // Linux / Mac
+    $home = getenv('HOME') ?: '';
+    return $home . '/My Games/FarmingSimulator2025/modSettings/AutoDriveFlurkarte/liveData.json';
+}
+
+/**
+ * Liest die vom FS25-Mod geschriebene liveData.json und gibt sie zurück.
+ * Liefert immer ein strukturiertes Array – auch im Fehlerfall.
+ *
+ * Rückgabe-Felder:
+ *   status     → 'ok' | 'no_mod' | 'stale' | 'error'
+ *   fileAgeSeconds → Alter der Datei in Sekunden (0 wenn nicht vorhanden)
+ *   + alle Felder aus der JSON-Datei (version, timestamp, mapName, fields, …)
+ */
+function get_live_mod_data(): array {
+    $filePath = get_live_data_file_path();
+
+    if (!file_exists($filePath)) {
+        return [
+            'status'         => 'no_mod',
+            'fileAgeSeconds' => 0,
+            'message'        => 'Mod nicht aktiv oder Spiel läuft nicht. '
+                              . 'Bitte FS25_AutoDriveFlurkarte-Mod aktivieren und Spiel starten.',
+            'filePath'       => $filePath,
+        ];
+    }
+
+    $fileAge = time() - filemtime($filePath);
+    $content = file_get_contents($filePath);
+
+    if ($content === false || trim($content) === '') {
+        return [
+            'status'         => 'error',
+            'fileAgeSeconds' => $fileAge,
+            'message'        => 'Datei leer oder nicht lesbar.',
+        ];
+    }
+
+    $data = json_decode($content, true);
+    if ($data === null) {
+        return [
+            'status'         => 'error',
+            'fileAgeSeconds' => $fileAge,
+            'message'        => 'JSON-Parse-Fehler: ' . json_last_error_msg(),
+        ];
+    }
+
+    // Datei älter als 120 Sekunden → Spiel wahrscheinlich pausiert oder geschlossen
+    $data['status']         = ($fileAge > 120) ? 'stale' : 'ok';
+    $data['fileAgeSeconds'] = $fileAge;
+    return $data;
+}
+
 function get_config_path_for_folder(string $folder): ?string {
     // Sicherheitscheck: nur "savegameN" erlauben, kein Path-Traversal möglich
     if (!preg_match('/^savegame\d+$/', $folder)) return null;
@@ -891,6 +961,30 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
             $pendingProduct['finishedPallets'] = count_finished_pallets($savegameDir, $farmId, $pendingProduct['fillType']);
         }
 
+        // Flüssige Lagerstände (Milch, Wolle usw.) direkt aus fillUnit-Elementen lesen.
+        // Wir schließen Futter- und Betriebsstoffe aus (werden in anderer Anzeige oder gar nicht benötigt).
+        $STORAGE_EXCLUDE = ['GRASS','FORAGE','DRYGRASS','WATER','STRAW','MIXEDRATION',
+                            'TREETRUNKPOPLAR','WOODCHIPS','CHAFF','SILAGE','LIQUIDMANURE',
+                            'MANURE','DIGESTATE','DIESEL','DEF'];
+        $storageFills = [];
+        $seenFillTypes = [];
+        foreach ($p->getElementsByTagName('fillUnit') as $fu) {
+            $ft  = $fu->getAttribute('fillType');
+            $lvl = (float)$fu->getAttribute('fillLevel');
+            $cap = (float)$fu->getAttribute('capacity');
+            if ($ft === '' || $cap <= 0) continue;
+            if (in_array($ft, $STORAGE_EXCLUDE)) continue;
+            if (isset($seenFillTypes[$ft])) continue;  // Duplikate überspringen
+            $seenFillTypes[$ft] = true;
+            $storageFills[] = [
+                'fillType' => $ft,
+                'label'    => fill_type_label($ft),
+                'level'    => round($lvl, 1),
+                'capacity' => round($cap, 1),
+                'percent'  => round(min(100, $lvl / $cap * 100)),
+            ];
+        }
+
         $result[] = [
             'uniqueId' => $p->getAttribute('uniqueId'),
             'name' => readable_barn_name($p->getAttribute('filename')),
@@ -899,6 +993,7 @@ function parse_husbandries(string $savegameDir, string $farmId): array {
             'meadow' => $meadow,
             'hasBreedingData' => $anyBreedingData,
             'pendingProduct' => $pendingProduct,
+            'storageFills' => $storageFills,
         ];
     }
     usort($result, fn($a, $b) => $b['totalAnimals'] <=> $a['totalAnimals']);
@@ -998,7 +1093,8 @@ const MARKET_PERIOD_LABELS_DE = [
 
 function get_current_period_index(int $currentDay, int $daysPerPeriod): int {
     $daysPerPeriod = max(1, $daysPerPeriod);
-    return (int)(floor(($currentDay - 1) / $daysPerPeriod)) % 12;
+    // + 12) % 12 stellt sicher dass das Ergebnis immer 0-11 ist, auch wenn currentDay = 0
+    return (((int)(floor(($currentDay - 1) / $daysPerPeriod)) % 12) + 12) % 12;
 }
 
 function parse_market_data(string $savegameDir, int $currentDay, int $daysPerPeriod): array {
@@ -1952,142 +2048,6 @@ if ($action === 'course_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 // ---------------------------------------------------------------
-// Kursdaten speichern (Wegpunkte hinzufügen/verschieben/verbinden/löschen)
-// ---------------------------------------------------------------
-if ($action === 'save_course' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-    $configPath = get_selected_config_path();
-    if (!$configPath) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_autodrive']);
-        exit;
-    }
-
-    $body = json_decode(file_get_contents('php://input'), true);
-    if (!is_array($body) || !isset($body['points']) || !is_array($body['points'])) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Ungültige Daten.']);
-        exit;
-    }
-    $points = $body['points'];
-    if (count($points) < 2) {
-        http_response_code(422);
-        echo json_encode(['error' => 'Zu wenige Wegpunkte – Speichern abgebrochen.']);
-        exit;
-    }
-
-    $dom = load_dom($configPath);
-
-    // Sicherheitsnetz: alle bestehenden Marker müssen weiterhin auf existierende
-    // Wegpunkt-IDs zeigen. Sonst würde AutoDrive im Spiel abstürzen oder Marker
-    // ins Leere zeigen.
-    $newIds = [];
-    foreach ($points as $p) {
-        $newIds[(string)(int)floatval($p['id'])] = true;
-    }
-
-    $markerNode = $dom->getElementsByTagName('mapmarker')->item(0);
-    $affectedMarkers = [];
-    if ($markerNode) {
-        foreach ($markerNode->childNodes as $mm) {
-            if ($mm->nodeType !== XML_ELEMENT_NODE) continue;
-            $mid = (string)(int)floatval($mm->getElementsByTagName('id')->item(0)->textContent ?? '');
-            if (!isset($newIds[$mid])) {
-                $mname = trim($mm->getElementsByTagName('name')->item(0)->textContent ?? $mid);
-                $affectedMarkers[] = $mname;
-            }
-        }
-    }
-    if (!empty($affectedMarkers)) {
-        http_response_code(422);
-        echo json_encode([
-            'error' => 'Diese Marker würden auf gelöschte Wegpunkte zeigen: ' . implode(', ', $affectedMarkers) .
-                       '. Bitte Marker vorher im Marker-Tab umhängen oder löschen.',
-        ]);
-        exit;
-    }
-
-    // Backup vor dem Schreiben
-    $backupFile = make_backup_filename($folder);
-    copy($configPath, $backupFile);
-    prune_old_backups($folder, 20);
-
-    // Änderungszeitpunkt der Datei vor dem Überschreiben merken: Steam Cloud vergleicht
-    // Zeitstempel, um zu entscheiden, ob der lokale Stand "neuer" ist als die Cloud. Da wir
-    // die Datei außerhalb des Spiels bearbeiten, würde jedes Schreiben einen Cloud-Konflikt
-    // auslösen, obwohl der Spielstand selbst unverändert bleibt. Zeitstempel danach wieder
-    // auf den ursprünglichen Wert setzen umgeht das.
-    $originalMTime = filemtime($configPath);
-
-    // Arrays aufbauen; incoming wird aus out neu berechnet (garantiert konsistent)
-    $ids = [];
-    $xs = [];
-    $ys = [];
-    $zs = [];
-    $outLists = [];
-    $flagsList = [];
-    $idToIdx = [];
-
-    foreach ($points as $i => $p) {
-        $id = (string)(int)floatval($p['id']);
-        $ids[] = $id;
-        $xs[] = (float)$p['x'];
-        $ys[] = (float)($p['y'] ?? 0);
-        $zs[] = (float)$p['z'];
-        $flagsList[] = (string)(int)($p['flags'] ?? 0);
-        $idToIdx[$id] = $i;
-    }
-    foreach ($points as $p) {
-        $targets = [];
-        foreach (($p['out'] ?? []) as $t) {
-            $tid = (string)(int)floatval($t);
-            if (isset($idToIdx[$tid])) $targets[] = $tid;
-        }
-        $outLists[] = $targets;
-    }
-
-    $incomingLists = array_fill(0, count($ids), []);
-    foreach ($outLists as $i => $targets) {
-        foreach ($targets as $tid) {
-            $j = $idToIdx[$tid];
-            $incomingLists[$j][] = $ids[$i];
-        }
-    }
-
-    $dom2 = $dom; // gleiche DOM-Instanz, andere Blöcke werden ersetzt
-    $waypointsNode = $dom2->getElementsByTagName('waypoints')->item(0);
-
-    $replaceLeaf = function (string $tag, string $value) use ($dom2, $waypointsNode) {
-        $node = $waypointsNode->getElementsByTagName($tag)->item(0);
-        if (!$node) {
-            $node = $dom2->createElement($tag);
-            $waypointsNode->appendChild($node);
-        }
-        while ($node->firstChild) $node->removeChild($node->firstChild);
-        $node->appendChild($dom2->createTextNode($value));
-    };
-
-    $replaceLeaf('id', implode(',', $ids));
-    $replaceLeaf('x', implode(',', $xs));
-    $replaceLeaf('y', implode(',', $ys));
-    $replaceLeaf('z', implode(',', $zs));
-    $replaceLeaf('out', implode(';', array_map(fn($t) => implode(',', $t), $outLists)));
-    $replaceLeaf('incoming', implode(';', array_map(fn($t) => implode(',', $t), $incomingLists)));
-    $replaceLeaf('flags', implode(',', $flagsList));
-
-    $dom2->save($configPath);
-    if ($originalMTime !== false) touch($configPath, $originalMTime);
-
-    echo json_encode(['success' => true, 'backup' => basename($backupFile), 'count' => count($ids)]);
-    exit;
-}
-
-// ---------------------------------------------------------------
 // Kartenhintergrundbild hochladen (Ingame-Screenshot als Kartenbasis)
 // ---------------------------------------------------------------
 if ($action === 'upload_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -2412,83 +2372,89 @@ if ($action === 'delete_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Hof-Übersicht (Startseite)
 // ---------------------------------------------------------------
 if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $liveData = get_live_mod_data();
+    $farm     = $liveData['farm']     ?? [];
+    $fields   = $liveData['fields']   ?? [];
+    $vehicles = $liveData['vehicles'] ?? [];
+    $contracts = $liveData['contracts'] ?? [];
+
+    // careerSavegame.xml nur für Metadaten die der Mod nicht liefert
     $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-    $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
-
-    $farmInfo = get_farm_info($dir);
-
-    $playTime = null;
-    $mapTitle = '';
+    $playTime  = null;
     $lastSaved = '';
-    $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
-    if (file_exists($careerFile)) {
-        libxml_use_internal_errors(true);
-        $career = simplexml_load_file($careerFile);
-        if ($career && isset($career->statistics)) {
-            $playTime = (float)($career->statistics->playTime ?? 0);
-        }
-        if ($career && isset($career->settings)) {
-            $mapTitle = (string)($career->settings->mapTitle ?? '');
-            $lastSaved = (string)($career->settings->saveDateFormatted ?? '');
+    $mapTitle  = $liveData['mapName'] ?? '';
+    // Saisonperiode aus Live-Daten
+    $currentDayLive    = (int)($liveData['currentDay']    ?? 0);
+    $daysPerPeriodLive = (int)($liveData['daysPerPeriod'] ?? 24);
+    $periodLabel = '';
+    if ($currentDayLive > 0 && $daysPerPeriodLive > 0) {
+        $pidx = get_current_period_index($currentDayLive, $daysPerPeriodLive);
+        $periodLabel = MARKET_PERIOD_LABELS_DE[MARKET_PERIOD_ORDER[$pidx]] ?? '';
+    }
+    if ($folder) {
+        $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
+        $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
+        if (file_exists($careerFile)) {
+            libxml_use_internal_errors(true);
+            $career = simplexml_load_file($careerFile);
+            if ($career && isset($career->statistics))
+                $playTime = (float)($career->statistics->playTime ?? 0);
+            if ($career && isset($career->settings)) {
+                if (empty($mapTitle)) $mapTitle = (string)($career->settings->mapTitle ?? '');
+                $lastSaved = (string)($career->settings->saveDateFormatted ?? '');
+            }
         }
     }
 
-    $currentDay = 0;
-    $envFile = $dir . DIRECTORY_SEPARATOR . 'environment.xml';
-    if (file_exists($envFile)) {
-        libxml_use_internal_errors(true);
-        $env = simplexml_load_file($envFile);
-        if ($env) $currentDay = (int)($env->currentDay ?? 0);
+    // Erntereife Felder: NUR harvestReady-Flag aus FSDensityMapUtil
+    // (groundType nicht verwenden - Polygon-Durchschnitt ist beim Pflügen falsch)
+    $harvestReady = array_values(array_filter($fields, fn($f) => ($f['harvestReady'] ?? false)));
+    $fieldCount   = count($fields);
+    $harvestReadyFields = array_map(
+        fn($f) => ['id' => $f['id'], 'fruitTypeLabel' => $f['fruitTitle'] ?? $f['fruitType'] ?? ''],
+        $harvestReady
+    );
+
+    // Fahrzeuge aus XML zählen (zuverlässig), Warnungen aus Live-Daten
+    $xmlFolderOv = $_SESSION['savegame_folder'] ?? null;
+    $xmlVehicleCount = 0;
+    if ($xmlFolderOv) {
+        $xmlDirOv = FS_BASE_DIR . DIRECTORY_SEPARATOR . $xmlFolderOv;
+        $xmlFarmOv = get_farm_info($xmlDirOv);
+        $xmlVehicleCount = $xmlFarmOv['farmId'] ? count_vehicles_for_farm($xmlDirOv, $xmlFarmOv['farmId']) : 0;
     }
-    $season = get_current_season($dir, $currentDay);
 
-    $fields = parse_fields($dir);
-    $ownedIds = $farmInfo['farmId'] ? get_owned_field_ids($dir, $farmInfo['farmId']) : [];
-    $ownedFields = array_filter($fields, fn($f) => isset($ownedIds[$f['id']]));
-    $harvestReadyCount = count(array_filter($ownedFields, fn($f) => $f['groundStatus'] === GROUND_STATUS_READY));
-
-    $vehicleCount = $farmInfo['farmId'] ? count_vehicles_for_farm($dir, $farmInfo['farmId']) : 0;
-
-    // Schnellzugriff-Daten, damit die Startseite nicht nur Zahlen, sondern auch
-    // konkrete nächste Schritte zeigt.
-    $harvestReadyFields = array_values(array_map(
-        fn($f) => ['id' => $f['id'], 'fruitTypeLabel' => fruit_type_label($f['fruitType'])],
-        array_filter($ownedFields, fn($f) => $f['groundStatus'] === GROUND_STATUS_READY)
-    ));
-
-    $vehicles = $farmInfo['farmId'] ? parse_vehicles($dir, $farmInfo['farmId']) : [];
+    // Fahrzeuge mit Wartungsbedarf
     $vehiclesNeedingAttention = array_values(array_map(
         fn($v) => ['name' => $v['name'], 'wear' => $v['wear'], 'dirt' => $v['dirt']],
-        array_filter($vehicles, fn($v) => $v['wear'] > 0.5 || $v['dirt'] > 0.5)
+        array_filter($vehicles, fn($v) => ($v['wear'] ?? 0) > 0.5 || ($v['dirt'] ?? 0) > 0.5)
     ));
-    usort($vehiclesNeedingAttention, fn($a, $b) => max($b['wear'], $b['dirt']) <=> max($a['wear'], $a['dirt']));
+    usort($vehiclesNeedingAttention, fn($a,$b) =>
+        max($b['wear'],$b['dirt']) <=> max($a['wear'],$a['dirt']));
 
-    $missions = parse_missions($dir, $currentDay);
-    $missionsToday = count(array_filter($missions, fn($m) => $m['daysLeft'] === 0));
+    // Verträge heute fällig (aus Mod: daysLeft nicht verfügbar, daher 0 nutzen)
+    $missionsTodayCount = 0;  // Deadline aus Mod-API nicht exportierbar
 
     echo json_encode([
-        'farmName' => $farmInfo['farmName'],
-        'manager' => $farmInfo['manager'],
-        'mapTitle' => $mapTitle,
-        'money' => $farmInfo['money'],
-        'loan' => $farmInfo['loan'],
-        'playTimeHours' => $playTime !== null ? round($playTime / 60, 1) : null,
-        'currentDay' => $currentDay,
-        'season' => $season,
-        'fieldCount' => count($ownedFields),
-        'harvestReadyCount' => $harvestReadyCount,
-        'vehicleCount' => $vehicleCount,
-        'harvestReadyFields' => $harvestReadyFields,
+        'farmName'               => $farm['name']  ?? '',
+        'manager'                => '',
+        'mapTitle'               => $mapTitle,
+        'money'                  => (int)($farm['money'] ?? 0),
+        'loan'                   => (int)($farm['loan']  ?? 0),
+        'playTimeHours'          => $playTime !== null ? round($playTime / 60, 1) : null,
+        'currentDay'             => (int)($liveData['currentDay'] ?? 0),
+        'season'                 => $periodLabel ?? '',
+        'fieldCount'             => $fieldCount,
+        'harvestReadyCount'      => count($harvestReady),
+        'vehicleCount'           => $xmlVehicleCount,
+        'harvestReadyFields'     => $harvestReadyFields,
         'vehiclesNeedingAttention' => array_slice($vehiclesNeedingAttention, 0, 5),
-        'missionsTodayCount' => $missionsToday,
-        'missionsTotalCount' => count($missions),
-        'weatherForecast' => get_weather_forecast($dir, $currentDay, 5),
-        'lastSaved' => $lastSaved,
+        'missionsTodayCount'     => $missionsTodayCount,
+        'missionsTotalCount'     => count($contracts),
+        'weatherForecast'        => [],
+        'lastSaved'              => $lastSaved,
+        'liveStatus'             => $liveData['status'] ?? 'unknown',
+        'liveAge'                => $liveData['fileAgeSeconds'] ?? 0,
     ]);
     exit;
 }
@@ -2497,43 +2463,105 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // Feld-Dashboard
 // ---------------------------------------------------------------
 if ($action === 'fields_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
+    $liveData = get_live_mod_data();
+    $liveFields = $liveData['fields'] ?? [];
+
+    if ($liveData['status'] === 'no_mod' || empty($liveFields)) {
+        echo json_encode(['error' => 'Mod nicht aktiv. FS25_AutoDriveFlurkarte aktivieren und Spiel starten.']);
         exit;
     }
-    $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
 
-    $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
-    $limeRequired = true;
-    if (file_exists($careerFile)) {
-        libxml_use_internal_errors(true);
-        $career = simplexml_load_file($careerFile);
-        if ($career && isset($career->settings->limeRequired)) {
-            $limeRequired = ((string)$career->settings->limeRequired) === 'true';
+    $playerFarmId = (int)($liveData['farm']['farmId'] ?? 0);
+
+    // Mit korrekter farmId aus g_farmlandManager.farmlands (Lua v4+) filtert
+    // einfacher Vergleich zuverlässig. XML-Fallback nicht mehr nötig.
+    $filteredFields = $playerFarmId > 0
+        ? array_filter($liveFields, fn($f) => (int)($f['farmId'] ?? 0) === $playerFarmId)
+        : $liveFields;
+    // Sicherheits-Fallback: wenn Filter leer (alter Mod-Stand), alle zeigen
+    $liveFields = array_values(!empty($filteredFields) ? $filteredFields : $liveFields);
+
+    // groundType → groundStatus Mapping
+    $GT_MAP = [
+        'HARVEST_READY'       => 'READY',   'HARVEST_READY_OTHER' => 'READY',
+        'SOWN'                => 'SOWN_GROWING', 'DIRECT_SOWN' => 'SOWN_GROWING',
+        'RIDGE_SOWN'          => 'SOWN_GROWING', 'PLANTED'     => 'SOWN_GROWING',
+        'GRASS'               => 'SOWN_GROWING',
+        'PLOWED'              => 'TILLED',   'CULTIVATED'  => 'TILLED',
+        'SEEDBED'             => 'TILLED',   'ROLLED_SEEDBED' => 'TILLED',
+        'ROLLER_LINES'        => 'TILLED',   'STUBBLE_TILLAGE' => 'TILLED',
+        'RIDGE'               => 'TILLED',   'NONE'        => 'TILLED',
+        'GRASS_CUT'           => 'TILLED',
+    ];
+    $STATUS_LABEL = ['READY' => 'Erntereif', 'SOWN_GROWING' => 'Gesät', 'TILLED' => 'Gepflügt'];
+
+    $fields = [];
+    foreach ($liveFields as $lf) {
+        // farmId-Filter wurde bereits vor dieser Schleife angewendet
+        $lfFarmId = (int)($lf['farmId'] ?? 0);
+
+        $gt           = $lf['groundType'] ?? 'NONE';
+        $groundStatus = $GT_MAP[$gt] ?? 'TILLED';
+        // Ernte-Status NUR aus Lua harvestReady-Flag (von FSDensityMapUtil).
+        // groundType HARVEST_READY wird ignoriert wenn harvestReady=false
+        // (passiert beim Pflügen: Polygon sagt noch HARVEST_READY aber Feld ist schon bearbeitet)
+        if ($lf['harvestReady'] ?? false) {
+            $groundStatus = 'READY';
+        } elseif ($groundStatus === 'READY') {
+            // groundType sagt HARVEST_READY aber harvestReady=false → gerade bearbeitet
+            $groundStatus = 'TILLED';
         }
+
+        $maxGs  = (int)($lf['maxGrowthState'] ?? 0);
+        $gs     = (int)($lf['growthState']    ?? 0);
+        $gPct   = ($maxGs > 0 && $groundStatus === 'SOWN_GROWING')
+                  ? (int)min(100, round($gs / $maxGs * 100)) : 0;
+
+        $weed   = (int)($lf['weedState']  ?? 0);
+        $spray  = (int)($lf['sprayLevel'] ?? 0);
+        $lime   = (int)($lf['limeLevel']  ?? 0);
+        $plow   = (int)($lf['plowLevel']  ?? 0);
+        $ft     = $lf['fruitType'] ?? 'NONE';
+
+        // Schritte berechnen (Live-Version von suggest_field_steps)
+        $steps = [];
+        if ($groundStatus === 'READY') {
+            $steps[] = 'Ernten';
+        } elseif ($groundStatus === 'TILLED') {
+            if ($lime < 3) $steps[] = 'Kalken';
+            $steps[] = 'Säen';
+        } else { // SOWN_GROWING
+            if ($spray < 2) $steps[] = 'Düngen';
+            if ($weed >= 5)  $steps[] = 'Unkraut entfernen';
+        }
+
+        $fields[] = [
+            'id'               => (int)($lf['id']   ?? 0),
+            'farmId'           => (int)($lf['farmId'] ?? 0),
+            'area'             => (float)($lf['area'] ?? 0),
+            'fruitType'        => $ft,
+            'fruitTypeLabel'   => in_array($ft, ['NONE','UNKNOWN'], true) ? null
+                                  : ($lf['fruitTitle'] ?? fruit_type_label($ft)),
+            'maxGrowthState'   => $maxGs,
+            'growthState'      => $gs,
+            'growthPercent'    => $gPct,
+            'groundStatus'     => $groundStatus,
+            'groundStatusLabel'=> $STATUS_LABEL[$groundStatus] ?? $groundStatus,
+            'groundType'       => $gt,
+            'weedState'        => $weed,
+            'weedPercent'      => (int)min(100, round($weed / 9 * 100)),
+            'sprayLevel'       => $spray,
+            'sprayPercent'     => (int)min(100, round($spray / 2 * 100)),
+            'limeLevel'        => $lime,
+            'limePercent'      => (int)min(100, round($lime / 3 * 100)),
+            'plowLevel'        => $plow,
+            'steps'            => $steps,
+            'liveSource'       => true,
+        ];
     }
 
-    $farmInfo = get_farm_info($dir);
-    $ownedIds = $farmInfo['farmId'] ? get_owned_field_ids($dir, $farmInfo['farmId']) : [];
-
-    $fields = array_values(array_filter(parse_fields($dir), fn($f) => isset($ownedIds[$f['id']])));
-
-    foreach ($fields as &$f) {
-        $f['steps'] = suggest_field_steps($f, $limeRequired);
-        // Fruchtart wird immer so gezeigt, wie sie tatsächlich im Spielstand steht –
-        // UNKNOWN/FALLOW (kein Bewuchs) wird als "–" dargestellt, alles andere unverändert
-        // übersetzt. Keine Unterdrückung/Heuristik mehr, die Daten anzweifelt.
-        $f['fruitTypeLabel'] = in_array($f['fruitType'], ['UNKNOWN', 'FALLOW'], true) ? null : fruit_type_label($f['fruitType']);
-        $f['groundStatusLabel'] = GROUND_STATUS_LABELS[$f['groundStatus']];
-    }
-    unset($f);
-
-    // Nach Feldnummer sortieren (numerisch), damit die Reihenfolge stabil und nachvollziehbar ist
-    usort($fields, fn($a, $b) => (int)$a['id'] - (int)$b['id']);
-
-    echo json_encode(['fields' => $fields]);
+    usort($fields, fn($a, $b) => $a['id'] - $b['id']);
+    echo json_encode(['fields' => $fields, 'fileAgeSeconds' => $liveData['fileAgeSeconds'] ?? 0]);
     exit;
 }
 
@@ -2556,33 +2584,78 @@ function get_environment_info(string $dir): array {
 // Fuhrpark-Dashboard
 // ---------------------------------------------------------------
 if ($action === 'vehicles_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    // Fahrzeugliste aus XML (zuverlässig), Kraftstoff/Verschleiß live aus Mod
     $folder = $_SESSION['savegame_folder'] ?? null;
     if (!$folder) {
         http_response_code(409);
         echo json_encode(['error' => 'no_savegame_selected']);
         exit;
     }
-    $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
+    $dir      = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
     $farmInfo = get_farm_info($dir);
     $vehicles = $farmInfo['farmId'] ? parse_vehicles($dir, $farmInfo['farmId']) : [];
 
-    // Standardsortierung: höchster Verschleiß zuerst (dringendster Wartungsbedarf)
+    // Live-Daten für Kraftstoff & Verschleiß (falls Mod aktiv)
+    $FUEL_LABELS = [
+        'DIESEL' => 'Diesel', 'DEF' => 'AdBlue',
+        'ELECTRICCHARGE' => 'Strom', 'METHANE' => 'Methan', 'GASOLINE' => 'Benzin',
+    ];
+    $liveData     = get_live_mod_data();
+    $liveVehicles = $liveData['vehicles'] ?? [];
+
+    // Live-Fahrzeuge nach uniqueId (primär) und Name (Fallback) indexieren
+    $liveByUniqueId = [];
+    $liveByName     = [];
+    foreach ($liveVehicles as $lv) {
+        $uid = $lv['uniqueId'] ?? '';
+        if ($uid !== '') $liveByUniqueId[$uid] = $lv;
+        $name = strtolower($lv['name'] ?? '');
+        if ($name !== '') $liveByName[$name] = $lv;
+    }
+
+    foreach ($vehicles as &$v) {
+        // 1. Versuch: uniqueId (100% zuverlässig)
+        $lv = isset($v['uniqueId']) && $v['uniqueId'] !== ''
+              ? ($liveByUniqueId[$v['uniqueId']] ?? null)
+              : null;
+        // 2. Fallback: Name case-insensitive
+        if ($lv === null) {
+            $vName = strtolower($v['name'] ?? '');
+            $lv = $liveByName[$vName] ?? null;
+        }
+        if ($lv !== null) {
+            // Verschleiß und Dreck live übernehmen
+            if (isset($lv['wear'])) $v['wear'] = (float)$lv['wear'];
+            if (isset($lv['dirt'])) $v['dirt'] = (float)$lv['dirt'];
+            // Kraftstoffstände live übernehmen (vollständiger als XML)
+            if (!empty($lv['fuel'])) {
+                $v['fuel'] = array_map(fn($f) => array_merge($f, [
+                    'label' => $FUEL_LABELS[$f['fillType'] ?? ''] ?? ($f['fillType'] ?? ''),
+                ]), $lv['fuel']);
+            }
+        }
+        $v['vehicleType'] = $v['vehicleType'] ?? 'VEHICLE';
+    }
+    unset($v);
+
+    // Sortierung: höchster Verschleiß zuerst
     usort($vehicles, fn($a, $b) => $b['wear'] <=> $a['wear']);
 
     $totalDiesel = 0.0;
     foreach ($vehicles as $v) {
-        foreach ($v['fuel'] as $f) {
-            if ($f['fillType'] === 'DIESEL') $totalDiesel += $f['liters'];
+        foreach ($v['fuel'] ?? [] as $f) {
+            if (($f['fillType'] ?? '') === 'DIESEL') $totalDiesel += $f['liters'] ?? 0;
         }
     }
 
     echo json_encode([
-        'vehicles' => $vehicles,
-        'totalCount' => count($vehicles),
-        'totalValue' => array_sum(array_column($vehicles, 'price')),
-        'needsRepairCount' => count(array_filter($vehicles, fn($v) => $v['wear'] > 0.5)),
-        'needsWashCount' => count(array_filter($vehicles, fn($v) => $v['dirt'] > 0.5)),
+        'vehicles'        => $vehicles,
+        'totalCount'      => count($vehicles),
+        'totalValue'      => array_sum(array_column($vehicles, 'price')),
+        'needsRepairCount'=> count(array_filter($vehicles, fn($v) => $v['wear'] > 0.5)),
+        'needsWashCount'  => count(array_filter($vehicles, fn($v) => $v['dirt'] > 0.5)),
         'totalDieselLiters' => round($totalDiesel, 1),
+        'liveStatus'      => $liveData['status'] ?? 'unknown',
     ]);
     exit;
 }
@@ -2600,13 +2673,14 @@ if ($action === 'animals_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
     $farmInfo = get_farm_info($dir);
     $husbandries = $farmInfo['farmId'] ? parse_husbandries($dir, $farmInfo['farmId']) : [];
-    $beehives = $farmInfo['farmId'] ? parse_beehives($dir, $farmInfo['farmId']) : ['hiveCount' => 0, 'pendingHoneyLiters' => 0.0, 'hasSpawner' => false];
+    $beehives    = $farmInfo['farmId'] ? parse_beehives($dir, $farmInfo['farmId'])
+                 : ['hiveCount' => 0, 'pendingHoneyLiters' => 0.0, 'hasSpawner' => false];
 
     echo json_encode([
-        'husbandries' => $husbandries,
-        'barnCount' => count($husbandries),
+        'husbandries'  => $husbandries,
+        'barnCount'    => count($husbandries),
         'totalAnimals' => array_sum(array_column($husbandries, 'totalAnimals')),
-        'beehives' => $beehives,
+        'beehives'     => $beehives,
     ]);
     exit;
 }
@@ -2615,19 +2689,37 @@ if ($action === 'animals_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // Produktionsketten
 // ---------------------------------------------------------------
 if ($action === 'production_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
+    $liveData = get_live_mod_data();
+
+    if ($liveData['status'] === 'no_mod') {
+        echo json_encode(['error' => 'Mod nicht aktiv.']);
         exit;
     }
-    $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
-    $farmInfo = get_farm_info($dir);
-    $points = $farmInfo['farmId'] ? parse_production_points($dir, $farmInfo['farmId']) : [];
+
+    $liveProds = $liveData['productions'] ?? [];
+    $points = array_map(fn($lp) => [
+        'name'       => $lp['name'] ?? '',
+        'farmId'     => (int)($lp['farmId'] ?? 0),
+        'productions' => array_map(fn($p) => [
+            'name'         => $p['name'] ?? '',
+            'status'       => $p['status'] ?? '',
+            'cyclesPerHour'=> (float)($p['cyclesPerHour'] ?? 0),
+            'inputs'       => $p['inputs'] ?? [],
+            'outputs'      => $p['outputs'] ?? [],
+        ], $lp['productions'] ?? []),
+        'storages' => array_map(fn($s) => [
+            'fillType' => $s['fillType'] ?? '',
+            'title'    => $s['title']    ?? '',
+            'level'    => (int)($s['level']    ?? 0),
+            'capacity' => (int)($s['capacity'] ?? 0),
+            'percent'  => (int)($s['percent']  ?? 0),
+        ], $lp['storages'] ?? []),
+    ], $liveProds);
 
     echo json_encode([
         'productionPoints' => $points,
-        'pointCount' => count($points),
+        'pointCount'       => count($points),
+        'liveAge'          => $liveData['fileAgeSeconds'] ?? 0,
     ]);
     exit;
 }
@@ -2713,31 +2805,69 @@ if ($action === 'update_farm_name' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Marktpreise / Verkaufsplaner
 // ---------------------------------------------------------------
 if ($action === 'market_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
+    $liveData = get_live_mod_data();
+
+    if ($liveData['status'] === 'no_mod') {
+        echo json_encode(['error' => 'Mod nicht aktiv.']);
         exit;
     }
-    $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
-    [$currentDay, $daysPerPeriod] = get_environment_info($dir);
 
-    $farmInfo = get_farm_info($dir);
-    $ownedIds = $farmInfo['farmId'] ? get_owned_field_ids($dir, $farmInfo['farmId']) : [];
-    $ownedFruitTypes = [];
-    foreach (parse_fields($dir) as $f) {
-        if (isset($ownedIds[$f['id']])) $ownedFruitTypes[$f['fruitType']] = true;
+    $liveMarket = $liveData['market'] ?? [];
+    // Eigene Fruchtsärten aus Live-Felddaten ermitteln
+    $playerFarmId2 = (int)($liveData['farm']['farmId'] ?? 0);
+    $ownCrops = [];
+    foreach ($liveData['fields'] ?? [] as $lf) {
+        if (!empty($lf['fruitType']) && $lf['fruitType'] !== 'NONE'
+            && ($playerFarmId2 === 0 || ($lf['farmId'] ?? 0) === $playerFarmId2)) {
+            $ownCrops[$lf['fruitType']] = true;
+        }
     }
 
-    $market = parse_market_data($dir, $currentDay, $daysPerPeriod);
-    foreach ($market as &$m) {
-        $m['isOwnCrop'] = isset($ownedFruitTypes[$m['fruitType']]);
+    // Saisonperiode aus Live-Daten berechnen (currentDay + daysPerPeriod aus Mod)
+    $currentDayLive    = (int)($liveData['currentDay']    ?? 0);
+    $daysPerPeriodLive = (int)($liveData['daysPerPeriod'] ?? 24);
+    $periodLabel = 'Live-Daten';
+    if ($currentDayLive > 0 && $daysPerPeriodLive > 0) {
+        $pidx = get_current_period_index($currentDayLive, $daysPerPeriodLive);
+        $periodLabel = MARKET_PERIOD_LABELS_DE[MARKET_PERIOD_ORDER[$pidx]] ?? 'Unbekannt';
     }
-    unset($m);
+
+    // Live-Preisdaten in JS-kompatibles Format umwandeln
+    $market = array_values(array_filter(array_map(function($m) use ($ownCrops) {
+        $currentPrice = (float)($m['pricePerTon']  ?? 0);
+        $basePrice    = (float)($m['basePriceTon'] ?? $currentPrice);
+        if ($currentPrice <= 0) return null;
+
+        $ft    = $m['fillType'] ?? '';
+        $title = $m['title']    ?? $ft;
+        if (empty($title)) return null;
+
+        // Preisabweichung vom Basispreis als synthetische Spanne (da Min/Max aus Mod nicht verfügbar)
+        $deviation  = abs($currentPrice - $basePrice);
+        $minPrice   = max(1, $basePrice - $deviation * 1.5);
+        $maxPrice   = $basePrice + $deviation * 1.5;
+        if ($minPrice >= $maxPrice) { $minPrice = $currentPrice * 0.8; $maxPrice = $currentPrice * 1.2; }
+
+        return [
+            'fruitType'      => $ft,
+            'label'          => $title,
+            'category'       => $m['category'] ?? 'product',
+            'currentPrice'   => (int)$currentPrice,
+            'basePricePerTon'=> (int)$basePrice,
+            'minPrice'       => (int)$minPrice,
+            'maxPrice'       => (int)$maxPrice,
+            'trend'          => ($currentPrice > $basePrice * 1.05 ? 'up'
+                                : ($currentPrice < $basePrice * 0.95 ? 'down' : 'stable')),
+            'bestPeriodLabel'=> '–',
+            'isAtBest'       => false,
+            'isOwnCrop'      => isset($ownCrops[$ft]),
+        ];
+    }, $liveMarket), fn($x) => $x !== null));
 
     echo json_encode([
-        'currentPeriodLabel' => MARKET_PERIOD_LABELS_DE[MARKET_PERIOD_ORDER[get_current_period_index($currentDay, $daysPerPeriod)]],
-        'market' => $market,
+        'currentPeriodLabel' => $periodLabel,
+        'market'  => $market,
+        'liveAge' => $liveData['fileAgeSeconds'] ?? 0,
     ]);
     exit;
 }
@@ -2746,18 +2876,52 @@ if ($action === 'market_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // Vertrags-Feed
 // ---------------------------------------------------------------
 if ($action === 'missions_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
+    $liveData = get_live_mod_data();
+
+    if ($liveData['status'] === 'no_mod') {
+        echo json_encode(['error' => 'Mod nicht aktiv.']);
         exit;
     }
-    $dir = FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder;
-    [$currentDay,] = get_environment_info($dir);
 
-    $missions = parse_missions($dir, $currentDay);
+    $liveContracts = $liveData['contracts'] ?? [];
 
-    echo json_encode(['missions' => $missions, 'currentDay' => $currentDay]);
+    // Vertragstyp-Klasse → deutsches Label
+    $TYPE_LABELS = [
+        'HarvestMission'     => 'Ernten',
+        'SowMission'         => 'Säen',
+        'PlowMission'        => 'Pflügen',
+        'CultivationMission' => 'Grubbern',
+        'FertilizingMission' => 'Düngen',
+        'HerbicideMission'   => 'Herbizid',
+        'MowMission'         => 'Mähen',
+        'WeedMission'        => 'Hacken',
+        'BaleCloseMission'   => 'Ballen pressen',
+        'TransportMission'   => 'Transport',
+        'StonePickMission'   => 'Steine sammeln',
+        'LimeMission'        => 'Kalken',
+        'FieldMission'       => 'Feldarbeit',
+        'DeadwoodMission'    => 'Totholz',
+    ];
+
+    $missions = array_map(fn($lc) => [
+        'type'      => $lc['type']     ?? '',
+        'typeLabel' => $TYPE_LABELS[$lc['type'] ?? ''] ?? ($lc['title'] ?: ($lc['type'] ?? 'Auftrag')),
+        'title'     => $lc['title']    ?? '',
+        'detail'    => $lc['title']    ?? '',  // detail = title aus getTitle()
+        'reward'    => (int)($lc['reward']    ?? 0),
+        'fieldId'   => (int)($lc['fieldId']   ?? 0),
+        'farmId'    => (int)($lc['farmId']    ?? 0),
+        'isActive'  => (bool)($lc['isActive'] ?? false),
+        'progress'  => (int)($lc['progress']  ?? 0),
+        'daysLeft'  => 99,   // Deadline aus Mod-API nicht lesbar – zeige "laufend"
+        'fieldCrop' => '',
+    ], $liveContracts);
+
+    echo json_encode([
+        'missions'    => $missions,
+        'currentDay'  => 0,
+        'liveAge'     => $liveData['fileAgeSeconds'] ?? 0,
+    ]);
     exit;
 }
 
@@ -2889,6 +3053,14 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($originalMTime !== false) touch($configPath, $originalMTime);
 
     echo json_encode(['success' => true, 'backup' => basename($backupFile), 'count' => count($body['markers'])]);
+    exit;
+}
+
+// ---------------------------------------------------------------
+// Live-Daten aus Mod-Export lesen (modSettings/AutoDriveFlurkarte/liveData.json)
+// ---------------------------------------------------------------
+if ($action === 'live_data') {
+    echo json_encode(get_live_mod_data());
     exit;
 }
 
