@@ -53,6 +53,14 @@ if (!is_dir(BACKUP_DIR)) {
     mkdir(BACKUP_DIR, 0777, true);
 }
 
+// Nutzerentscheidungen wie Karten-Ausrichtung, Preisalarme und erledigte
+// Feldaufgaben werden getrennt je Spielstand gespeichert. Dadurch bleiben sie
+// unabhängig vom wechselnden lokalen Launcher-Port und von App-Updates erhalten.
+define('USER_SETTINGS_DIR', APP_DATA_DIR . DIRECTORY_SEPARATOR . 'settings');
+if (!is_dir(USER_SETTINGS_DIR)) {
+    mkdir(USER_SETTINGS_DIR, 0777, true);
+}
+
 // Benutzerdefinierte bzw. automatisch extrahierte Kartenbilder sind ebenfalls
 // veränderliche Daten. Im Launcher-Betrieb liegen sie außerhalb des jeweiligen
 // Release-Ordners und bleiben dadurch bei Updates erhalten.

@@ -39,12 +39,39 @@ jobs:
           try {
             & $php -c $phpIni -r '
               require "config.php";
+              require "user_settings.php";
+
               $expectedAssets = getenv("HOF_DASHBOARD_DATA_DIR") . DIRECTORY_SEPARATOR . "assets";
+              $expectedSettings = getenv("HOF_DASHBOARD_DATA_DIR") . DIRECTORY_SEPARATOR . "settings";
               if (APP_DATA_DIR !== getenv("HOF_DASHBOARD_DATA_DIR")
                   || MAP_ASSETS_DIR !== $expectedAssets
+                  || USER_SETTINGS_DIR !== $expectedSettings
                   || !is_dir(MAP_ASSETS_DIR)
-                  || !is_writable(MAP_ASSETS_DIR)) {
+                  || !is_writable(MAP_ASSETS_DIR)
+                  || !is_dir(USER_SETTINGS_DIR)
+                  || !is_writable(USER_SETTINGS_DIR)) {
                   throw new RuntimeException("Persistent app-data layout failed");
+              }
+
+              $first = default_user_settings();
+              $first["terrainAlign"] = ["offsetX" => 125.5, "offsetZ" => -42, "scale" => 2];
+              $first["priceAlerts"]["WHEAT"] = 450;
+              $first["fieldTasks"]["12:Düngen"] = true;
+              save_user_settings("savegame1", $first);
+
+              $second = default_user_settings();
+              $second["priceAlerts"]["BARLEY"] = 375;
+              save_user_settings("savegame2", $second);
+
+              $loadedFirst = load_user_settings("savegame1");
+              $loadedSecond = load_user_settings("savegame2");
+              if ($loadedFirst["terrainAlign"]["offsetX"] !== 125.5
+                  || $loadedFirst["priceAlerts"]["WHEAT"] !== 450.0
+                  || ($loadedFirst["fieldTasks"]["12:Düngen"] ?? false) !== true
+                  || isset($loadedFirst["priceAlerts"]["BARLEY"])
+                  || $loadedSecond["priceAlerts"]["BARLEY"] !== 375.0
+                  || isset($loadedSecond["priceAlerts"]["WHEAT"])) {
+                  throw new RuntimeException("Per-savegame user-settings round trip failed");
               }
             '
             if ($LASTEXITCODE -ne 0) {

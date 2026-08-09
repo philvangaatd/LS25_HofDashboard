@@ -1704,7 +1704,81 @@ let hasAutoDrive = false;
 let activeTab = 'home';
 let currentFarmName = '';
 let currentMapTitle = '';
+let userSettings = defaultUserSettings();
+let userSettingsSaveQueue = Promise.resolve();
 const UNGROUPED = '(ohne Gruppe)';
+
+function defaultUserSettings() {
+    return {
+        schemaVersion: 1,
+        terrainAlign: { offsetX: 0, offsetZ: 0, scale: 1 },
+        priceAlerts: {},
+        fieldTasks: {},
+    };
+}
+
+function normalizeUserSettings(raw) {
+    const defaults = defaultUserSettings();
+    if (!raw || typeof raw !== 'object') return defaults;
+
+    const terrain = raw.terrainAlign && typeof raw.terrainAlign === 'object'
+        ? raw.terrainAlign
+        : defaults.terrainAlign;
+    const offsetX = Number(terrain.offsetX);
+    const offsetZ = Number(terrain.offsetZ);
+    const scale = Number(terrain.scale);
+
+    return {
+        schemaVersion: 1,
+        terrainAlign: {
+            offsetX: Number.isFinite(offsetX) ? offsetX : 0,
+            offsetZ: Number.isFinite(offsetZ) ? offsetZ : 0,
+            scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
+        },
+        priceAlerts: raw.priceAlerts && typeof raw.priceAlerts === 'object'
+            ? { ...raw.priceAlerts }
+            : {},
+        fieldTasks: raw.fieldTasks && typeof raw.fieldTasks === 'object'
+            ? { ...raw.fieldTasks }
+            : {},
+    };
+}
+
+async function loadUserSettings(folder) {
+    userSettings = defaultUserSettings();
+    try {
+        const res = await fetch(`api.php?action=user_settings&folder=${encodeURIComponent(folder)}`);
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Einstellungen konnten nicht geladen werden.');
+        userSettings = normalizeUserSettings(data.settings);
+    } catch (error) {
+        console.error('Benutzereinstellungen konnten nicht geladen werden:', error);
+        showToast('Benutzereinstellungen konnten nicht geladen werden.', 'err');
+    }
+}
+
+function persistUserSettings() {
+    const folder = currentFolder;
+    const settings = JSON.parse(JSON.stringify(userSettings));
+    if (!folder) return Promise.resolve();
+
+    userSettingsSaveQueue = userSettingsSaveQueue.then(async () => {
+        const res = await fetch('api.php?action=user_settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folder, settings }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Einstellungen konnten nicht gespeichert werden.');
+    }).catch(error => {
+        console.error('Benutzereinstellungen konnten nicht gespeichert werden:', error);
+        if (currentFolder === folder) {
+            showToast('Benutzereinstellungen konnten nicht gespeichert werden.', 'err');
+        }
+    });
+
+    return userSettingsSaveQueue;
+}
 
 function applyAutoDriveTabVisibility() {
     document.getElementById('tabBtnMarkers').style.display = hasAutoDrive ? '' : 'none';
@@ -2065,7 +2139,7 @@ function updateLiveStatusBadge(data) {
 }
 
 function fieldChecklistKey(fieldId, step) {
-    return `fieldCheck_${currentFolder}_${fieldId}_${step}`;
+    return `${fieldId}:${step}`;
 }
 
 async function loadFieldsData() {
@@ -2138,7 +2212,7 @@ function renderFields() {
 
         const stepsHtml = (field.steps || []).map(step => {
             const key = fieldChecklistKey(field.id, step);
-            const checked = localStorage.getItem(key) === '1' ? 'checked' : '';
+            const checked = userSettings.fieldTasks[key] === true ? 'checked' : '';
             return `
                 <label class="field-step">
                     <input type="checkbox" ${checked} onchange="toggleFieldStep('${escapeAttr(key)}', this)">
@@ -2183,8 +2257,9 @@ function renderFields() {
 }
 
 function toggleFieldStep(key, input) {
-    if (input.checked) localStorage.setItem(key, '1');
-    else localStorage.removeItem(key);
+    if (input.checked) userSettings.fieldTasks[key] = true;
+    else delete userSettings.fieldTasks[key];
+    persistUserSettings();
 }
 
 // =================================================================
@@ -2874,7 +2949,7 @@ function renderMarket() {
 }
 
 function getPriceAlert(fruitType) {
-    const raw = localStorage.getItem(`priceAlert_${currentFolder}_${fruitType}`);
+    const raw = userSettings.priceAlerts[fruitType];
     const val = parseFloat(raw);
     return isNaN(val) ? null : val;
 }
@@ -2887,12 +2962,12 @@ function isAlertHit(m) {
 function updatePriceAlert(input) {
     const fruitType = input.dataset.fruit;
     const value = parseFloat(input.value);
-    const key = `priceAlert_${currentFolder}_${fruitType}`;
     if (!input.value || isNaN(value) || value <= 0) {
-        localStorage.removeItem(key);
+        delete userSettings.priceAlerts[fruitType];
     } else {
-        localStorage.setItem(key, String(value));
+        userSettings.priceAlerts[fruitType] = value;
     }
+    persistUserSettings();
     renderMarket(); // neu sortieren/markieren
     updateMarketBadge(marketCache.filter(m => isAlertHit(m))); // Badge sofort aktualisieren, nicht erst beim nächsten Aktualisieren der Übersicht
 }
@@ -3058,6 +3133,7 @@ async function selectSavegame(folder) {
     if (data.error) { showToast(data.error, 'err'); return; }
     currentFolder = folder;
     hasAutoDrive = !!data.hasAutoDrive;
+    await loadUserSettings(folder);
     points = new Map(); // Kartendaten für neuen Spielstand neu laden
     undoStack = [];
     orphanHighlightIds = null;
@@ -3325,25 +3401,16 @@ function updateTerrainButtons() {
 
 // -----------------------------------------------------------------
 // Hintergrundbild hochladen/entfernen + manuelle Ausrichtung
-// Ausrichtung (Versatz X/Z, Skalierung) wird je Spielstand in localStorage
-// gemerkt, da die automatische Wegpunkt-Bounding-Box nicht immer exakt zum
-// eingefärbten Screenshot passt (z. B. wenn der Screenshot nicht die komplette
-// Kartengröße zeigt).
+// Ausrichtung (Versatz X/Z, Skalierung) wird vom lokalen PHP-Endpunkt dauerhaft
+// je Spielstand gespeichert. Das ist unabhängig vom wechselnden Launcher-Port.
 // -----------------------------------------------------------------
-function terrainAlignKey() {
-    return `terrainAlign_${currentFolder}`;
-}
-
 function getTerrainAlign() {
-    try {
-        const raw = localStorage.getItem(terrainAlignKey());
-        if (raw) return JSON.parse(raw);
-    } catch (e) { /* korrupter Wert -> Standard verwenden */ }
-    return { offsetX: 0, offsetZ: 0, scale: 1 };
+    return userSettings.terrainAlign || { offsetX: 0, offsetZ: 0, scale: 1 };
 }
 
 function saveTerrainAlign(align) {
-    localStorage.setItem(terrainAlignKey(), JSON.stringify(align));
+    userSettings.terrainAlign = { ...align };
+    persistUserSettings();
 }
 
 function populateTerrainAlignInputs() {

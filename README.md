@@ -320,7 +320,8 @@ Der Prototyp:
 - wartet auf den vorhandenen `health.php`-Vertrag,
 - zeigt das Dashboard in einem eigenen WebView2-Fenster,
 - beendet PHP beim Schließen ohne verwaisten Hintergrundprozess,
-- schreibt Backups, Kartenbilder, Logs, Sessions und temporäre Dateien unter
+- schreibt Backups, Kartenbilder, spielstandsbezogene Benutzereinstellungen,
+  Logs, Sessions und temporäre Dateien unter
   `%LOCALAPPDATA%\HofDashboard`,
 - und besitzt einen headless `--smoke-test` für GitHub Actions.
 

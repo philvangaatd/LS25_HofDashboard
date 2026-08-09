@@ -47,7 +47,9 @@ Protokolle werden blockiert.
 %LOCALAPPDATA%\HofDashboard\
 ├─ data\
 │  ├─ assets\
-│  └─ backups\
+│  ├─ backups\
+│  └─ settings\
+│     └─ savegameN.json
 ├─ logs\
 ├─ sessions\
 ├─ temp\
@@ -55,7 +57,9 @@ Protokolle werden blockiert.
 ```
 
 Damit können `web/`, `runtime/` und der Launcher später versionsweise ausgetauscht
-werden, ohne Backups, Kartenbilder oder die WebView2-Sitzung des Benutzers zu löschen.
+werden, ohne Backups, Kartenbilder, spielstandsbezogene Einstellungen oder die
+WebView2-Sitzung des Benutzers zu löschen. Karten-Ausrichtung, Preisalarme und
+abgehakte Feldaufgaben werden je `savegameN` getrennt gespeichert.
 
 ## Build und Test
 
