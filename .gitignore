@@ -1,3 +1,6 @@
 # Automatische Backups sind spielstand-/spielerspezifisch und gehören nicht ins Repo
 /backups/*
 !/backups/.gitkeep
+
+# Automatisch geladene/hochgeladene Kartenhintergründe je Spielstand
+/assets/terrain_savegame*.png
