@@ -1613,7 +1613,7 @@
             <div class="toolbar">
                 <button onclick="loadSystemCheck()">↻ Aktualisieren</button>
             </div>
-            <div class="legend-line">Prüft PHP-Erweiterungen, Upload-Limits, Pfade und Schreibrechte – alles, was das Tool intern braucht, auf einen Blick statt erst beim Ausprobieren zu bemerken</div>
+            <div class="legend-line">Zeigt Version, Speicherorte und die Verbindung zu deiner LS25-Installation.</div>
             <div id="systemCheckContainer"></div>
         </div>
 
@@ -2865,6 +2865,17 @@ async function loadMissionsData() {
 // Systemcheck
 // =================================================================
 const SYSCHECK_ICONS = { ok: '✅', warn: '⚠️', error: '❌', info: 'ℹ️' };
+const HIDDEN_SYSTEM_CHECKS = new Set([
+    'PHP-Version',
+    'Upload-Limit (upload_max_filesize / post_max_size)',
+    'Geladene php.ini',
+    'Zeitzone',
+]);
+
+function isUserFacingSystemCheck(check) {
+    return !HIDDEN_SYSTEM_CHECKS.has(check.label)
+        && !check.label.startsWith('PHP-Erweiterung');
+}
 
 async function loadSystemCheck() {
     const container = document.getElementById('systemCheckContainer');
@@ -2873,7 +2884,7 @@ async function loadSystemCheck() {
     const data = await res.json();
     if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
 
-    container.innerHTML = data.checks.map(c => `
+    container.innerHTML = data.checks.filter(isUserFacingSystemCheck).map(c => `
         <div class="syscheck-row status-${c.status}">
             <span class="syscheck-icon">${SYSCHECK_ICONS[c.status] || '•'}</span>
             <span class="syscheck-label">${escapeHtml(c.label)}</span>
