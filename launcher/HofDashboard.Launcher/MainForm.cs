@@ -9,12 +9,19 @@ internal sealed class MainForm : Form
     private readonly CancellationTokenSource _shutdown = new();
     private readonly WebView2 _webView;
     private readonly LoadingView _loadingPanel;
+    private readonly Icon? _applicationIcon;
     private PhpServer? _phpServer;
     private LauncherLog? _log;
 
     public MainForm()
     {
         Text = "LS25 Hof-Dashboard · Prototyp";
+        _applicationIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        if (_applicationIcon is not null)
+        {
+            Icon = _applicationIcon;
+        }
+
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1000, 700);
         Size = new Size(1440, 900);
@@ -63,6 +70,12 @@ internal sealed class MainForm : Form
         _phpServer?.Dispose();
         _shutdown.Dispose();
         base.OnFormClosing(e);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        base.OnFormClosed(e);
+        _applicationIcon?.Dispose();
     }
 
     private async Task StartDashboardAsync(CancellationToken cancellationToken)
