@@ -8,8 +8,7 @@ internal sealed class MainForm : Form
 {
     private readonly CancellationTokenSource _shutdown = new();
     private readonly WebView2 _webView;
-    private readonly Panel _loadingPanel;
-    private readonly Label _statusLabel;
+    private readonly LoadingView _loadingPanel;
     private PhpServer? _phpServer;
     private LauncherLog? _log;
 
@@ -27,22 +26,10 @@ internal sealed class MainForm : Form
             Visible = false,
         };
 
-        _statusLabel = new Label
+        _loadingPanel = new LoadingView
         {
-            AutoSize = false,
-            Dock = DockStyle.Fill,
-            ForeColor = Color.FromArgb(226, 232, 240),
-            Font = new Font("Segoe UI", 16, FontStyle.Regular),
-            Text = "Hof-Dashboard wird gestartet …",
-            TextAlign = ContentAlignment.MiddleCenter,
-        };
-
-        _loadingPanel = new Panel
-        {
-            BackColor = Color.FromArgb(15, 23, 42),
             Dock = DockStyle.Fill,
         };
-        _loadingPanel.Controls.Add(_statusLabel);
 
         Controls.Add(_webView);
         Controls.Add(_loadingPanel);
@@ -86,10 +73,10 @@ internal sealed class MainForm : Form
         _log.Info($"Installationsordner: {paths.InstallDirectory}");
         _log.Info($"App-Datenordner: {paths.UserDataRoot}");
 
-        SetStatus("Integrierter PHP-Server wird gestartet …");
+        _log.Info("Integrierter PHP-Server wird gestartet.");
         _phpServer = await PhpServer.StartAsync(paths, _log, cancellationToken);
 
-        SetStatus("Dashboard-Fenster wird vorbereitet …");
+        _log.Info("Dashboard-Fenster wird vorbereitet.");
         var environment = await CoreWebView2Environment.CreateAsync(
             browserExecutableFolder: null,
             userDataFolder: paths.WebViewDirectory);
@@ -98,6 +85,7 @@ internal sealed class MainForm : Form
         ConfigureWebView(_phpServer);
         _webView.Source = _phpServer.RootUri;
         _webView.Visible = true;
+        _loadingPanel.StopAnimation();
         _loadingPanel.Visible = false;
         _log.Info("Dashboard-Fenster ist bereit.");
     }
@@ -156,12 +144,6 @@ internal sealed class MainForm : Form
         }
     }
 
-    private void SetStatus(string status)
-    {
-        _statusLabel.Text = status;
-        _log?.Info(status);
-    }
-
     private void ShowStartupFailure(Exception exception)
     {
         var logPath = string.Empty;
@@ -174,7 +156,8 @@ internal sealed class MainForm : Form
             // Keep the original startup exception visible even if path detection failed.
         }
 
-        _statusLabel.Text = "Das Hof-Dashboard konnte nicht gestartet werden.";
+        _loadingPanel.StopAnimation();
+        _loadingPanel.Message = "Das Hof-Dashboard konnte nicht gestartet werden.";
         var message = $"Das Hof-Dashboard konnte nicht gestartet werden.\n\n{exception.Message}";
         if (!string.IsNullOrWhiteSpace(logPath))
         {
