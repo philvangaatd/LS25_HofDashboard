@@ -1,143 +1,522 @@
-# AutoDrive Flurkarte – Hof-Dashboard & Routen-Editor
+# LS25 Hof-Dashboard
 
-Web-Tool für Farming Simulator 25: Hof-Übersicht, Feld-Dashboard, Fuhrpark, Marktpreise,
-Vertrags-Feed sowie Verwaltung deiner AutoDrive-Marker und visuelles Bearbeiten des
-Wegpunkt-Netzes – ohne das fummelige In-Game-Menü.
+Lokales Web-Dashboard für **Farming Simulator 25** mit Live-Daten aus dem laufenden Spiel, AutoDrive-Verwaltung und Werkzeugen für den aktuellen Spielstand.
 
-## Voraussetzung
-PHP muss installiert sein (Windows: z. B. über [XAMPP](https://www.apachefriends.org/) oder
-den PHP-Download von [windows.php.net](https://windows.php.net/download/) – reicht die
-CLI-Version, im PATH eingetragen). Für den Hintergrundbild-Upload im Karte-Tab wird
-zusätzlich die PHP-Erweiterung **GD** benötigt (in den meisten PHP-Distributionen,
-inkl. XAMPP, standardmäßig aktiv).
+Das Projekt verfolgt eine klare Datenarchitektur:
 
-## Setup
-1. Ordner liegt bereits unter `C:\Projekte\LS25\AutoDrive`.
-2. **Wichtig:** LS25 vorher beenden bzw. sicherstellen, dass der Spielstand nicht gerade
-   gespeichert wird, während du hier speicherst.
-3. Der Basis-Ordner mit allen Spielständen wird automatisch erkannt
-   (`%USERPROFILE%\Documents\My Games\FarmingSimulator2025`).
-
-## Starten
+```text
+Farming Simulator 25
+        │
+        ▼
+FS25_AutoDriveFlurkarte (Lua-Mod)
+        │
+        ▼
+liveData.json
+        │
+        ▼
+PHP API
+        │
+        ▼
+Browser-Frontend
 ```
-cd C:\Projekte\LS25\AutoDrive
-php -S localhost:8000
-```
-Dann im Browser: http://localhost:8000
 
-Beim ersten Start (bzw. nach "⇄ Spielstand wechseln") erscheint eine Auswahlmaske mit
-allen gefundenen Spielständen (Hofname, Karte, letztes Speicherdatum). Spielstände ohne
-AutoDrive-Daten sind weiterhin auswählbar (Hof-Übersicht, Felder, Fuhrpark, Markt und
-Verträge funktionieren auch ohne AutoDrive), zeigen aber den Hinweis "Kein AutoDrive" –
-die Tabs "Marker" und "Karte" bleiben dann ausgeblendet. Die Auswahl wird für die
-laufende Sitzung gemerkt.
+Der Lua-Mod ist für Live-Zustände die autoritative Quelle. PHP normalisiert und validiert die Daten für das Frontend, erfindet aber keine zweite FS25-Spiellogik.
+
+Zusätzlich liest und bearbeitet das Dashboard gezielt Spielstand-Dateien dort, wo Live-Daten nicht benötigt werden – insbesondere für **AutoDrive-Marker, Routen und Backups**.
+
+---
 
 ## Funktionen
 
-### Tab "🏠 Übersicht"
-Startseite mit den wichtigsten Kennzahlen auf einen Blick: Kontostand, Kredit, Spieltag/
-Jahreszeit, Spielzeit, erntereife Felder und Fuhrpark-Anzahl. Aktualisiert sich automatisch
-alle 30 Sekunden. Darunter ein Schnellzugriff-Bereich, der direkt auf Handlungsbedarf
-hinweist (erntereife Felder, Fahrzeuge mit Wartungs-/Waschbedarf, heute ablaufende
-Verträge) – ein Klick springt in den passenden Tab.
+### 🏠 Übersicht
 
-### Tab "🌾 Felder"
-Alle eigenen Felder als Karten mit Fruchtart, Bodenzustand, Wachstumsstufe, Unkraut-,
-Kalk- und Pflug-Level. Erntereife Felder sind hervorgehoben. Pro Feld eine
-Checklisten-Vorschlagsliste der nächsten Arbeitsschritte (Pflügen → Kalken → Säen →
-Düngen/Spritzen → Unkraut entfernen), abhakbar und lokal im Browser gemerkt. Filterbar
-nach Fruchtart oder Feldnummer.
+Zentrale Hofübersicht mit wichtigen Kennzahlen und Schnellzugriffen, unter anderem:
 
-### Tab "📋 Marker" *(nur mit AutoDrive)*
-- Alle Marker mit Wegpunkt-ID, Name und Gruppe, gruppiert wie Flurstücke/Parzellen
-- Gruppen ein-/ausklappen, umbenennen, auflösen; Filtern nach Name/Gruppe
-- Mehrfachauswahl: mehrere Marker auf einmal einer Gruppe zuweisen oder löschen
-- Export/Import als JSON, Backup-Verwaltung mit Wiederherstellen-Funktion
+- Hofname und Kontostand
+- Karte und aktiver Spielstand
+- eigene Felder und deren aktueller Zustand
+- erntereife Felder
+- Fuhrpark
+- Wartungs- und Waschbedarf
+- Live-Status des Export-Mods
 
-### Tab "🗺️ Karte" *(nur mit AutoDrive)*
-Zeigt das komplette AutoDrive-Wegpunktnetz als Karte (Scrollen = Zoom, Ziehen = Verschieben,
-Dropdown = zu einem Marker springen). Vier Modi über den Schalter oben:
+---
 
-- **👁 Ansehen**: nur Betrachten, keine Bearbeitung möglich
-- **✏️ Route zeichnen**: Klick auf leere Fläche setzt einen neuen Wegpunkt und verbindet
-  ihn automatisch mit dem zuletzt gesetzten Punkt (fortlaufende Kette). Klick auf einen
-  bestehenden Punkt dockt die Kette dort an. Liegt der Klick nah genug an einem
-  bestehenden Punkt (Einrasten/Snap), wird kein neuer Punkt erzeugt, sondern direkt
-  angedockt. Bestehende Punkte lassen sich per Ziehen verschieben. `Esc` beendet die
-  aktuelle Kette.
-- **🔗✕ Trennen**: Zwei verbundene Punkte nacheinander anklicken entfernt nur die
-  Verbindung zwischen ihnen – beide Punkte bleiben erhalten. Danach direkt weiterklicken
-  für weitere Trennungen vom selben Punkt aus.
-- **🗑️ Löschen**: Klick auf einen Wegpunkt löscht ihn samt aller Verbindungen
+### 🌾 Felder – live
 
-Weitere Werkzeuge in der Toolbar bzw. unter "⋯ Mehr":
-- **↺ Rückgängig** (auch per Strg+Z): macht den letzten Bearbeitungsschritt rückgängig,
-  bis zu 50 Schritte zurück, innerhalb der laufenden Sitzung
-- **📍 Als Marker anlegen**: verwandelt den zuletzt angeklickten Wegpunkt direkt in einen
-  neuen Marker (Name wird abgefragt) – landet im Marker-Tab, muss dort noch gespeichert werden
-- **🔍 Stränge prüfen**: prüft, ob die gesamte Route ein zusammenhängendes Netz bildet.
-  Findet isolierte/abgetrennte Abschnitte und markiert sie rot auf der Karte
-- **🖼️ Hintergrundbild hochladen**: legt einen Ingame-Screenshot (PNG/JPEG/WEBP, max.
-  25 MB) als Kartenhintergrund für den aktuellen Spielstand ab. Große Bilder werden
-  automatisch auf max. 2048 px Kantenlänge herunterskaliert. Das Bild wird unter
-  `assets/terrain_<spielstand>.png` gespeichert und ersetzt ein zuvor hochgeladenes Bild.
-- **🗑️ Hintergrundbild entfernen**: löscht das Hintergrundbild für den aktuellen
-  Spielstand wieder
-- **Ausrichtung: Normal/Z gespiegelt/X gespiegelt/X-Z vertauscht**: passt Spiegelung und
-  Rotation des Hintergrundbilds an, falls die Bildorientierung nicht zur Kartenausrichtung
-  passt
-- **Bild-Ausrichtung (manuell)** – Versatz X, Versatz Z (in Metern) und Skalierung: feine
-  Nachjustierung, falls der Screenshot nicht exakt auf die Wegpunkt-Bounding-Box passt
-  (z. B. weil der Screenshot nicht die komplette Kartengröße zeigt). Wird je Spielstand
-  im Browser gemerkt; über "↺ Ausrichtung zurücksetzen" wieder auf Standard (0/0/1)
-  zurücksetzbar.
+Die Felder werden aus dem laufenden Spiel ausgewertet.
 
-Änderungen an der Route werden erst mit **"💾 Route speichern"** in die Spielstand-Datei
-geschrieben. Bis dahin lässt sich alles gefahrlos ausprobieren (Tab wechseln/Browser
-schließen warnt bei ungespeicherten Änderungen).
+Unterstützt werden unter anderem:
 
-### Tab "🚜 Fuhrpark"
-Alle Fahrzeuge, Anhänger und Anbaugeräte als Karten mit Verschleiß- und Dreck-Anzeige
-(Balken, farblich gestuft), Wert und Betriebsstunden. Sortierbar nach Verschleiß, Dreck,
-Betriebsstunden, Wert oder Name; filterbar nach Marke/Modell. Fahrzeuge mit Verschleiß
-oder Dreck über 50 % sind rot hervorgehoben.
+- Feldnummer und Besitz
+- Fruchtart
+- Wachstumsstufe
+- Erntereife
+- abgeerntete Bereiche
+- gepflügte, gegrubberte und anderweitig bearbeitete Bereiche
+- Mischzustände auf teilweise bearbeiteten Feldern
+- Unkraut
+- Kalk
+- Düngung / Spray-Level
+- Steine
+- Pflugstatus
+- Walzenstatus
+- weitere von FS25 bereitgestellte Feldzustände
 
-### Tab "💰 Markt"
-Aktuelle Marktpreise je Kultur für die laufende Saisonperiode, inkl. Trendpfeil, Jahres-
-Preisspanne und bestem Verkaufszeitpunkt. Eigene angebaute Kulturen sind markiert und
-werden zuerst angezeigt. Filterbar nach Kultur.
+Die Feldanalyse basiert nicht nur auf einem einzelnen Punkt in der Feldmitte. Der Mod verteilt Messpunkte über das tatsächliche Feldpolygon und kann dadurch beispielsweise ein Feld erkennen, das teilweise abgeerntet und teilweise bereits gepflügt wurde.
 
-### Tab "🤝 Verträge"
-Alle aktiven Verträge mit Typ, betroffenem Feld, verbleibenden Tagen und – sofern vom
-Spiel bereits berechnet – Belohnung. Heute ablaufende Verträge sind hervorgehoben.
+---
+
+### 🚜 Fuhrpark – live
+
+Fahrzeuge, Anhänger und Anbaugeräte werden direkt aus den laufenden FS25-Fahrzeugobjekten gelesen.
+
+Pro Eintrag können unter anderem angezeigt werden:
+
+- Kategorie: Fahrzeug / Anhänger / Anbaugerät
+- Marke
+- Modell
+- Anzeigename
+- Betriebsstunden
+- Shoppreis der aktuellen Konfiguration
+- Verschleiß
+- Dreck
+- Diesel
+- AdBlue
+- weitere unterstützte Kraftstoffe
+- Füllstand aller relevanten FillUnits
+- Inhalt von Anhängern und Geräten
+- Kapazität und Prozentfüllstand
+
+Beispiele:
+
+- Anhänger mit Weizen und aktuellem Füllstand
+- Sämaschine mit Saatgut
+- Düngerstreuer mit Mineraldünger
+- Traktor mit Diesel und AdBlue
+- Mähdrescher mit Korntank, Diesel und AdBlue
+
+Der Tab ist filter- und sortierbar und unterscheidet Fahrzeuge, Anhänger und Anbaugeräte.
+
+---
+
+### 🐄 Tiere und Tierhaltungen – live
+
+Tierhaltungen werden über die geladenen FS25-Placeables und Husbandry-Systeme ausgelesen.
+
+Geplant bzw. im Live-Datenvertrag berücksichtigt sind unter anderem:
+
+- Stall / Gehege
+- Tierart
+- aktuelle Tierzahl
+- maximale Kapazität
+- freie Plätze
+- Rasse
+- Alter in Monaten
+- Anzahl je Rasse und Altersgruppe
+- Gesundheit
+- Reproduktion
+- Trächtigkeit / Elterntier, sofern FS25 diese Information bereitstellt
+- Produktivität
+- Futter
+- Futtergruppen
+- Wasser
+- Stroh
+- Weide
+- Mist
+- Gülle
+- Milch und andere flüssige Tierprodukte
+- Wolle, Eier und weitere Palettenprodukte
+
+Bienen werden separat über das Beehive-System ausgewertet. Dazu gehören unter anderem:
+
+- Anzahl eigener Bienenstöcke
+- aktive Bienenstöcke
+- Honigproduktion
+- wartender Honig am Palettenspawner
+- fertige Honigpaletten
+- Honigmenge auf Paletten
+
+> Hinweis: Tierhaltungen und Produktionen können durch Mods eigene Spezialisierungen verwenden. Das Dashboard orientiert sich an den normalen GIANTS-FS25-Systemen und ist für standardskonforme Basegame- und Mod-Placeables ausgelegt.
+
+---
+
+### 🏭 Produktionen – live
+
+Produktionsgebäude werden aus den laufenden Placeables ausgelesen.
+
+Ziel ist, Produktionszustände direkt aus FS25 zu übernehmen, statt sie aus gespeicherten XML-Werten nachzubauen.
+
+---
+
+### 💰 Markt – echte Live-Verkaufspreise
+
+Die Marktansicht zeigt nicht nur einen theoretischen Basispreis, sondern die **effektiven Verkaufspreise der aktuell im Spiel vorhandenen Verkaufsstationen**.
+
+Pro Ware werden unter anderem angezeigt:
+
+- bester aktuell erzielbarer Preis
+- beste Verkaufsstation
+- alle verfügbaren Verkaufsstationen
+- jeweiliger Preis pro 1.000 Liter
+- niedrigster Preis
+- Preisspanne zwischen den Stationen
+
+Sortierungen:
+
+- empfohlen
+- Bestpreis hoch → niedrig
+- Bestpreis niedrig → hoch
+- Name A → Z
+- meiste Verkaufsstationen
+- größte Preisspanne
+
+Zusätzlich gibt es einen **Preis-Alarm**. Der Alarm wird gegen den aktuell besten tatsächlich erzielbaren Stationspreis geprüft.
+
+Die Suche berücksichtigt sowohl Waren als auch Verkaufsstationen.
+
+---
+
+### 🤝 Verträge
+
+Anzeige der im Spiel verfügbaren bzw. aktiven Verträge mit den von FS25 bereitgestellten Informationen, beispielsweise:
+
+- Vertragstyp
+- Feld
+- Fortschritt
+- Belohnung, sofern verfügbar
+- Aktivstatus
+
+Einzelne Werte werden von FS25 erst zur Laufzeit berechnet und können je nach Vertragstyp unterschiedlich vollständig sein.
+
+---
+
+### 📋 AutoDrive-Marker
+
+Dieser Bereich ist nur sichtbar, wenn der ausgewählte Spielstand AutoDrive-Daten enthält.
+
+Funktionen:
+
+- Marker nach Gruppen anzeigen
+- Gruppen ein- und ausklappen
+- Marker umbenennen
+- Gruppen ändern
+- Mehrfachauswahl
+- Marker löschen
+- Gruppen auflösen
+- JSON-Import und -Export
+- Änderungen sicher speichern
+
+---
+
+### 🗺️ AutoDrive-Karte und Routen-Editor
+
+Visueller Editor für das AutoDrive-Wegpunktnetz.
+
+Unterstützt werden unter anderem:
+
+- komplettes Wegpunktnetz anzeigen
+- zoomen und verschieben
+- zu Markern springen
+- Route zeichnen
+- an bestehende Punkte andocken
+- Wegpunkte verschieben
+- Verbindungen trennen
+- Wegpunkte löschen
+- Wegpunkt als Marker anlegen
+- Rückgängig-Funktion
+- getrennte Netzbereiche prüfen
+- optionales Karten-Hintergrundbild
+- manuelle Bildausrichtung
+
+Änderungen werden erst mit **Route speichern** in die AutoDrive-Datei geschrieben.
+
+---
+
+### 💾 Backups
+
+Vor schreibenden AutoDrive-Operationen werden Sicherungen angelegt.
+
+Unterstützt werden:
+
+- automatische Backups
+- Backup-Liste
+- Wiederherstellung
+- Begrenzung der Anzahl alter Sicherungen
+
+Backups liegen im lokalen Ordner:
+
+```text
+backups/
+```
+
+---
+
+### 🧰 System
+
+Der System-Tab hilft bei der Diagnose der lokalen PHP-Umgebung, Pfade und benötigten Komponenten.
+
+---
+
+## Welche Daten sind live?
+
+| Bereich | Quelle |
+|---|---|
+| Felder | Lua-Mod / `liveData.json` |
+| Fuhrpark | Lua-Mod / `liveData.json` |
+| Tiere / Tierhaltungen | Lua-Mod / `liveData.json` |
+| Bienen | Lua-Mod / `liveData.json` |
+| Produktionen | Lua-Mod / `liveData.json` |
+| Marktpreise | Lua-Mod / echte FS25-Verkaufsstationen |
+| Verträge | FS25-Laufzeitdaten bzw. Spielstand, abhängig vom verfügbaren Wert |
+| AutoDrive-Marker | `AutoDrive_config.xml` |
+| AutoDrive-Routen | `AutoDrive_config.xml` |
+| Karten-Hintergrund | lokales Dashboard-Asset |
+| Backups | lokaler Dashboard-Ordner |
+
+Der Live-Export wird standardmäßig alle **15 Sekunden** aktualisiert.
+
+---
+
+## Voraussetzungen
+
+### Farming Simulator 25
+
+Das Dashboard ist für die PC-Version von Farming Simulator 25 ausgelegt.
+
+### PHP
+
+Benötigt wird eine lokale PHP-Installation mit CLI-Unterstützung.
+
+Für den Upload bzw. die Verarbeitung von Karten-Hintergrundbildern wird zusätzlich die PHP-Erweiterung **GD** benötigt.
+
+Prüfen:
+
+```powershell
+php -v
+php -m
+```
+
+### Live-Export-Mod
+
+Für die Live-Bereiche wird der separate Mod **FS25_AutoDriveFlurkarte** benötigt.
+
+Der Mod schreibt seine Daten nach:
+
+```text
+<My Games>/FarmingSimulator2025/modSettings/AutoDriveFlurkarte/liveData.json
+```
+
+### AutoDrive
+
+AutoDrive ist **nicht** für die allgemeinen Live-Dashboard-Funktionen erforderlich.
+
+Nur die Bereiche **Marker** und **Karte / Routen-Editor** benötigen eine AutoDrive-Konfiguration im ausgewählten Spielstand.
+
+---
+
+## Installation
+
+### 1. Repository klonen
+
+```powershell
+git clone https://github.com/philvangaatd/LS25_Dashboard.git
+cd LS25_Dashboard
+```
+
+Oder einen bereits vorhandenen lokalen Checkout aktualisieren:
+
+```powershell
+git pull
+```
+
+### 2. FS25-Basisordner prüfen
+
+Das Dashboard versucht standardmäßig folgenden Pfad zu verwenden:
+
+```text
+%USERPROFILE%\Documents\My Games\FarmingSimulator2025
+```
+
+Falls dein Ordner an einer anderen Stelle liegt – beispielsweise durch OneDrive oder eine manuelle Verlagerung – kannst du ihn in `config.php` setzen:
+
+```php
+define('FS_BASE_DIR_OVERRIDE', 'D:\\Spiele\\FarmingSimulator2025');
+```
+
+### 3. Optional: FS25-Installationsordner
+
+Für Funktionen, die auf Dateien offizieller Karten zugreifen müssen, versucht das Tool übliche Steam-Pfade automatisch zu erkennen.
+
+Bei Bedarf kann der Pfad ebenfalls in `config.php` überschrieben werden.
+
+### 4. Server starten
+
+Im Projektordner:
+
+```powershell
+php -S localhost:8000
+```
+
+Dann im Browser öffnen:
+
+```text
+http://localhost:8000
+```
+
+---
+
+## Spielstand auswählen
+
+Beim Start bzw. über **Spielstand wechseln** zeigt das Dashboard die gefundenen Spielstände an.
+
+Ein Spielstand ohne AutoDrive-Konfiguration kann trotzdem für die normalen Dashboard-Funktionen verwendet werden. Marker und Karteneditor werden in diesem Fall ausgeblendet.
+
+---
+
+## Live-Datenfluss
+
+Der gewünschte Architektur-Grundsatz des Projekts lautet:
+
+```text
+Lua -> liveData.json -> PHP -> Frontend
+```
+
+### Lua
+
+Der Mod spricht direkt mit den FS25-Systemen und sammelt den aktuellen Zustand.
+
+### `liveData.json`
+
+Transportiert die bereits ermittelten Live-Daten in einem lokalen JSON-Format.
+
+### PHP
+
+PHP übernimmt unter anderem:
+
+- Datei lesen
+- Daten validieren
+- Werte normalisieren
+- auf den aktuellen Hof filtern
+- API-Antworten für das Frontend erzeugen
+
+PHP soll keine konkurrierende Interpretation der FS25-Spiellogik aufbauen.
+
+### Frontend
+
+Das Frontend ist für Darstellung, Filterung, Sortierung und Interaktion zuständig.
+
+---
+
+## Map-Kompatibilität
+
+Das Dashboard ist **map-agnostisch** konzipiert.
+
+Es verwendet die von FS25 zur Laufzeit registrierten Systeme statt feste Listen für bestimmte Karten. Dadurch funktionieren grundsätzlich auch Mod-Maps mit beispielsweise:
+
+- eigenen Feldern
+- zusätzlichen Fruchtarten
+- eigenen FillTypes
+- zusätzlichen Verkaufsstellen
+- eigenen Produktionen
+- eigenen Tierhaltungen
+
+Die praktische Voraussetzung ist, dass die Map bzw. der verwendete Mod die normalen GIANTS-FS25-Systeme und Registries verwendet.
+
+Eine pauschale Garantie für jede beliebige Mod-Map kann es nicht geben. Komplett selbst entwickelte Systeme, die die üblichen FS25-APIs umgehen, können zusätzliche Adapter benötigen.
+
+---
+
+## Mod-Kompatibilität
+
+Dasselbe Prinzip gilt für Fahrzeuge und Placeables.
+
+Standardskonforme Mod-Fahrzeuge und Geräte können automatisch über ihre laufenden Vehicle-Objekte ausgewertet werden. Dadurch funktionieren auch zusätzliche:
+
+- Marken
+- Fahrzeuge
+- Anhänger
+- Geräte
+- FillTypes
+- Kraftstoffarten
+
+Spezielle Mods können eigene Logik verwenden, die nicht über die üblichen FS25-Schnittstellen erreichbar ist. Für solche Fälle enthält der Live-Export Diagnosedaten, damit fehlende Objekte gezielt untersucht werden können.
+
+---
 
 ## Datensicherheit
-- **Dirty-Tracking** für Marker UND Route: Warnung beim Spielstand-Wechsel, Tab-Wechsel,
-  Neu-Laden oder Schließen des Browser-Tabs
-- **Marker-Schutz**: Ein Wegpunkt, der von einem Marker referenziert wird, kann nicht
-  gelöscht werden – die Route-Speicherung wird mit klarer Fehlermeldung abgelehnt
-- **Automatisches Backup** vor jedem Speichern und jeder Wiederherstellung, im
-  Unterordner `backups/` (max. 20 pro Spielstand, ältere werden automatisch gelöscht,
-  kollisionssicher durch Millisekunden-Zeitstempel)
-- **Backup-Verwaltung** über den Button "🕓 Backups": Liste aller Sicherungen mit
-  Datum/Größe, einzelne Stände per Klick wiederherstellen
 
-## Sicherheit
-- Jeder Speichervorgang validiert Daten serverseitig (Wegpunkt-IDs, Marker-Referenzen)
-- Beim Marker-Speichern wird nur der `<mapmarker>`-Block neu geschrieben; beim
-  Routen-Speichern nur der `<waypoints>`-Block – nichts anderes wird angefasst
-- `incoming`-Verbindungen werden beim Speichern automatisch aus `out` neu berechnet,
-  das verhindert inkonsistente Daten
-- Backup-Dateinamen werden serverseitig streng geprüft (kein Path-Traversal möglich)
-- Hintergrundbild-Uploads werden serverseitig auf Dateityp (nur PNG/JPEG/WEBP) und
-  Größe (max. 25 MB) geprüft, per GD neu kodiert (kein Durchreichen fremden Codes) und
-  ausschließlich unter einem aus dem Spielstand-Namen abgeleiteten Dateinamen in
-  `assets/` abgelegt
-- Falls etwas schiefgeht: über "🕓 Backups" den letzten Stand zurückspielen, oder
-  manuell die neueste Datei aus `backups/` nach `AutoDrive_config.xml` kopieren
+Der Live-Mod liest den Spielzustand und schreibt ausschließlich seine eigene `liveData.json`.
 
-## Bekannte Einschränkungen
-- Vertragsbelohnungen werden im Spielstand teils erst zur Laufzeit vom Spiel berechnet
-  und sind dann im Verträge-Tab nicht sichtbar (kein Fehler, sondern Spielverhalten)
-- Die Feld-Arbeitsschritte im Felder-Tab sind eine grobe, verallgemeinerte Annäherung
-  anhand der gespeicherten Werte, keine exakte Simulation der Spiellogik
+Das Dashboard verändert den Spielstand nur bei ausdrücklich ausgelösten schreibenden Funktionen, insbesondere im AutoDrive-Bereich.
+
+Sicherheitsmechanismen umfassen unter anderem:
+
+- Dirty-Tracking für ungespeicherte Änderungen
+- Warnungen vor dem Verlassen bearbeiteter Ansichten
+- Validierung von Marker- und Wegpunktdaten
+- Schutz referenzierter Marker-Wegpunkte
+- automatische Backups
+- eingeschränkte und validierte Dateinamen
+- kontrollierte Bild-Uploads
+
+---
+
+## Projektstruktur
+
+```text
+LS25_Dashboard/
+├─ api.php          # PHP-API und Dateizugriffe
+├─ config.php       # Pfade und lokale Konfiguration
+├─ index.html       # Dashboard-Frontend
+├─ assets/          # Kartenbilder und weitere Assets
+├─ backups/         # lokale Sicherungen
+└─ README.md
+```
+
+Der Live-Mod befindet sich in einem separaten Repository.
+
+---
+
+## Fehlerdiagnose
+
+### Dashboard zeigt keine Live-Daten
+
+Prüfen:
+
+1. Ist der Live-Mod im aktuellen Spielstand aktiviert?
+2. Läuft der Spielstand bereits vollständig?
+3. Existiert `modSettings/AutoDriveFlurkarte/liveData.json`?
+4. Wird die Datei etwa alle 15 Sekunden aktualisiert?
+5. Zeigt der System-Tab den korrekten FS25-Basisordner?
+
+### `liveData.json` ist leer oder unvollständig
+
+Zusätzlich die FS25-Datei `log.txt` prüfen.
+
+Der Mod exportiert für mehrere Bereiche Diagnosedaten, beispielsweise für Fahrzeuge und Tierhaltungen. Dadurch lässt sich unterscheiden, ob ein Objekt:
+
+- gar nicht von FS25 registriert wurde,
+- gefunden, aber übersprungen wurde,
+- oder bei der Verarbeitung einen Fehler ausgelöst hat.
+
+### Spielstand-Ordner wird nicht gefunden
+
+`FS_BASE_DIR_OVERRIDE` in `config.php` setzen.
+
+### Marker / Karte fehlen
+
+Der ausgewählte Spielstand besitzt wahrscheinlich keine AutoDrive-Konfiguration. Die Live-Funktionen des Dashboards können trotzdem verwendet werden.
+
+---
+
+## Entwicklungsstatus
+
+Das Projekt wird aktiv weiterentwickelt. Die Architektur wird schrittweise so vereinheitlicht, dass Live-Zustände möglichst ausschließlich über den Mod geliefert werden und alte bzw. doppelte Interpretationen in PHP entfernt werden.
+
+Aktueller Schwerpunkt:
+
+- robuste Live-Erkennung über unterschiedliche Basegame- und Mod-Maps
+- vollständige Tier- und Produktionsdaten
+- saubere Diagnose exotischer Mod-Fahrzeuge und Placeables
+- weitere Bereinigung alter Savegame-Fallbacks, sobald der jeweilige Live-Datenpfad verifiziert ist
