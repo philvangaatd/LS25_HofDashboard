@@ -2291,7 +2291,9 @@ if ($action === 'farm_overview' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         'vehiclesNeedingAttention' => array_slice($vehiclesNeedingAttention, 0, 5),
         'missionsTodayCount'     => $missionsTodayCount,
         'missionsTotalCount'     => count($contracts),
-        'weatherForecast'        => [],
+        'weatherForecast'        => ($folder && $currentDayLive > 0 && isset($dir) && is_dir($dir))
+            ? get_weather_forecast($dir, $currentDayLive, 5)
+            : [],
         'lastSaved'              => $lastSaved,
         'liveStatus'             => $liveData['status'] ?? 'unknown',
         'liveAge'                => $liveData['fileAgeSeconds'] ?? 0,
