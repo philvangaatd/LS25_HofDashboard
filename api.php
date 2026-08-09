@@ -1990,7 +1990,7 @@ if ($action === 'upload_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $assetsDir = __DIR__ . '/assets';
+    $assetsDir = MAP_ASSETS_DIR;
     $destPath = $assetsDir . '/terrain_' . $folder . '.png';
     $result = save_terrain_image_from_path($_FILES['image']['tmp_name'], $destPath);
 
@@ -2103,7 +2103,7 @@ if ($action === 'load_map_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $tmpFile = tempnam(sys_get_temp_dir(), 'mapimg_');
     file_put_contents($tmpFile, $found['data']);
 
-    $assetsDir = __DIR__ . '/assets';
+    $assetsDir = MAP_ASSETS_DIR;
     $destPath = $assetsDir . '/terrain_' . $folder . '.png';
     $result = save_terrain_image_from_path($tmpFile, $destPath);
     @unlink($tmpFile);
@@ -2233,6 +2233,12 @@ if ($action === 'system_check' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         'detail' => BACKUP_DIR,
     ];
 
+    $checks[] = [
+        'label' => 'Kartenbild-Ordner beschreibbar',
+        'status' => is_dir(MAP_ASSETS_DIR) && is_writable(MAP_ASSETS_DIR) ? 'ok' : 'error',
+        'detail' => MAP_ASSETS_DIR,
+    ];
+
     $modsDir = FS_BASE_DIR . DIRECTORY_SEPARATOR . 'mods';
     $checks[] = [
         'label' => 'Mods-Ordner gefunden',
@@ -2258,6 +2264,36 @@ if ($action === 'system_check' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 // ---------------------------------------------------------------
+// Persistentes Kartenhintergrundbild ausliefern. Benutzerbilder werden im
+// App-Datenordner bevorzugt; mitgelieferte Bilder dienen als Fallback.
+// ---------------------------------------------------------------
+if ($action === 'terrain_image' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $folder = (string)($_GET['folder'] ?? '');
+    if (!preg_match('/^savegame\d+$/', $folder)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'invalid_savegame_folder']);
+        exit;
+    }
+
+    $fileName = 'terrain_' . $folder . '.png';
+    $persistentPath = MAP_ASSETS_DIR . DIRECTORY_SEPARATOR . $fileName;
+    $bundledPath = BUNDLED_ASSETS_DIR . DIRECTORY_SEPARATOR . $fileName;
+    $path = is_file($persistentPath) ? $persistentPath : $bundledPath;
+
+    if (!is_file($path)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'terrain_not_found']);
+        exit;
+    }
+
+    header('Content-Type: image/png');
+    header('Content-Length: ' . filesize($path));
+    header('Cache-Control: private, max-age=300');
+    readfile($path);
+    exit;
+}
+
+// ---------------------------------------------------------------
 // Kartenhintergrundbild entfernen
 // ---------------------------------------------------------------
 if ($action === 'delete_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -2268,7 +2304,7 @@ if ($action === 'delete_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $path = __DIR__ . '/assets/terrain_' . $folder . '.png';
+    $path = MAP_ASSETS_DIR . DIRECTORY_SEPARATOR . 'terrain_' . $folder . '.png';
     if (file_exists($path)) @unlink($path);
 
     echo json_encode(['success' => true]);

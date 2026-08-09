@@ -3233,7 +3233,7 @@ function loadTerrainImage(force) {
     const img = new Image();
     img.onload = () => { terrainImg = img; updateTerrainButtons(); populateTerrainAlignInputs(); mapRedraw(); };
     img.onerror = () => { terrainImg = null; updateTerrainButtons(); }; // kein Hintergrundbild vorhanden – Karte funktioniert trotzdem
-    img.src = `assets/terrain_${currentFolder}.png?t=${Date.now()}`; // Cache-Busting, da Dateiname nach Upload gleich bleibt
+    img.src = `api.php?action=terrain_image&folder=${encodeURIComponent(currentFolder)}&t=${Date.now()}`; // Cache-Busting, da Dateiname nach Upload gleich bleibt
 }
 
 function updateTerrainButtons() {

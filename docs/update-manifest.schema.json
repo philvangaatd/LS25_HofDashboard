@@ -3,19 +3,21 @@
   "title": "LS25 Hof-Dashboard Update Manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "channel", "publishedAt", "dashboard", "mod", "compatibility"],
+  "required": ["schemaVersion", "channel", "publishedAt", "launcher", "dashboard", "mod", "compatibility"],
   "properties": {
     "schemaVersion": { "const": 1 },
     "channel": { "enum": ["stable", "beta"] },
     "publishedAt": { "type": "string", "format": "date-time" },
+    "launcher": { "$ref": "#/$defs/componentRelease" },
     "dashboard": { "$ref": "#/$defs/componentRelease" },
     "mod": { "$ref": "#/$defs/componentRelease" },
     "compatibility": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["protocolVersion", "minimumDashboardVersion", "minimumModVersion"],
+      "required": ["protocolVersion", "minimumLauncherVersion", "minimumDashboardVersion", "minimumModVersion"],
       "properties": {
         "protocolVersion": { "type": "integer", "minimum": 1 },
+        "minimumLauncherVersion": { "$ref": "#/$defs/semver" },
         "minimumDashboardVersion": { "$ref": "#/$defs/semver" },
         "minimumModVersion": { "$ref": "#/$defs/semver" }
       }

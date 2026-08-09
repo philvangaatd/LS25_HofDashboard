@@ -1,0 +1,77 @@
+name: Build Windows prototype
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke-test:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build prototype package
+        shell: pwsh
+        run: ./launcher/scripts/build-prototype.ps1
+
+      - name: Exercise persistent user-data layout
+        shell: pwsh
+        run: |
+          $php = Join-Path $PWD "dist\HofDashboard-prototype-win-x64\runtime\php.exe"
+          $phpIni = Join-Path $PWD "dist\HofDashboard-prototype-win-x64\runtime\php.ini"
+          $web = Join-Path $PWD "dist\HofDashboard-prototype-win-x64\web"
+          $fsRoot = Join-Path $env:USERPROFILE "Documents\My Games\FarmingSimulator2025"
+          $dataRoot = Join-Path $env:RUNNER_TEMP "HofDashboard-data-test"
+          New-Item -ItemType Directory -Force -Path $fsRoot, $dataRoot | Out-Null
+          $env:HOF_DASHBOARD_DATA_DIR = $dataRoot
+          Push-Location $web
+          try {
+            & $php -c $phpIni -r '
+              require "config.php";
+              $expectedAssets = getenv("HOF_DASHBOARD_DATA_DIR") . DIRECTORY_SEPARATOR . "assets";
+              if (APP_DATA_DIR !== getenv("HOF_DASHBOARD_DATA_DIR")
+                  || MAP_ASSETS_DIR !== $expectedAssets
+                  || !is_dir(MAP_ASSETS_DIR)
+                  || !is_writable(MAP_ASSETS_DIR)) {
+                  throw new RuntimeException("Persistent app-data layout failed");
+              }
+            '
+            if ($LASTEXITCODE -ne 0) {
+              throw "Persistent user-data validation failed with exit code $LASTEXITCODE."
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Exercise packaged launcher and PHP healthcheck
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD "dist\HofDashboard-prototype-win-x64\HofDashboard.exe"
+          $process = Start-Process -FilePath $exe -ArgumentList "--smoke-test" -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            $log = Join-Path $env:LOCALAPPDATA "HofDashboard\logs\launcher.log"
+            if (Test-Path $log) {
+              Get-Content $log
+            }
+            throw "Launcher smoke test failed with exit code $($process.ExitCode)."
+          }
+
+      - name: Upload Windows prototype
+        uses: actions/upload-artifact@v4
+        with:
+          name: HofDashboard-prototype-win-x64
+          path: dist/HofDashboard-prototype-win-x64.zip
+          if-no-files-found: error
+          retention-days: 14
