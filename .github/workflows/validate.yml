@@ -69,3 +69,27 @@ jobs:
               throw new RuntimeException("External backup directory is not writable");
           }
           '
+
+      - name: Assemble dashboard test package
+        if: github.event_name == 'pull_request'
+        run: |
+          mkdir -p dist/HofDashboard
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='dist/' \
+            ./ dist/HofDashboard/
+          test -f dist/HofDashboard/index.html
+          test -f dist/HofDashboard/api.php
+          test -f dist/HofDashboard/health.php
+          test -f dist/HofDashboard/app-manifest.json
+          test ! -e dist/HofDashboard/.github
+
+      - name: Upload dashboard test package
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: HofDashboard-test
+          path: dist/HofDashboard/
+          if-no-files-found: error
+          retention-days: 14
