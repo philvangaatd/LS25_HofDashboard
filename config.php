@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/version.php';
+
 // -----------------------------------------------------------------
 // Basis-Ordner mit allen Spielständen.
 //
@@ -29,8 +31,24 @@ if (FS_BASE_DIR === '' || !is_dir(FS_BASE_DIR)) {
     exit;
 }
 
+// Basisordner für veränderliche App-Daten. Ohne Umgebungsvariable bleibt das
+// bisherige Verhalten vollständig erhalten. Der spätere Windows-Launcher setzt
+// HOF_DASHBOARD_DATA_DIR auf %LOCALAPPDATA%\\HofDashboard.
+$appDataOverride = trim((string)(getenv('HOF_DASHBOARD_DATA_DIR') ?: ''));
+$appDataDir = $appDataOverride !== '' ? rtrim($appDataOverride, "/\\") : __DIR__;
+define('APP_DATA_DIR', $appDataDir !== '' ? $appDataDir : __DIR__);
+
+if (!is_dir(APP_DATA_DIR)
+    && !mkdir(APP_DATA_DIR, 0777, true)
+    && !is_dir(APP_DATA_DIR)) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo "App-Datenordner konnte nicht erstellt werden: " . APP_DATA_DIR;
+    exit;
+}
+
 // Ordner für automatische Backups vor jedem Speichern
-define('BACKUP_DIR', __DIR__ . '/backups');
+define('BACKUP_DIR', APP_DATA_DIR . DIRECTORY_SEPARATOR . 'backups');
 if (!is_dir(BACKUP_DIR)) {
     mkdir(BACKUP_DIR, 0777, true);
 }

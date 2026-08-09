@@ -45,6 +45,50 @@ function get_live_data_file_path(): string
 }
 
 /**
+ * Prüft den Datenvertrag zwischen Dashboard und Live-Mod.
+ *
+ * v5.0.0 hatte noch kein explizites protocolVersion-Feld. Diese eine bekannte
+ * Legacy-Version wird als Protokoll 1 behandelt, damit ein getrenntes Update von
+ * Dashboard und Mod den aktuell funktionierenden Stand nicht unterbricht.
+ */
+function get_live_mod_compatibility(array $data): array {
+    $modVersion = (string)($data['version'] ?? '');
+    $hasExplicitProtocol = array_key_exists('protocolVersion', $data);
+    $protocolVersion = $hasExplicitProtocol
+        ? (int)$data['protocolVersion']
+        : (($modVersion !== '' && version_compare($modVersion, '5.0.0', '>=')) ? 1 : 0);
+
+    $status = 'compatible';
+    $message = 'Dashboard und Live-Mod verwenden einen kompatiblen Datenvertrag.';
+
+    if ($modVersion === '' || version_compare($modVersion, HOF_DASHBOARD_MIN_MOD_VERSION, '<')) {
+        $status = 'mod_too_old';
+        $message = 'Die Live-Mod ist älter als die vom Dashboard unterstützte Mindestversion.';
+    } elseif ($protocolVersion < HOF_DASHBOARD_PROTOCOL_MIN) {
+        $status = 'protocol_too_old';
+        $message = 'Das Datenprotokoll der Live-Mod ist für dieses Dashboard zu alt.';
+    } elseif ($protocolVersion > HOF_DASHBOARD_PROTOCOL_MAX) {
+        $status = 'protocol_too_new';
+        $message = 'Das Datenprotokoll der Live-Mod ist neuer als dieses Dashboard unterstützt.';
+    }
+
+    return [
+        'status' => $status,
+        'isCompatible' => $status === 'compatible',
+        'message' => $message,
+        'modVersion' => $modVersion,
+        'protocolVersion' => $protocolVersion,
+        'protocolSource' => $hasExplicitProtocol ? 'mod' : 'legacy_v5_assumption',
+        'dashboardVersion' => HOF_DASHBOARD_VERSION,
+        'supportedProtocol' => [
+            'min' => HOF_DASHBOARD_PROTOCOL_MIN,
+            'max' => HOF_DASHBOARD_PROTOCOL_MAX,
+        ],
+        'minimumModVersion' => HOF_DASHBOARD_MIN_MOD_VERSION,
+    ];
+}
+
+/**
  * Liest die vom FS25-Mod geschriebene liveData.json und gibt sie zurück.
  * Liefert immer ein strukturiertes Array – auch im Fehlerfall.
  *
@@ -85,6 +129,8 @@ function get_live_mod_data(): array {
             'message'        => 'JSON-Parse-Fehler: ' . json_last_error_msg(),
         ];
     }
+
+    $data['compatibility'] = get_live_mod_compatibility($data);
 
     // Datei älter als 120 Sekunden → Spiel wahrscheinlich pausiert oder geschlossen
     $data['status']         = ($fileAge > 120) ? 'stale' : 'ok';
@@ -2119,6 +2165,23 @@ if ($action === 'system_check' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $checks = [];
 
     $checks[] = [
+        'label' => 'Dashboard-Version',
+        'status' => 'ok',
+        'detail' => HOF_DASHBOARD_VERSION
+            . ' · API-Protokoll '
+            . HOF_DASHBOARD_PROTOCOL_MIN
+            . (HOF_DASHBOARD_PROTOCOL_MAX !== HOF_DASHBOARD_PROTOCOL_MIN
+                ? ('–' . HOF_DASHBOARD_PROTOCOL_MAX)
+                : ''),
+    ];
+
+    $checks[] = [
+        'label' => 'App-Datenordner',
+        'status' => is_dir(APP_DATA_DIR) && is_writable(APP_DATA_DIR) ? 'ok' : 'error',
+        'detail' => APP_DATA_DIR,
+    ];
+
+    $checks[] = [
         'label' => 'PHP-Version',
         'status' => version_compare(PHP_VERSION, '8.0.0', '>=') ? 'ok' : 'warn',
         'detail' => PHP_VERSION,
@@ -3134,7 +3197,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ---------------------------------------------------------------
-// Live-Daten aus Mod-Export lesen (modSettings/AutoDriveFlurkarte/liveData.json)
+// Live-Daten aus Mod-Export lesen (modSettings/LS25HofDashboard/liveData.json)
 // ---------------------------------------------------------------
 if ($action === 'live_data') {
     echo json_encode(get_live_mod_data());

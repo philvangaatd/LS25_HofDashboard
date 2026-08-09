@@ -1,0 +1,95 @@
+name: Validate dashboard
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show PHP version
+        run: php --version
+
+      - name: Validate PHP syntax
+        run: |
+          find . -maxdepth 1 -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Validate local app manifest
+        run: |
+          php -r '
+          $manifest = json_decode(file_get_contents("app-manifest.json"), true, 512, JSON_THROW_ON_ERROR);
+          if (($manifest["version"] ?? null) !== "5.0.0") {
+              throw new RuntimeException("Unexpected dashboard version");
+          }
+          if (($manifest["apiProtocol"]["min"] ?? null) !== 1
+              || ($manifest["apiProtocol"]["max"] ?? null) !== 1) {
+              throw new RuntimeException("Unexpected API protocol range");
+          }
+          require "version.php";
+          if (HOF_DASHBOARD_VERSION !== $manifest["version"]) {
+              throw new RuntimeException("PHP constants and app manifest differ");
+          }
+          '
+
+      - name: Validate update manifest JSON files
+        run: |
+          php -r 'json_decode(file_get_contents("docs/update-manifest.schema.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("docs/update-manifest.example.json"), true, 512, JSON_THROW_ON_ERROR);'
+
+      - name: Exercise launcher healthcheck
+        run: |
+          php health.php | php -r '
+          $health = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
+          if (($health["status"] ?? null) !== "ok"
+              || ($health["version"] ?? null) !== "5.0.0") {
+              throw new RuntimeException("Launcher healthcheck contract failed");
+          }
+          '
+
+      - name: Exercise external app data directory
+        run: |
+          test_root="$(mktemp -d)"
+          mkdir -p "$test_root\\Documents\\My Games\\FarmingSimulator2025"
+          USERPROFILE="$test_root" HOF_DASHBOARD_DATA_DIR="$test_root/app-data" php -r '
+          require "config.php";
+          $expected = getenv("HOF_DASHBOARD_DATA_DIR");
+          if (APP_DATA_DIR !== $expected || BACKUP_DIR !== $expected . DIRECTORY_SEPARATOR . "backups") {
+              throw new RuntimeException("External app data directory was not applied");
+          }
+          if (!is_dir(BACKUP_DIR) || !is_writable(BACKUP_DIR)) {
+              throw new RuntimeException("External backup directory is not writable");
+          }
+          '
+
+      - name: Assemble dashboard test package
+        if: github.event_name == 'pull_request'
+        run: |
+          mkdir -p dist/HofDashboard
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='dist/' \
+            ./ dist/HofDashboard/
+          test -f dist/HofDashboard/index.html
+          test -f dist/HofDashboard/api.php
+          test -f dist/HofDashboard/health.php
+          test -f dist/HofDashboard/app-manifest.json
+          test ! -e dist/HofDashboard/.github
+
+      - name: Upload dashboard test package
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: HofDashboard-test
+          path: dist/HofDashboard/
+          if-no-files-found: error
+          retention-days: 14

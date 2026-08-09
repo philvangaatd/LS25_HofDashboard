@@ -288,6 +288,24 @@ Der Live-Export wird standardmäßig alle **15 Sekunden** aktualisiert.
 
 ---
 
+## Vorbereitung für Windows-App und Updates
+
+Der aktuelle Browserbetrieb bleibt unverändert. Zusätzlich besitzt das Projekt jetzt
+stabile Schnittstellen für den späteren Windows-Launcher:
+
+- `app-manifest.json` ist die lokale, maschinenlesbare Quelle für Dashboard-Version,
+  Datenlayout und unterstütztes Mod-Protokoll.
+- `health.php` liefert einen vom Spielstand unabhängigen Healthcheck für den Launcher.
+- `HOF_DASHBOARD_DATA_DIR` kann vom Launcher auf einen beschreibbaren Benutzerordner
+  gesetzt werden. Ohne die Variable liegen Backups weiterhin wie bisher im Projektordner.
+- Die Live-Daten enthalten eine `protocolVersion`; das Dashboard meldet dazu einen
+  Kompatibilitätsstatus, ohne bestehende API-Felder zu verändern.
+
+Das eigentliche automatische Update und der Installer folgen in einem späteren Schritt.
+Der vorgesehene Remote-Vertrag ist in `docs/update-manifest.schema.json` dokumentiert.
+
+---
+
 ## Voraussetzungen
 
 ### Farming Simulator 25
@@ -477,7 +495,10 @@ Sicherheitsmechanismen umfassen unter anderem:
 ```text
 LS25_HofDashboard/
 ├─ api.php          # PHP-API und Dateizugriffe
+├─ app-manifest.json # lokale Versions- und Protokollinformationen
 ├─ config.php       # Pfade und lokale Konfiguration
+├─ health.php       # Healthcheck für den späteren Windows-Launcher
+├─ version.php      # validierter Zugriff auf das App-Manifest
 ├─ index.html       # Dashboard-Frontend
 ├─ assets/          # Kartenbilder und weitere Assets
 ├─ backups/         # lokale Sicherungen
