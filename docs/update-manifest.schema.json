@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LS25 Hof-Dashboard Update Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "channel", "publishedAt", "dashboard", "mod", "compatibility"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "channel": { "enum": ["stable", "beta"] },
+    "publishedAt": { "type": "string", "format": "date-time" },
+    "dashboard": { "$ref": "#/$defs/componentRelease" },
+    "mod": { "$ref": "#/$defs/componentRelease" },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "minimumDashboardVersion", "minimumModVersion"],
+      "properties": {
+        "protocolVersion": { "type": "integer", "minimum": 1 },
+        "minimumDashboardVersion": { "$ref": "#/$defs/semver" },
+        "minimumModVersion": { "$ref": "#/$defs/semver" }
+      }
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "componentRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "downloadUrl", "sha256", "sizeBytes"],
+      "properties": {
+        "version": { "$ref": "#/$defs/semver" },
+        "downloadUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "sizeBytes": { "type": "integer", "minimum": 1 },
+        "releaseNotesUrl": { "type": "string", "format": "uri", "pattern": "^https://" }
+      }
+    }
+  }
+}
