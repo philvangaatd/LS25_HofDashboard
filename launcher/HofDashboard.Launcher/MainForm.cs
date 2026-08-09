@@ -157,7 +157,7 @@ internal sealed class MainForm : Form
         }
 
         _loadingPanel.StopAnimation();
-        _loadingPanel.Message = "Das Hof-Dashboard konnte nicht gestartet werden.";
+        _loadingPanel.SetMessage("Das Hof-Dashboard konnte nicht gestartet werden.");
         var message = $"Das Hof-Dashboard konnte nicht gestartet werden.\n\n{exception.Message}";
         if (!string.IsNullOrWhiteSpace(logPath))
         {

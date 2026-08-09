@@ -34,14 +34,10 @@ internal sealed class LoadingView : Control
         _animationTimer.Start();
     }
 
-    public string Message
+    internal void SetMessage(string message)
     {
-        get => _message;
-        set
-        {
-            _message = value;
-            Invalidate();
-        }
+        _message = message;
+        Invalidate();
     }
 
     public void StopAnimation()
