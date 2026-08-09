@@ -101,9 +101,9 @@ $launcherManifest = Get-Content -Raw -LiteralPath (Join-Path $launcherRoot "laun
 $dashboardManifest = Get-Content -Raw -LiteralPath (Join-Path $webDirectory "app-manifest.json") | ConvertFrom-Json
 [xml]$projectXml = Get-Content -Raw -LiteralPath $project
 $projectVersion = [string]$projectXml.Project.PropertyGroup.Version
-if ($launcherManifest.version -ne $projectVersion
-    -or $launcherManifest.phpVersion -ne $phpVersion
-    -or $launcherManifest.dashboardVersion -ne $dashboardManifest.version) {
+if (($launcherManifest.version -ne $projectVersion) -or
+    ($launcherManifest.phpVersion -ne $phpVersion) -or
+    ($launcherManifest.dashboardVersion -ne $dashboardManifest.version)) {
     throw "Launcher, PHP and dashboard version manifests are inconsistent."
 }
 
