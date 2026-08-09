@@ -16,11 +16,32 @@ header('Content-Type: application/json; charset=utf-8');
  * Funktioniert auf jedem Windows-Rechner ohne feste Pfade dank USERPROFILE-Variable.
  * Für Linux/Mac (zukünftige Nutzung) wird ein alternativer Pfad zurückgegeben.
  */
-function get_live_data_file_path(): string {
+function get_legacy_live_data_file_path(): string {
     return rtrim(FS_BASE_DIR, "/\\")
          . DIRECTORY_SEPARATOR . 'modSettings'
          . DIRECTORY_SEPARATOR . 'AutoDriveFlurkarte'
          . DIRECTORY_SEPARATOR . 'liveData.json';
+}
+
+function get_live_data_file_path(): string
+{
+    $legacyPath = get_legacy_live_data_file_path();
+    $needle = DIRECTORY_SEPARATOR . 'AutoDriveFlurkarte' . DIRECTORY_SEPARATOR;
+    $replacement = DIRECTORY_SEPARATOR . 'LS25HofDashboard' . DIRECTORY_SEPARATOR;
+    $primaryPath = str_replace($needle, $replacement, $legacyPath);
+
+    if (is_file($primaryPath)) {
+        return $primaryPath;
+    }
+
+    // Übergangs-Fallback für Installationen vor v5.0.0. Sobald die neue Mod
+    // mindestens einmal exportiert hat, wird automatisch ausschließlich der
+    // neue LS25HofDashboard-Pfad verwendet.
+    if (is_file($legacyPath)) {
+        return $legacyPath;
+    }
+
+    return $primaryPath;
 }
 
 /**
@@ -40,7 +61,7 @@ function get_live_mod_data(): array {
             'status'         => 'no_mod',
             'fileAgeSeconds' => 0,
             'message'        => 'Mod nicht aktiv oder Spiel läuft nicht. '
-                              . 'Bitte FS25_AutoDriveFlurkarte-Mod aktivieren und Spiel starten.',
+                              . 'Bitte FS25_HofDashboard-Mod aktivieren und Spiel starten.',
             'filePath'       => $filePath,
         ];
     }
@@ -2286,7 +2307,7 @@ if ($action === 'fields_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $liveFields = $liveData['fields'] ?? [];
 
     if (($liveData['status'] ?? 'error') === 'no_mod' || empty($liveFields)) {
-        echo json_encode(['error' => 'Mod nicht aktiv. FS25_AutoDriveFlurkarte aktivieren und Spiel starten.']);
+        echo json_encode(['error' => 'Mod nicht aktiv. FS25_HofDashboard aktivieren und Spiel starten.']);
         exit;
     }
 
@@ -2464,7 +2485,7 @@ function get_environment_info(string $dir): array {
 if ($action === 'vehicles_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $liveData = get_live_mod_data();
     if (($liveData['status'] ?? 'error') === 'no_mod') {
-        echo json_encode(['error' => 'Mod nicht aktiv. FS25_AutoDriveFlurkarte aktivieren und Spiel starten.']);
+        echo json_encode(['error' => 'Mod nicht aktiv. FS25_HofDashboard aktivieren und Spiel starten.']);
         exit;
     }
 
@@ -2588,7 +2609,7 @@ if ($action === 'animals_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $liveData = get_live_mod_data();
 
     if (($liveData['status'] ?? 'error') === 'no_mod') {
-        echo json_encode(['error' => 'Mod nicht aktiv. FS25_AutoDriveFlurkarte aktivieren und Spiel starten.']);
+        echo json_encode(['error' => 'Mod nicht aktiv. FS25_HofDashboard aktivieren und Spiel starten.']);
         exit;
     }
     if (($liveData['status'] ?? 'error') === 'error') {

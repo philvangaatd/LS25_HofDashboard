@@ -1,3 +1,13 @@
+## Migration auf v5
+
+Seit v5 heißt der Live-Connector **FS25_HofDashboard** und schreibt nach:
+
+```text
+modSettings/LS25HofDashboard/liveData.json
+```
+
+Das Dashboard bevorzugt diesen neuen Pfad. Für die Übergangsphase kann es eine bereits vorhandene v4-Datei aus dem alten Settings-Verzeichnis weiterhin lesen. Sobald v5 einmal erfolgreich exportiert hat, wird automatisch der neue Pfad verwendet.
+
 # LS25 Hof-Dashboard
 
 Lokales Web-Dashboard für **Farming Simulator 25** mit Live-Daten aus dem laufenden Spiel, AutoDrive-Verwaltung und Werkzeugen für den aktuellen Spielstand.
@@ -8,7 +18,7 @@ Das Projekt verfolgt eine klare Datenarchitektur:
 Farming Simulator 25
         │
         ▼
-FS25_AutoDriveFlurkarte (Lua-Mod)
+FS25_HofDashboard (Lua-Mod)
         │
         ▼
 liveData.json
@@ -299,12 +309,12 @@ php -m
 
 ### Live-Export-Mod
 
-Für die Live-Bereiche wird der separate Mod **FS25_AutoDriveFlurkarte** benötigt.
+Für die Live-Bereiche wird der separate Mod **FS25_HofDashboard** benötigt.
 
 Der Mod schreibt seine Daten nach:
 
 ```text
-<My Games>/FarmingSimulator2025/modSettings/AutoDriveFlurkarte/liveData.json
+<My Games>/FarmingSimulator2025/modSettings/LS25HofDashboard/liveData.json
 ```
 
 ### AutoDrive
@@ -320,8 +330,8 @@ Nur die Bereiche **Marker** und **Karte / Routen-Editor** benötigen eine AutoDr
 ### 1. Repository klonen
 
 ```powershell
-git clone https://github.com/philvangaatd/LS25_Dashboard.git
-cd LS25_Dashboard
+git clone https://github.com/philvangaatd/LS25_HofDashboard.git
+cd LS25_HofDashboard
 ```
 
 Oder einen bereits vorhandenen lokalen Checkout aktualisieren:
@@ -465,7 +475,7 @@ Sicherheitsmechanismen umfassen unter anderem:
 ## Projektstruktur
 
 ```text
-LS25_Dashboard/
+LS25_HofDashboard/
 ├─ api.php          # PHP-API und Dateizugriffe
 ├─ config.php       # Pfade und lokale Konfiguration
 ├─ index.html       # Dashboard-Frontend
@@ -486,7 +496,7 @@ Prüfen:
 
 1. Ist der Live-Mod im aktuellen Spielstand aktiviert?
 2. Läuft der Spielstand bereits vollständig?
-3. Existiert `modSettings/AutoDriveFlurkarte/liveData.json`?
+3. Existiert `modSettings/LS25HofDashboard/liveData.json`?
 4. Wird die Datei etwa alle 15 Sekunden aktualisiert?
 5. Zeigt der System-Tab den korrekten FS25-Basisordner?
 
