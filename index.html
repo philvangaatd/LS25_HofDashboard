@@ -408,6 +408,77 @@
         font-weight: 600;
     }
 
+    /* App-Fenster: Kopfbereich bleibt auch bei schmalen Seitenverhältnissen innerhalb des Viewports. */
+    #mainScreen > .masthead {
+        display: grid;
+        grid-template-columns: auto minmax(160px, 1fr) auto;
+        align-items: center;
+        column-gap: 16px;
+        row-gap: 12px;
+    }
+    #mainScreen > .masthead > .seal {
+        grid-column: 1;
+        grid-row: 1;
+    }
+    #mainScreen > .masthead > .masthead-text {
+        grid-column: 2;
+        grid-row: 1;
+    }
+    #mainScreen > .masthead > .header-actions {
+        grid-column: 3;
+        grid-row: 1;
+        align-self: center;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        margin: 0;
+        min-width: 0;
+    }
+    #mainScreen > .masthead > .tabbar {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        align-self: stretch;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        width: 100%;
+        min-width: 0;
+        gap: 4px 18px;
+    }
+    #mainScreen > .masthead .tab-btn {
+        flex: 0 0 auto;
+        margin-left: 0;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 1180px) {
+        body {
+            padding: 24px 24px 48px;
+        }
+        #mainScreen > .masthead {
+            grid-template-columns: auto minmax(0, 1fr);
+        }
+        #mainScreen > .masthead > .header-actions {
+            grid-column: 1 / -1;
+            grid-row: 2;
+            justify-content: flex-start;
+        }
+        #mainScreen > .masthead > .tabbar {
+            grid-row: 3;
+        }
+    }
+
+    @media (max-width: 700px) {
+        body {
+            padding: 20px 16px 40px;
+        }
+        #mainScreen > .masthead > .tabbar {
+            gap: 2px 10px;
+        }
+        #mainScreen > .masthead .tab-btn {
+            padding-top: 7px;
+            padding-bottom: 9px;
+        }
+    }
+
     /* Kartenansicht */
     .map-wrap {
         border: 1px solid var(--border);
@@ -1613,7 +1684,7 @@
             <div class="toolbar">
                 <button onclick="loadSystemCheck()">↻ Aktualisieren</button>
             </div>
-            <div class="legend-line">Prüft PHP-Erweiterungen, Upload-Limits, Pfade und Schreibrechte – alles, was das Tool intern braucht, auf einen Blick statt erst beim Ausprobieren zu bemerken</div>
+            <div class="legend-line">Zeigt Version, Speicherorte und die Verbindung zu deiner LS25-Installation.</div>
             <div id="systemCheckContainer"></div>
         </div>
 
@@ -1633,7 +1704,81 @@ let hasAutoDrive = false;
 let activeTab = 'home';
 let currentFarmName = '';
 let currentMapTitle = '';
+let userSettings = defaultUserSettings();
+let userSettingsSaveQueue = Promise.resolve();
 const UNGROUPED = '(ohne Gruppe)';
+
+function defaultUserSettings() {
+    return {
+        schemaVersion: 1,
+        terrainAlign: { offsetX: 0, offsetZ: 0, scale: 1 },
+        priceAlerts: {},
+        fieldTasks: {},
+    };
+}
+
+function normalizeUserSettings(raw) {
+    const defaults = defaultUserSettings();
+    if (!raw || typeof raw !== 'object') return defaults;
+
+    const terrain = raw.terrainAlign && typeof raw.terrainAlign === 'object'
+        ? raw.terrainAlign
+        : defaults.terrainAlign;
+    const offsetX = Number(terrain.offsetX);
+    const offsetZ = Number(terrain.offsetZ);
+    const scale = Number(terrain.scale);
+
+    return {
+        schemaVersion: 1,
+        terrainAlign: {
+            offsetX: Number.isFinite(offsetX) ? offsetX : 0,
+            offsetZ: Number.isFinite(offsetZ) ? offsetZ : 0,
+            scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
+        },
+        priceAlerts: raw.priceAlerts && typeof raw.priceAlerts === 'object'
+            ? { ...raw.priceAlerts }
+            : {},
+        fieldTasks: raw.fieldTasks && typeof raw.fieldTasks === 'object'
+            ? { ...raw.fieldTasks }
+            : {},
+    };
+}
+
+async function loadUserSettings(folder) {
+    userSettings = defaultUserSettings();
+    try {
+        const res = await fetch(`api.php?action=user_settings&folder=${encodeURIComponent(folder)}`);
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Einstellungen konnten nicht geladen werden.');
+        userSettings = normalizeUserSettings(data.settings);
+    } catch (error) {
+        console.error('Benutzereinstellungen konnten nicht geladen werden:', error);
+        showToast('Benutzereinstellungen konnten nicht geladen werden.', 'err');
+    }
+}
+
+function persistUserSettings() {
+    const folder = currentFolder;
+    const settings = JSON.parse(JSON.stringify(userSettings));
+    if (!folder) return Promise.resolve();
+
+    userSettingsSaveQueue = userSettingsSaveQueue.then(async () => {
+        const res = await fetch('api.php?action=user_settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folder, settings }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Einstellungen konnten nicht gespeichert werden.');
+    }).catch(error => {
+        console.error('Benutzereinstellungen konnten nicht gespeichert werden:', error);
+        if (currentFolder === folder) {
+            showToast('Benutzereinstellungen konnten nicht gespeichert werden.', 'err');
+        }
+    });
+
+    return userSettingsSaveQueue;
+}
 
 function applyAutoDriveTabVisibility() {
     document.getElementById('tabBtnMarkers').style.display = hasAutoDrive ? '' : 'none';
@@ -1994,7 +2139,7 @@ function updateLiveStatusBadge(data) {
 }
 
 function fieldChecklistKey(fieldId, step) {
-    return `fieldCheck_${currentFolder}_${fieldId}_${step}`;
+    return `${fieldId}:${step}`;
 }
 
 async function loadFieldsData() {
@@ -2067,7 +2212,7 @@ function renderFields() {
 
         const stepsHtml = (field.steps || []).map(step => {
             const key = fieldChecklistKey(field.id, step);
-            const checked = localStorage.getItem(key) === '1' ? 'checked' : '';
+            const checked = userSettings.fieldTasks[key] === true ? 'checked' : '';
             return `
                 <label class="field-step">
                     <input type="checkbox" ${checked} onchange="toggleFieldStep('${escapeAttr(key)}', this)">
@@ -2112,8 +2257,9 @@ function renderFields() {
 }
 
 function toggleFieldStep(key, input) {
-    if (input.checked) localStorage.setItem(key, '1');
-    else localStorage.removeItem(key);
+    if (input.checked) userSettings.fieldTasks[key] = true;
+    else delete userSettings.fieldTasks[key];
+    persistUserSettings();
 }
 
 // =================================================================
@@ -2803,7 +2949,7 @@ function renderMarket() {
 }
 
 function getPriceAlert(fruitType) {
-    const raw = localStorage.getItem(`priceAlert_${currentFolder}_${fruitType}`);
+    const raw = userSettings.priceAlerts[fruitType];
     const val = parseFloat(raw);
     return isNaN(val) ? null : val;
 }
@@ -2816,12 +2962,12 @@ function isAlertHit(m) {
 function updatePriceAlert(input) {
     const fruitType = input.dataset.fruit;
     const value = parseFloat(input.value);
-    const key = `priceAlert_${currentFolder}_${fruitType}`;
     if (!input.value || isNaN(value) || value <= 0) {
-        localStorage.removeItem(key);
+        delete userSettings.priceAlerts[fruitType];
     } else {
-        localStorage.setItem(key, String(value));
+        userSettings.priceAlerts[fruitType] = value;
     }
+    persistUserSettings();
     renderMarket(); // neu sortieren/markieren
     updateMarketBadge(marketCache.filter(m => isAlertHit(m))); // Badge sofort aktualisieren, nicht erst beim nächsten Aktualisieren der Übersicht
 }
@@ -2865,6 +3011,17 @@ async function loadMissionsData() {
 // Systemcheck
 // =================================================================
 const SYSCHECK_ICONS = { ok: '✅', warn: '⚠️', error: '❌', info: 'ℹ️' };
+const HIDDEN_SYSTEM_CHECKS = new Set([
+    'PHP-Version',
+    'Upload-Limit (upload_max_filesize / post_max_size)',
+    'Geladene php.ini',
+    'Zeitzone',
+]);
+
+function isUserFacingSystemCheck(check) {
+    return !HIDDEN_SYSTEM_CHECKS.has(check.label)
+        && !check.label.startsWith('PHP-Erweiterung');
+}
 
 async function loadSystemCheck() {
     const container = document.getElementById('systemCheckContainer');
@@ -2873,7 +3030,7 @@ async function loadSystemCheck() {
     const data = await res.json();
     if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
 
-    container.innerHTML = data.checks.map(c => `
+    container.innerHTML = data.checks.filter(isUserFacingSystemCheck).map(c => `
         <div class="syscheck-row status-${c.status}">
             <span class="syscheck-icon">${SYSCHECK_ICONS[c.status] || '•'}</span>
             <span class="syscheck-label">${escapeHtml(c.label)}</span>
@@ -2976,6 +3133,7 @@ async function selectSavegame(folder) {
     if (data.error) { showToast(data.error, 'err'); return; }
     currentFolder = folder;
     hasAutoDrive = !!data.hasAutoDrive;
+    await loadUserSettings(folder);
     points = new Map(); // Kartendaten für neuen Spielstand neu laden
     undoStack = [];
     orphanHighlightIds = null;
@@ -3233,7 +3391,7 @@ function loadTerrainImage(force) {
     const img = new Image();
     img.onload = () => { terrainImg = img; updateTerrainButtons(); populateTerrainAlignInputs(); mapRedraw(); };
     img.onerror = () => { terrainImg = null; updateTerrainButtons(); }; // kein Hintergrundbild vorhanden – Karte funktioniert trotzdem
-    img.src = `assets/terrain_${currentFolder}.png?t=${Date.now()}`; // Cache-Busting, da Dateiname nach Upload gleich bleibt
+    img.src = `api.php?action=terrain_image&folder=${encodeURIComponent(currentFolder)}&t=${Date.now()}`; // Cache-Busting, da Dateiname nach Upload gleich bleibt
 }
 
 function updateTerrainButtons() {
@@ -3243,25 +3401,16 @@ function updateTerrainButtons() {
 
 // -----------------------------------------------------------------
 // Hintergrundbild hochladen/entfernen + manuelle Ausrichtung
-// Ausrichtung (Versatz X/Z, Skalierung) wird je Spielstand in localStorage
-// gemerkt, da die automatische Wegpunkt-Bounding-Box nicht immer exakt zum
-// eingefärbten Screenshot passt (z. B. wenn der Screenshot nicht die komplette
-// Kartengröße zeigt).
+// Ausrichtung (Versatz X/Z, Skalierung) wird vom lokalen PHP-Endpunkt dauerhaft
+// je Spielstand gespeichert. Das ist unabhängig vom wechselnden Launcher-Port.
 // -----------------------------------------------------------------
-function terrainAlignKey() {
-    return `terrainAlign_${currentFolder}`;
-}
-
 function getTerrainAlign() {
-    try {
-        const raw = localStorage.getItem(terrainAlignKey());
-        if (raw) return JSON.parse(raw);
-    } catch (e) { /* korrupter Wert -> Standard verwenden */ }
-    return { offsetX: 0, offsetZ: 0, scale: 1 };
+    return userSettings.terrainAlign || { offsetX: 0, offsetZ: 0, scale: 1 };
 }
 
 function saveTerrainAlign(align) {
-    localStorage.setItem(terrainAlignKey(), JSON.stringify(align));
+    userSettings.terrainAlign = { ...align };
+    persistUserSettings();
 }
 
 function populateTerrainAlignInputs() {

@@ -306,6 +306,38 @@ Der vorgesehene Remote-Vertrag ist in `docs/update-manifest.schema.json` dokumen
 
 ---
 
+## Windows-Launcher-Prototyp
+
+Unter `launcher/` liegt ein erster nativer Windows-Launcher. Er wird als
+selbstenthaltene .NET-10-x64-Anwendung gebaut und bringt eine verifizierte PHP-8.5-
+Laufzeit mit. Eine systemweit installierte PHP- oder .NET-Version ist deshalb nicht
+erforderlich.
+
+Der Prototyp:
+
+- startet PHP unsichtbar und ausschließlich auf `127.0.0.1`,
+- ermittelt bei jedem Start einen freien lokalen Port,
+- wartet auf den vorhandenen `health.php`-Vertrag,
+- zeigt das Dashboard in einem eigenen WebView2-Fenster,
+- beendet PHP beim Schließen ohne verwaisten Hintergrundprozess,
+- schreibt Backups, Kartenbilder, spielstandsbezogene Benutzereinstellungen,
+  Logs, Sessions und temporäre Dateien unter
+  `%LOCALAPPDATA%\HofDashboard`,
+- und besitzt einen headless `--smoke-test` für GitHub Actions.
+
+Auf Windows mit installiertem .NET-10-SDK kann das Testpaket so gebaut werden:
+
+```powershell
+./launcher/scripts/build-prototype.ps1
+```
+
+GitHub Actions erzeugt in jedem Pull Request zusätzlich das herunterladbare Artefakt
+`HofDashboard-prototype-win-x64`. Installer, Update-Download, Rollback und
+Codesignatur gehören bewusst noch nicht zu diesem ersten Prototyp. Details stehen in
+[`docs/windows-launcher.md`](docs/windows-launcher.md).
+
+---
+
 ## Voraussetzungen
 
 ### Farming Simulator 25

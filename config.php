@@ -53,9 +53,28 @@ if (!is_dir(BACKUP_DIR)) {
     mkdir(BACKUP_DIR, 0777, true);
 }
 
+// Nutzerentscheidungen wie Karten-Ausrichtung, Preisalarme und erledigte
+// Feldaufgaben werden getrennt je Spielstand gespeichert. Dadurch bleiben sie
+// unabhängig vom wechselnden lokalen Launcher-Port und von App-Updates erhalten.
+define('USER_SETTINGS_DIR', APP_DATA_DIR . DIRECTORY_SEPARATOR . 'settings');
+if (!is_dir(USER_SETTINGS_DIR)) {
+    mkdir(USER_SETTINGS_DIR, 0777, true);
+}
+
+// Benutzerdefinierte bzw. automatisch extrahierte Kartenbilder sind ebenfalls
+// veränderliche Daten. Im Launcher-Betrieb liegen sie außerhalb des jeweiligen
+// Release-Ordners und bleiben dadurch bei Updates erhalten.
+define('MAP_ASSETS_DIR', APP_DATA_DIR . DIRECTORY_SEPARATOR . 'assets');
+if (!is_dir(MAP_ASSETS_DIR)) {
+    mkdir(MAP_ASSETS_DIR, 0777, true);
+}
+
+// Unveränderliche, mit dem Dashboard ausgelieferte Assets bleiben im Web-Release.
+define('BUNDLED_ASSETS_DIR', __DIR__ . DIRECTORY_SEPARATOR . 'assets');
+
 // Mitgelieferte Kartenhintergründe liegen als Base64-Text vor (assets/*.png.b64)
 // und werden beim ersten Start automatisch zu echten PNG-Dateien dekodiert.
-$assetsDir = __DIR__ . '/assets';
+$assetsDir = BUNDLED_ASSETS_DIR;
 if (is_dir($assetsDir)) {
     foreach (glob($assetsDir . '/*.png.b64') as $b64File) {
         $pngFile = substr($b64File, 0, -4); // ".b64" entfernen
