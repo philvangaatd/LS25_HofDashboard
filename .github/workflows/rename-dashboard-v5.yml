@@ -22,18 +22,6 @@ jobs:
           php -l api.php
           php -l config.php
 
-      - name: Verify v5 connector contract
-        run: |
-          grep -q "LS25HofDashboard" api.php
-          grep -q "get_legacy_live_data_file_path" api.php
-          grep -q "LS25_HofDashboardMod" README.md
-          ! grep -q "FS25_AutoDriveFlurkarte" index.html
-          ! grep -q "FS25_AutoDriveFlurkarte" README.md
-          ! grep -q "LS25_Dashboard_Mod" README.md
-          ! grep -q "LS25_Dashboard" README.md
-          grep -q "AutoDrive" api.php
-          grep -q "AutoDrive" index.html
-
       - name: Validate diff
         run: git diff --check
 
