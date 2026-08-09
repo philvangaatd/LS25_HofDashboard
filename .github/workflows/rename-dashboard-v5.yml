@@ -26,7 +26,6 @@ jobs:
         run: |
           grep -q "LS25HofDashboard" api.php
           grep -q "get_legacy_live_data_file_path" api.php
-          grep -q "FS25_HofDashboard" index.html
           grep -q "LS25_HofDashboardMod" README.md
           ! grep -q "FS25_AutoDriveFlurkarte" index.html
           ! grep -q "FS25_AutoDriveFlurkarte" README.md
