@@ -1,0 +1,53 @@
+name: Rename dashboard to v5 connector identity
+
+on:
+  push:
+    paths:
+      - '.github/workflows/rename-dashboard-v5.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  rename:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply v5 dashboard rename
+        run: python3 .github/scripts/rename_dashboard_v5.py
+
+      - name: Validate PHP syntax
+        run: |
+          php -l api.php
+          php -l config.php
+
+      - name: Verify v5 connector contract
+        run: |
+          grep -q "LS25HofDashboard" api.php
+          grep -q "get_legacy_live_data_file_path" api.php
+          grep -q "FS25_HofDashboard" index.html
+          grep -q "LS25_HofDashboardMod" README.md
+          ! grep -q "FS25_AutoDriveFlurkarte" index.html
+          ! grep -q "FS25_AutoDriveFlurkarte" README.md
+          ! grep -q "LS25_Dashboard_Mod" README.md
+          ! grep -q "LS25_Dashboard" README.md
+          grep -q "AutoDrive" api.php
+          grep -q "AutoDrive" index.html
+
+      - name: Validate diff
+        run: git diff --check
+
+      - name: Commit dashboard rename
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api.php index.html README.md config.php
+          git diff --cached --quiet || git commit -m "refactor: migrate dashboard to v5 connector identity"
+          git push
+
+      - name: Remove one-time migration helpers
+        run: |
+          git rm .github/scripts/rename_dashboard_v5.py .github/workflows/rename-dashboard-v5.yml
+          git commit -m "chore: remove dashboard v5 migration helpers"
+          git push
