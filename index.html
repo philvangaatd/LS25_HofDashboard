@@ -2814,10 +2814,15 @@ function renderProduction() {
     }
 
     container.innerHTML = productionCache.map(pp => {
-        const rows = pp.productions.map(prod => `
+        const productions = Array.isArray(pp.productions) ? pp.productions : [];
+        const activeCountValue = Number(pp.activeCount);
+        const activeCount = Number.isFinite(activeCountValue)
+            ? activeCountValue
+            : productions.filter(prod => prod?.enabled === true).length;
+        const rows = productions.map(prod => `
             <div class="production-row ${prod.enabled ? '' : 'production-disabled'}">
                 <span class="production-dot ${prod.enabled ? 'on' : 'off'}"></span>
-                <span>${escapeHtml(prod.label)}</span>
+                <span>${escapeHtml(prod.label || prod.name || prod.id || 'Produktion')}</span>
                 <span class="production-status">${prod.enabled ? 'aktiv' : 'deaktiviert'}</span>
             </div>
         `).join('');
@@ -2826,7 +2831,7 @@ function renderProduction() {
             <div class="production-card">
                 <div class="production-card-header">
                     <span class="production-name">${escapeHtml(pp.name)}</span>
-                    <span class="production-count-badge">${pp.activeCount}/${pp.productions.length} aktiv</span>
+                    <span class="production-count-badge">${activeCount}/${productions.length} aktiv</span>
                 </div>
                 ${rows || '<div class="empty-note">Keine Produktionsketten konfiguriert.</div>'}
             </div>

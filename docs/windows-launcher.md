@@ -6,7 +6,7 @@ Sie verwaltet den internen Webserver, die WebView2-Oberfläche und sichere Updat
 ## Paketaufbau
 
 ```text
-HofDashboard-win-x64-v5.0.0/
+HofDashboard-win-x64-v5.0.1/
 ├─ HofDashboard.exe
 ├─ launcher-manifest.json
 ├─ package-files.json

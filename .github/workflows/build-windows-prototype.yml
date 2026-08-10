@@ -28,7 +28,7 @@ jobs:
       - name: Exercise persistent user-data layout
         shell: pwsh
         run: |
-          $package = Join-Path $PWD "dist\HofDashboard-win-x64-v5.0.0"
+          $package = Join-Path $PWD "dist\HofDashboard-win-x64-v5.0.1"
           $php = Join-Path $package "runtime\php.exe"
           $phpIni = Join-Path $package "runtime\php.ini"
           $web = Join-Path $package "web"
@@ -86,7 +86,7 @@ jobs:
       - name: Exercise packaged launcher and PHP healthcheck
         shell: pwsh
         run: |
-          $exe = Join-Path $PWD "dist\HofDashboard-win-x64-v5.0.0\HofDashboard.exe"
+          $exe = Join-Path $PWD "dist\HofDashboard-win-x64-v5.0.1\HofDashboard.exe"
           $process = Start-Process -FilePath $exe -ArgumentList "--smoke-test" -Wait -PassThru
           if ($process.ExitCode -ne 0) {
             $log = Join-Path $env:LOCALAPPDATA "HofDashboard\logs\launcher.log"
@@ -99,7 +99,7 @@ jobs:
       - name: Exercise verified updater and preserve unrelated files
         shell: pwsh
         run: |
-          $package = Join-Path $PWD "dist\HofDashboard-win-x64-v5.0.0"
+          $package = Join-Path $PWD "dist\HofDashboard-win-x64-v5.0.1"
           $testRoot = Join-Path $env:RUNNER_TEMP "HofDashboard-update-test"
           $installed = Join-Path $testRoot "installed"
           $helper = Join-Path $testRoot "HofDashboard.UpdateHelper.exe"
@@ -136,10 +136,10 @@ jobs:
         shell: pwsh
         run: |
           $manifest = Get-Content -Raw -LiteralPath "dist\update-manifest.json" | ConvertFrom-Json
-          $zip = Join-Path $PWD "dist\HofDashboard-win-x64-v5.0.0.zip"
+          $zip = Join-Path $PWD "dist\HofDashboard-win-x64-v5.0.1.zip"
           if (
             ($manifest.schemaVersion -ne 1) -or
-            ($manifest.application.version -ne "5.0.0") -or
+            ($manifest.application.version -ne "5.0.1") -or
             ($manifest.application.sizeBytes -ne (Get-Item -LiteralPath $zip).Length) -or
             ($manifest.application.sha256 -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant())
           ) {
@@ -149,9 +149,9 @@ jobs:
       - name: Upload Windows release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: HofDashboard-win-x64-v5.0.0
+          name: HofDashboard-win-x64-v5.0.1
           path: |
-            dist/HofDashboard-win-x64-v5.0.0.zip
+            dist/HofDashboard-win-x64-v5.0.1.zip
             dist/update-manifest.json
           if-no-files-found: error
           retention-days: 14
