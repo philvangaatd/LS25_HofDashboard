@@ -5,6 +5,7 @@ date_default_timezone_set('Europe/Berlin');
 
 require __DIR__ . '/config.php';
 require __DIR__ . '/user_settings.php';
+require __DIR__ . '/production_data.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -2910,25 +2911,10 @@ if ($action === 'production_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
-    $liveProds = $liveData['productions'] ?? [];
-    $points = array_map(fn($lp) => [
-        'name'       => $lp['name'] ?? '',
-        'farmId'     => (int)($lp['farmId'] ?? 0),
-        'productions' => array_map(fn($p) => [
-            'name'         => $p['name'] ?? '',
-            'status'       => $p['status'] ?? '',
-            'cyclesPerHour'=> (float)($p['cyclesPerHour'] ?? 0),
-            'inputs'       => $p['inputs'] ?? [],
-            'outputs'      => $p['outputs'] ?? [],
-        ], $lp['productions'] ?? []),
-        'storages' => array_map(fn($s) => [
-            'fillType' => $s['fillType'] ?? '',
-            'title'    => $s['title']    ?? '',
-            'level'    => (int)($s['level']    ?? 0),
-            'capacity' => (int)($s['capacity'] ?? 0),
-            'percent'  => (int)($s['percent']  ?? 0),
-        ], $lp['storages'] ?? []),
-    ], $liveProds);
+    $liveProds = is_array($liveData['productions'] ?? null)
+        ? $liveData['productions']
+        : [];
+    $points = normalize_live_production_points($liveProds);
 
     echo json_encode([
         'productionPoints' => $points,

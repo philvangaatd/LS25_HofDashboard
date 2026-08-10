@@ -1273,6 +1273,37 @@
     .production-dot.on { background: var(--moss-500); }
     .production-dot.off { background: var(--ink-700); }
     .production-status { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+    .production-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--ink-800); }
+    .production-section-label {
+        margin-bottom: 7px;
+        color: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+    .production-storage-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 8px;
+    }
+    .production-storage-card {
+        min-width: 0;
+        padding: 8px 9px;
+        background: var(--ink-950);
+        border: 1px solid var(--ink-800);
+        border-radius: 6px;
+    }
+    .production-storage-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .production-storage-name { min-width: 0; font-size: 12px; font-weight: 600; }
+    .production-storage-percent { flex-shrink: 0; color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
+    .production-storage-amount { margin-top: 6px; color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
 
     /* Preis-Alarm (Markt) */
     .market-card.alert-hit { border-left-color: var(--wheat-500); box-shadow: 0 0 0 1px var(--wheat-500); }
@@ -2788,6 +2819,30 @@ function renderAnimals() {
 // =================================================================
 let productionCache = [];
 
+function formatProductionLiters(value) {
+    return Math.max(0, Math.round(Number(value) || 0)).toLocaleString('de-DE');
+}
+
+function renderProductionStorage(storage, icon) {
+    const level = Math.max(0, Number(storage?.level) || 0);
+    const capacity = Math.max(0, Number(storage?.capacity) || 0);
+    const calculatedPercent = capacity > 0 ? level / capacity * 100 : 0;
+    const percent = Math.max(0, Math.min(100, Number.isFinite(calculatedPercent) ? calculatedPercent : 0));
+    const label = storage?.title || storage?.fillType || 'Lager';
+    const amount = capacity > 0
+        ? `${formatProductionLiters(level)} / ${formatProductionLiters(capacity)} L`
+        : `${formatProductionLiters(level)} L`;
+
+    return `<div class="production-storage-card">
+        <div class="production-storage-head">
+            <span class="production-storage-name">${icon} ${escapeHtml(label)}</span>
+            ${capacity > 0 ? `<span class="production-storage-percent">${percent.toFixed(0)}%</span>` : ''}
+        </div>
+        ${capacity > 0 ? `<div class="bar-track"><div class="bar-fill-progress" style="width:${percent}%"></div></div>` : ''}
+        <div class="production-storage-amount">${amount}</div>
+    </div>`;
+}
+
 async function loadProductionData() {
     const container = document.getElementById('productionContainer');
     container.innerHTML = '<div class="empty-note">Lade Produktionsanlagen …</div>';
@@ -2814,21 +2869,45 @@ function renderProduction() {
     }
 
     container.innerHTML = productionCache.map(pp => {
-        const rows = pp.productions.map(prod => `
-            <div class="production-row ${prod.enabled ? '' : 'production-disabled'}">
-                <span class="production-dot ${prod.enabled ? 'on' : 'off'}"></span>
-                <span>${escapeHtml(prod.label)}</span>
-                <span class="production-status">${prod.enabled ? 'aktiv' : 'deaktiviert'}</span>
+        const productions = Array.isArray(pp.productions) ? pp.productions : [];
+        const inputStorages = Array.isArray(pp.inputStorages) ? pp.inputStorages : [];
+        const outputStorages = Array.isArray(pp.outputStorages) ? pp.outputStorages : [];
+        const activeCountValue = Number(pp.activeCount);
+        const activeCount = Number.isFinite(activeCountValue)
+            ? activeCountValue
+            : productions.filter(prod => prod?.enabled === true).length;
+        const rows = productions.map(prod => `
+            <div class="production-row">
+                <span class="production-dot on"></span>
+                <span>${escapeHtml(prod.label || prod.name || prod.id || 'Produktion')}</span>
+                <span class="production-status">aktiv</span>
             </div>
         `).join('');
+        const inputSection = inputStorages.length > 0 ? `
+            <div class="production-section">
+                <div class="production-section-label">Betriebsstoffe</div>
+                <div class="production-storage-grid">
+                    ${inputStorages.map(storage => renderProductionStorage(storage, String(storage.fillType || '').toUpperCase() === 'WATER' ? '💧' : '📥')).join('')}
+                </div>
+            </div>` : '';
+        const outputSection = outputStorages.length > 0 ? `
+            <div class="production-section">
+                <div class="production-section-label">Produzierte Waren</div>
+                <div class="production-storage-grid">
+                    ${outputStorages.map(storage => renderProductionStorage(storage, '📦')).join('')}
+                </div>
+            </div>` : '';
 
         return `
             <div class="production-card">
                 <div class="production-card-header">
                     <span class="production-name">${escapeHtml(pp.name)}</span>
-                    <span class="production-count-badge">${pp.activeCount}/${pp.productions.length} aktiv</span>
+                    <span class="production-count-badge">${activeCount} aktiv</span>
                 </div>
-                ${rows || '<div class="empty-note">Keine Produktionsketten konfiguriert.</div>'}
+                <div class="production-section-label">Aktive Produktionen</div>
+                ${rows || '<div class="empty-note">Keine aktive Produktion.</div>'}
+                ${inputSection}
+                ${outputSection}
             </div>
         `;
     }).join('');

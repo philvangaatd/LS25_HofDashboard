@@ -58,7 +58,7 @@ Copy-Item -LiteralPath (Join-Path $launcherRoot "launcher-manifest.json") -Desti
 Copy-Item -LiteralPath (Join-Path $launcherRoot "THIRD-PARTY-NOTICES.md") -Destination $packageDirectory
 
 Write-Host "Assembling dashboard web files..."
-$excludedRootEntries = @(".git", ".github", ".gitignore", "backups", "dist", "launcher")
+$excludedRootEntries = @(".git", ".github", ".gitignore", "backups", "dist", "launcher", "tests")
 Get-ChildItem -LiteralPath $repositoryRoot -Force |
     Where-Object { $_.Name -notin $excludedRootEntries } |
     ForEach-Object {

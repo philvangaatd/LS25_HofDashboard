@@ -27,7 +27,7 @@ jobs:
         run: |
           php -r '
           $manifest = json_decode(file_get_contents("app-manifest.json"), true, 512, JSON_THROW_ON_ERROR);
-          if (($manifest["version"] ?? null) !== "5.0.0") {
+          if (($manifest["version"] ?? null) !== "5.0.1") {
               throw new RuntimeException("Unexpected dashboard version");
           }
           if (($manifest["apiProtocol"]["min"] ?? null) !== 1
@@ -54,12 +54,15 @@ jobs:
           }
           '
 
+      - name: Exercise live production data contract
+        run: php tests/production_data_test.php
+
       - name: Exercise launcher healthcheck
         run: |
           php health.php | php -r '
           $health = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
           if (($health["status"] ?? null) !== "ok"
-              || ($health["version"] ?? null) !== "5.0.0") {
+              || ($health["version"] ?? null) !== "5.0.1") {
               throw new RuntimeException("Launcher healthcheck contract failed");
           }
           '
@@ -86,6 +89,7 @@ jobs:
           rsync -a \
             --exclude='.git/' \
             --exclude='.github/' \
+            --exclude='tests/' \
             --exclude='dist/' \
             ./ dist/HofDashboard/
           test -f dist/HofDashboard/index.html
