@@ -7,6 +7,12 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Contains("--apply-update", StringComparer.OrdinalIgnoreCase))
+        {
+            ApplicationConfiguration.Initialize();
+            return UpdateApplier.RunAsync(args).GetAwaiter().GetResult();
+        }
+
         if (args.Contains("--smoke-test", StringComparer.OrdinalIgnoreCase))
         {
             return SmokeTest.RunAsync().GetAwaiter().GetResult();

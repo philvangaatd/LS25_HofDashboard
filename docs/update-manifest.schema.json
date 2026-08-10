@@ -3,22 +3,20 @@
   "title": "LS25 Hof-Dashboard Update Manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "channel", "publishedAt", "launcher", "dashboard", "mod", "compatibility"],
+  "required": ["schemaVersion", "channel", "publishedAt", "application", "mod", "compatibility"],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "channel": { "enum": ["stable", "beta"] },
+    "channel": { "const": "stable" },
     "publishedAt": { "type": "string", "format": "date-time" },
-    "launcher": { "$ref": "#/$defs/componentRelease" },
-    "dashboard": { "$ref": "#/$defs/componentRelease" },
-    "mod": { "$ref": "#/$defs/componentRelease" },
+    "application": { "$ref": "#/$defs/applicationRelease" },
+    "mod": { "$ref": "#/$defs/modRelease" },
     "compatibility": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["protocolVersion", "minimumLauncherVersion", "minimumDashboardVersion", "minimumModVersion"],
+      "required": ["protocolVersion", "minimumApplicationVersion", "minimumModVersion"],
       "properties": {
         "protocolVersion": { "type": "integer", "minimum": 1 },
-        "minimumLauncherVersion": { "$ref": "#/$defs/semver" },
-        "minimumDashboardVersion": { "$ref": "#/$defs/semver" },
+        "minimumApplicationVersion": { "$ref": "#/$defs/semver" },
         "minimumModVersion": { "$ref": "#/$defs/semver" }
       }
     }
@@ -32,16 +30,26 @@
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
     },
-    "componentRelease": {
+    "applicationRelease": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "downloadUrl", "sha256", "sizeBytes"],
+      "required": ["version", "downloadUrl", "sha256", "sizeBytes", "releaseNotesUrl"],
       "properties": {
         "version": { "$ref": "#/$defs/semver" },
-        "downloadUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "downloadUrl": { "type": "string", "format": "uri", "pattern": "^https://github\\.com/philvangaatd/LS25_HofDashboard/releases/download/" },
         "sha256": { "$ref": "#/$defs/sha256" },
         "sizeBytes": { "type": "integer", "minimum": 1 },
-        "releaseNotesUrl": { "type": "string", "format": "uri", "pattern": "^https://" }
+        "releaseNotesUrl": { "type": "string", "format": "uri", "pattern": "^https://github\\.com/philvangaatd/LS25_HofDashboard/releases/tag/" }
+      }
+    },
+    "modRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "downloadUrl", "releaseNotesUrl"],
+      "properties": {
+        "version": { "$ref": "#/$defs/semver" },
+        "downloadUrl": { "type": "string", "format": "uri", "pattern": "^https://github\\.com/philvangaatd/LS25_HofDashboardMod/releases/download/" },
+        "releaseNotesUrl": { "type": "string", "format": "uri", "pattern": "^https://github\\.com/philvangaatd/LS25_HofDashboardMod/releases/tag/" }
       }
     }
   }

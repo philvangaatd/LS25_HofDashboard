@@ -42,8 +42,17 @@ jobs:
 
       - name: Validate update manifest JSON files
         run: |
-          php -r 'json_decode(file_get_contents("docs/update-manifest.schema.json"), true, 512, JSON_THROW_ON_ERROR);'
-          php -r 'json_decode(file_get_contents("docs/update-manifest.example.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r '
+          $schema = json_decode(file_get_contents("docs/update-manifest.schema.json"), true, 512, JSON_THROW_ON_ERROR);
+          $example = json_decode(file_get_contents("docs/update-manifest.example.json"), true, 512, JSON_THROW_ON_ERROR);
+          if (($schema["properties"]["schemaVersion"]["const"] ?? null) !== 1
+              || ($example["schemaVersion"] ?? null) !== 1
+              || ($example["channel"] ?? null) !== "stable"
+              || !isset($example["application"]["version"], $example["application"]["sha256"])
+              || !isset($example["mod"]["version"], $example["compatibility"]["protocolVersion"])) {
+              throw new RuntimeException("Unexpected update manifest contract");
+          }
+          '
 
       - name: Exercise launcher healthcheck
         run: |

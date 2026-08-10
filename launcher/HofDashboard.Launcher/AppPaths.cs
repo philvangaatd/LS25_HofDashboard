@@ -9,7 +9,12 @@ internal sealed record AppPaths(
     string LogDirectory,
     string SessionDirectory,
     string TempDirectory,
-    string WebViewDirectory)
+    string WebViewDirectory,
+    string UpdateDirectory,
+    string UpdateDownloadDirectory,
+    string UpdateStagingDirectory,
+    string UpdateHelperDirectory,
+    string UpdateBackupDirectory)
 {
     public string PhpExecutable => Path.Combine(RuntimeDirectory, "php.exe");
 
@@ -39,7 +44,12 @@ internal sealed record AppPaths(
             Path.Combine(userDataRoot, "logs"),
             Path.Combine(userDataRoot, "sessions"),
             Path.Combine(userDataRoot, "temp"),
-            Path.Combine(userDataRoot, "webview"));
+            Path.Combine(userDataRoot, "webview"),
+            Path.Combine(userDataRoot, "updates"),
+            Path.Combine(userDataRoot, "updates", "downloads"),
+            Path.Combine(userDataRoot, "updates", "staging"),
+            Path.Combine(userDataRoot, "updates", "helper"),
+            Path.Combine(userDataRoot, "updates", "backup"));
 
         paths.EnsureUserDirectories();
         return paths;
@@ -72,5 +82,10 @@ internal sealed record AppPaths(
         Directory.CreateDirectory(SessionDirectory);
         Directory.CreateDirectory(TempDirectory);
         Directory.CreateDirectory(WebViewDirectory);
+        Directory.CreateDirectory(UpdateDirectory);
+        Directory.CreateDirectory(UpdateDownloadDirectory);
+        Directory.CreateDirectory(UpdateStagingDirectory);
+        Directory.CreateDirectory(UpdateHelperDirectory);
+        Directory.CreateDirectory(UpdateBackupDirectory);
     }
 }

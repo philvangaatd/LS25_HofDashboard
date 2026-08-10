@@ -10,6 +10,13 @@ internal static class SmokeTest
             var log = new LauncherLog(paths.LauncherLog);
             log.Info("Starte automatischen Launcher-Smoke-Test.");
 
+            if (SemanticVersion.Parse("5.1.0").CompareTo(SemanticVersion.Parse("5.0.9")) <= 0
+                || SemanticVersion.Parse("5.1.0-beta.2").CompareTo(SemanticVersion.Parse("5.1.0")) >= 0
+                || SemanticVersion.Parse("5.1.0-beta.10").CompareTo(SemanticVersion.Parse("5.1.0-beta.2")) <= 0)
+            {
+                throw new InvalidOperationException("Semantischer Versionsvergleich ist fehlgeschlagen.");
+            }
+
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             using var server = await PhpServer.StartAsync(paths, log, timeout.Token);
             log.Info($"Smoke-Test erfolgreich: {server.Health?.Version ?? "unbekannte Version"}.");

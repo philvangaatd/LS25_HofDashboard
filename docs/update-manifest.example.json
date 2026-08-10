@@ -1,17 +1,10 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "publishedAt": "2026-08-09T00:00:00Z",
-  "launcher": {
-    "version": "0.2.0",
-    "downloadUrl": "https://github.com/philvangaatd/LS25_HofDashboard/releases/download/v5.1.0/HofDashboard-Launcher-0.2.0.zip",
-    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "sizeBytes": 45678901,
-    "releaseNotesUrl": "https://github.com/philvangaatd/LS25_HofDashboard/releases/tag/v5.1.0"
-  },
-  "dashboard": {
+  "publishedAt": "2026-08-10T00:00:00Z",
+  "application": {
     "version": "5.1.0",
-    "downloadUrl": "https://github.com/philvangaatd/LS25_HofDashboard/releases/download/v5.1.0/HofDashboard-Update-5.1.0.zip",
+    "downloadUrl": "https://github.com/philvangaatd/LS25_HofDashboard/releases/download/v5.1.0/HofDashboard-win-x64-v5.1.0.zip",
     "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "sizeBytes": 12345678,
     "releaseNotesUrl": "https://github.com/philvangaatd/LS25_HofDashboard/releases/tag/v5.1.0"
@@ -19,14 +12,11 @@
   "mod": {
     "version": "5.1.0",
     "downloadUrl": "https://github.com/philvangaatd/LS25_HofDashboardMod/releases/download/v5.1.0/FS25_HofDashboard.zip",
-    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    "sizeBytes": 234567,
     "releaseNotesUrl": "https://github.com/philvangaatd/LS25_HofDashboardMod/releases/tag/v5.1.0"
   },
   "compatibility": {
     "protocolVersion": 1,
-    "minimumLauncherVersion": "0.1.0",
-    "minimumDashboardVersion": "5.0.0",
-    "minimumModVersion": "5.0.0"
+    "minimumApplicationVersion": "5.1.0",
+    "minimumModVersion": "5.1.0"
   }
 }

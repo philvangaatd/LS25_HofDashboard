@@ -14,8 +14,12 @@ if ([string]::IsNullOrWhiteSpace($ArtifactDirectory)) {
 
 $project = Join-Path $launcherRoot "HofDashboard.Launcher\HofDashboard.Launcher.csproj"
 $publishDirectory = Join-Path $ArtifactDirectory "launcher-publish"
-$packageDirectory = Join-Path $ArtifactDirectory "HofDashboard-prototype-win-x64"
-$packageZip = Join-Path $ArtifactDirectory "HofDashboard-prototype-win-x64.zip"
+$dashboardManifestSource = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot "app-manifest.json") | ConvertFrom-Json
+$applicationVersion = [string]$dashboardManifestSource.version
+$packageName = "HofDashboard-win-x64-v$applicationVersion"
+$packageDirectory = Join-Path $ArtifactDirectory $packageName
+$packageZip = Join-Path $ArtifactDirectory "$packageName.zip"
+$updateManifestPath = Join-Path $ArtifactDirectory "update-manifest.json"
 $runtimeDirectory = Join-Path $packageDirectory "runtime"
 $webDirectory = Join-Path $packageDirectory "web"
 
@@ -25,7 +29,7 @@ $phpSha256 = "516c2d72231bd035c8a910120834add0ad208098b790b4909b2cbeb93ce135fc"
 $downloadRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
 $phpArchive = Join-Path $downloadRoot "php-$phpVersion-nts-Win32-vs17-x64.zip"
 
-foreach ($path in @($publishDirectory, $packageDirectory, $packageZip)) {
+foreach ($path in @($publishDirectory, $packageDirectory, $packageZip, $updateManifestPath)) {
     if (Test-Path $path) {
         Remove-Item -LiteralPath $path -Recurse -Force
     }
@@ -140,9 +144,61 @@ foreach ($requiredFile in $requiredPackageFiles) {
     }
 }
 
-Write-Host "Creating prototype ZIP..."
+Write-Host "Creating verified package file manifest..."
+$packageFiles = Get-ChildItem -LiteralPath $packageDirectory -File -Recurse |
+    Where-Object { $_.Name -ne "package-files.json" } |
+    ForEach-Object {
+        [ordered]@{
+            path = [System.IO.Path]::GetRelativePath($packageDirectory, $_.FullName).Replace("\", "/")
+            sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
+            sizeBytes = $_.Length
+        }
+    } |
+    Sort-Object -Property path
+
+$packageFileManifest = [ordered]@{
+    schemaVersion = 1
+    applicationVersion = $applicationVersion
+    files = @($packageFiles)
+}
+$packageFileManifest |
+    ConvertTo-Json -Depth 5 |
+    Set-Content -LiteralPath (Join-Path $packageDirectory "package-files.json") -Encoding utf8NoBOM
+
+Write-Host "Creating Windows release ZIP..."
 Compress-Archive -Path (Join-Path $packageDirectory "*") -DestinationPath $packageZip -CompressionLevel Optimal
 
 $packageHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $packageZip).Hash.ToLowerInvariant()
-Write-Host "Prototype package: $packageZip"
+$packageSize = (Get-Item -LiteralPath $packageZip).Length
+$releaseTag = "v$applicationVersion"
+$releaseBaseUrl = "https://github.com/philvangaatd/LS25_HofDashboard/releases"
+$modReleaseBaseUrl = "https://github.com/philvangaatd/LS25_HofDashboardMod/releases"
+$updateManifest = [ordered]@{
+    schemaVersion = 1
+    channel = "stable"
+    publishedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    application = [ordered]@{
+        version = $applicationVersion
+        downloadUrl = "$releaseBaseUrl/download/$releaseTag/$packageName.zip"
+        sha256 = $packageHash
+        sizeBytes = $packageSize
+        releaseNotesUrl = "$releaseBaseUrl/tag/$releaseTag"
+    }
+    mod = [ordered]@{
+        version = [string]$dashboardManifestSource.minimumModVersion
+        downloadUrl = "$modReleaseBaseUrl/download/$releaseTag/FS25_HofDashboard.zip"
+        releaseNotesUrl = "$modReleaseBaseUrl/tag/$releaseTag"
+    }
+    compatibility = [ordered]@{
+        protocolVersion = [int]$dashboardManifestSource.apiProtocol.max
+        minimumApplicationVersion = $applicationVersion
+        minimumModVersion = [string]$dashboardManifestSource.minimumModVersion
+    }
+}
+$updateManifest |
+    ConvertTo-Json -Depth 8 |
+    Set-Content -LiteralPath $updateManifestPath -Encoding utf8NoBOM
+
+Write-Host "Windows package: $packageZip"
 Write-Host "SHA-256: $packageHash"
+Write-Host "Update manifest: $updateManifestPath"
