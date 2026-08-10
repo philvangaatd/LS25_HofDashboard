@@ -15,7 +15,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "LS25 Hof-Dashboard · Prototyp";
+        Text = "LS25 Hof-Dashboard";
         _applicationIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         if (_applicationIcon is not null)
         {
@@ -101,6 +101,40 @@ internal sealed class MainForm : Form
         _loadingPanel.StopAnimation();
         _loadingPanel.Visible = false;
         _log.Info("Dashboard-Fenster ist bereit.");
+
+        await CheckForUpdatesAsync(paths, cancellationToken);
+    }
+
+    private async Task CheckForUpdatesAsync(AppPaths paths, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var updateService = new UpdateService(_log!);
+            var update = await updateService.CheckAsync(cancellationToken);
+            if (update is null)
+            {
+                return;
+            }
+
+            _log!.Info($"Update {update.Version} ist verfügbar.");
+            using var dialog = new UpdateDialog(update, updateService, paths, _log);
+            if (dialog.ShowDialog(this) != DialogResult.OK || dialog.PreparedUpdate is null)
+            {
+                _log.Info("Das verfügbare Update wurde auf später verschoben.");
+                return;
+            }
+
+            UpdateApplier.Start(dialog.PreparedUpdate, paths, _log);
+            Close();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Normal shutdown while a background update check is running.
+        }
+        catch (Exception exception)
+        {
+            _log?.Warning($"Updateprüfung übersprungen: {exception.Message}");
+        }
     }
 
     private void ConfigureWebView(PhpServer server)

@@ -1,6 +1,6 @@
-# Third-party components in the Windows prototype
+# Third-party components in the Windows app
 
-The generated prototype package contains these externally maintained runtime components:
+The generated Windows package contains these externally maintained runtime components:
 
 - Microsoft .NET 10 self-contained runtime — Microsoft licensing information is
   available at <https://github.com/dotnet/runtime>.

@@ -1,15 +1,15 @@
-# Windows-Launcher-Prototyp
+# Windows-App
 
-Der Launcher verpackt das bestehende PHP-Dashboard als lokale Windows-Anwendung.
-Er ersetzt weder die PHP-Anwendung noch die LS25-Mod, sondern verwaltet ihren Start
-und ihre Laufzeit.
+Die Windows-App verpackt das PHP-Dashboard als lokale, selbstenthaltene Anwendung.
+Sie verwaltet den internen Webserver, die WebView2-Oberfläche und sichere Updates.
 
 ## Paketaufbau
 
 ```text
-HofDashboard-prototype-win-x64/
+HofDashboard-win-x64-v5.0.0/
 ├─ HofDashboard.exe
 ├─ launcher-manifest.json
+├─ package-files.json
 ├─ runtime/
 │  ├─ php.exe
 │  └─ php.ini
@@ -27,15 +27,15 @@ Browser-Engine zentral einspielen kann.
 
 ## Startablauf
 
-1. Der Launcher verhindert eine zweite parallele Instanz.
-2. Er legt die veränderlichen Benutzerordner unter `%LOCALAPPDATA%\HofDashboard` an.
-3. Er wählt einen freien lokalen Port.
-4. Er startet das mitgelieferte PHP ausschließlich auf `127.0.0.1`.
-5. Er setzt `HOF_DASHBOARD_DATA_DIR` und die PHP-Verzeichnisse für Sessions,
-   temporäre Uploads und Protokolle.
-6. Er wartet auf einen erfolgreichen Aufruf von `health.php`.
-7. Er öffnet die lokale URL in einem WebView2-Fenster.
-8. Beim Schließen beendet er den gesamten eingebetteten PHP-Prozessbaum.
+1. Die App verhindert eine zweite parallele Instanz.
+2. Sie legt die veränderlichen Benutzerordner unter `%LOCALAPPDATA%\HofDashboard` an.
+3. Sie wählt einen freien lokalen Port.
+4. Sie startet das mitgelieferte PHP ausschließlich auf `127.0.0.1`.
+5. Sie setzt die PHP-Verzeichnisse für Daten, Sessions, Uploads und Protokolle.
+6. Sie wartet auf einen erfolgreichen Aufruf von `health.php`.
+7. Sie öffnet die lokale URL in einem WebView2-Fenster.
+8. Sie prüft das neueste öffentliche GitHub-Release auf eine höhere App-Version.
+9. Beim Schließen beendet sie den gesamten eingebetteten PHP-Prozessbaum.
 
 Navigation innerhalb der lokalen Dashboard-Adresse bleibt im App-Fenster. Externe
 HTTP- und HTTPS-Links werden an den Windows-Standardbrowser übergeben; andere
@@ -53,13 +53,37 @@ Protokolle werden blockiert.
 ├─ logs\
 ├─ sessions\
 ├─ temp\
+├─ updates\
+│  ├─ downloads\
+│  ├─ staging\
+│  ├─ helper\
+│  └─ backup\
 └─ webview\
 ```
 
-Damit können `web/`, `runtime/` und der Launcher später versionsweise ausgetauscht
-werden, ohne Backups, Kartenbilder, spielstandsbezogene Einstellungen oder die
-WebView2-Sitzung des Benutzers zu löschen. Karten-Ausrichtung, Preisalarme und
-abgehakte Feldaufgaben werden je `savegameN` getrennt gespeichert.
+Der Installationsordner kann versionsweise ausgetauscht werden, ohne Backups,
+Kartenbilder, spielstandsbezogene Einstellungen oder WebView2-Daten zu löschen.
+
+## Sicherer Updateablauf
+
+Das Update-Manifest wird ausschließlich vom neuesten öffentlichen GitHub-Release
+des Dashboard-Repositories geladen. Eine höhere Version wird nur auf ausdrückliche
+Bestätigung installiert.
+
+1. Das vollständige Windows-ZIP wird in den App-Datenordner geladen.
+2. Dateigröße und veröffentlichte SHA-256-Prüfsumme werden geprüft.
+3. Das ZIP wird gegen Pfadmanipulation geschützt entpackt.
+4. Jede enthaltene Datei wird zusätzlich anhand von `package-files.json` geprüft.
+5. Eine Kopie der laufenden EXE arbeitet außerhalb des Installationsordners als
+   Update-Helfer weiter.
+6. Der Helfer wartet, bis App und PHP vollständig beendet sind.
+7. Er sichert die bisher verwalteten Paketdateien, ersetzt sie einzeln und startet
+   die neue Version.
+8. Bei einem Schreibfehler werden die gesicherten Dateien wiederhergestellt.
+
+Unbekannte Dateien im Installationsordner werden nicht gelöscht. Die Mod wird als
+separates GitHub-Release angeboten und nicht automatisch in den LS25-Mod-Ordner
+geschrieben.
 
 ## Build und Test
 
@@ -69,18 +93,15 @@ Auf einem Windows-System mit dem .NET-10-SDK:
 ./launcher/scripts/build-prototype.ps1
 ```
 
-Das Skript erstellt `dist/HofDashboard-prototype-win-x64.zip`. Der CI-Smoke-Test
-startet anschließend die fertig gepackte EXE mit `--smoke-test`, prüft PHP und
-`health.php` und beendet den Server wieder. Ein echter Fenster-Test bleibt vor dem
-Merge zusätzlich erforderlich.
+Das Skript erstellt das offizielle Windows-ZIP und das dazugehörige
+`update-manifest.json`. GitHub Actions prüft zusätzlich PHP, Healthcheck,
+spielstandsbezogene Einstellungen, Paketprüfsummen, den Update-Helfer und den Erhalt
+unbekannter Dateien. Ein echter Fenster- und Neustart-Test bleibt vor dem Merge
+zusätzlich erforderlich.
 
-## Noch nicht Bestandteil des Prototyps
+## Noch nicht enthalten
 
 - Windows-Installer und Deinstallation
 - Desktop- und Startmenü-Verknüpfungen
 - WebView2-Bootstrapper für seltene Windows-10-Systeme ohne Runtime
-- automatischer Download und atomarer Wechsel auf neue Releases
-- Rollback und Update-UI
 - Codesignatur
-
-Diese Punkte bauen auf dem funktionsfähigen Prototyp auf und werden getrennt ergänzt.

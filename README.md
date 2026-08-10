@@ -288,10 +288,10 @@ Der Live-Export wird standardmäßig alle **15 Sekunden** aktualisiert.
 
 ---
 
-## Vorbereitung für Windows-App und Updates
+## Windows-App und Updates
 
-Der aktuelle Browserbetrieb bleibt unverändert. Zusätzlich besitzt das Projekt jetzt
-stabile Schnittstellen für den späteren Windows-Launcher:
+Der Browserbetrieb bleibt unverändert. Zusätzlich besitzt das Projekt eine
+selbstenthaltene Windows-App mit stabilen Laufzeit- und Update-Schnittstellen:
 
 - `app-manifest.json` ist die lokale, maschinenlesbare Quelle für Dashboard-Version,
   Datenlayout und unterstütztes Mod-Protokoll.
@@ -301,19 +301,22 @@ stabile Schnittstellen für den späteren Windows-Launcher:
 - Die Live-Daten enthalten eine `protocolVersion`; das Dashboard meldet dazu einen
   Kompatibilitätsstatus, ohne bestehende API-Felder zu verändern.
 
-Das eigentliche automatische Update und der Installer folgen in einem späteren Schritt.
-Der vorgesehene Remote-Vertrag ist in `docs/update-manifest.schema.json` dokumentiert.
+Die Windows-App prüft beim Start das neueste öffentliche GitHub-Release. Eine höhere
+Version kann direkt heruntergeladen, per SHA-256 geprüft und nach dem Beenden der
+laufenden App installiert werden. Benutzerdaten unter `%LOCALAPPDATA%\HofDashboard`
+bleiben dabei erhalten. Der Remote-Vertrag ist in
+`docs/update-manifest.schema.json` dokumentiert.
 
 ---
 
-## Windows-Launcher-Prototyp
+## Windows-App
 
-Unter `launcher/` liegt ein erster nativer Windows-Launcher. Er wird als
+Unter `launcher/` liegt die native Windows-App. Sie wird als
 selbstenthaltene .NET-10-x64-Anwendung gebaut und bringt eine verifizierte PHP-8.5-
 Laufzeit mit. Eine systemweit installierte PHP- oder .NET-Version ist deshalb nicht
 erforderlich.
 
-Der Prototyp:
+Die App:
 
 - startet PHP unsichtbar und ausschließlich auf `127.0.0.1`,
 - ermittelt bei jedem Start einen freien lokalen Port,
@@ -323,6 +326,10 @@ Der Prototyp:
 - schreibt Backups, Kartenbilder, spielstandsbezogene Benutzereinstellungen,
   Logs, Sessions und temporäre Dateien unter
   `%LOCALAPPDATA%\HofDashboard`,
+- prüft öffentliche GitHub-Releases auf Updates,
+- lädt ein bestätigtes Update mit Fortschrittsanzeige herunter,
+- prüft ZIP und Paketdateien kryptografisch,
+- installiert es über einen separaten Update-Helfer mit Wiederherstellung bei Fehlern,
 - und besitzt einen headless `--smoke-test` für GitHub Actions.
 
 Auf Windows mit installiertem .NET-10-SDK kann das Testpaket so gebaut werden:
@@ -331,9 +338,9 @@ Auf Windows mit installiertem .NET-10-SDK kann das Testpaket so gebaut werden:
 ./launcher/scripts/build-prototype.ps1
 ```
 
-GitHub Actions erzeugt in jedem Pull Request zusätzlich das herunterladbare Artefakt
-`HofDashboard-prototype-win-x64`. Installer, Update-Download, Rollback und
-Codesignatur gehören bewusst noch nicht zu diesem ersten Prototyp. Details stehen in
+GitHub Actions erzeugt in jedem Pull Request das offizielle Windows-ZIP und das
+dazugehörige `update-manifest.json`. Installer und Codesignatur sind noch nicht
+enthalten. Details stehen in
 [`docs/windows-launcher.md`](docs/windows-launcher.md).
 
 ---
