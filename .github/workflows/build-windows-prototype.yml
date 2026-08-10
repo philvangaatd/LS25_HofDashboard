@@ -124,9 +124,11 @@ jobs:
             }
             throw "Updater smoke test failed with exit code $($process.ExitCode)."
           }
-          if (-not (Test-Path (Join-Path $installed "HofDashboard.exe"))
-              -or -not (Test-Path (Join-Path $installed "package-files.json"))
-              -or (Get-Content -Raw -LiteralPath (Join-Path $installed "user-note.txt")).Trim() -ne "preserve-me") {
+          if (
+            (-not (Test-Path (Join-Path $installed "HofDashboard.exe"))) -or
+            (-not (Test-Path (Join-Path $installed "package-files.json"))) -or
+            ((Get-Content -Raw -LiteralPath (Join-Path $installed "user-note.txt")).Trim() -ne "preserve-me")
+          ) {
             throw "Updater did not install the package or preserve an unrelated file."
           }
 
@@ -135,10 +137,12 @@ jobs:
         run: |
           $manifest = Get-Content -Raw -LiteralPath "dist\update-manifest.json" | ConvertFrom-Json
           $zip = Join-Path $PWD "dist\HofDashboard-win-x64-v5.0.0.zip"
-          if ($manifest.schemaVersion -ne 1
-              -or $manifest.application.version -ne "5.0.0"
-              -or $manifest.application.sizeBytes -ne (Get-Item -LiteralPath $zip).Length
-              -or $manifest.application.sha256 -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()) {
+          if (
+            ($manifest.schemaVersion -ne 1) -or
+            ($manifest.application.version -ne "5.0.0") -or
+            ($manifest.application.sizeBytes -ne (Get-Item -LiteralPath $zip).Length) -or
+            ($manifest.application.sha256 -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant())
+          ) {
             throw "Generated update manifest does not match the Windows package."
           }
 
