@@ -48,7 +48,7 @@ async function loadVehiclesData() {
     renderVehicles();
 }
 
-const VEHICLE_TYPE_ICON = { VEHICLE: '🚜 Fahrzeug', TRAILER: '🚛 Anhänger', IMPLEMENT: '🔧 Anbauteil' };
+const VEHICLE_TYPE_ICON = { VEHICLE: 'Fahrzeug', TRAILER: 'Anhänger', IMPLEMENT: 'Anbauteil' };
 let vehicleTypeFilter = 'ALL';
 
 function setVehicleTypeFilter(type) {
@@ -213,8 +213,8 @@ function renderVehicles() {
         const model = String(v.model || '').trim();
         const subline = [brand, model].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).join(' · ');
         const alerts = [
-            needsMaintenance ? '<span class="vehicle-alert-chip">🔧 Wartung empfohlen</span>' : '',
-            needsWash ? '<span class="vehicle-alert-chip">🧽 Waschen empfohlen</span>' : '',
+            needsMaintenance ? '<span class="vehicle-alert-chip">Wartung empfohlen</span>' : '',
+            needsWash ? '<span class="vehicle-alert-chip">Waschen empfohlen</span>' : '',
         ].filter(Boolean).join('');
 
         return `<div class="vehicle-card ${needsAttention ? 'needs-attention' : ''}">
@@ -259,16 +259,16 @@ let animalsCache = [];
 let beehivesCache = { hiveCount: 0, activeHiveCount: 0, honeyLitersPerHour: 0, pendingHoneyLiters: 0, finishedPallets: 0, honeyOnPalletsLiters: 0, hasSpawner: false, hives: [] };
 
 const ANIMAL_TYPE_META = {
-    COW:     { icon: '🐄', label: 'Kühe' },
-    PIG:     { icon: '🐖', label: 'Schweine' },
-    SHEEP:   { icon: '🐑', label: 'Schafe / Ziegen' },
-    GOAT:    { icon: '🐐', label: 'Ziegen' },
-    HORSE:   { icon: '🐴', label: 'Pferde' },
-    CHICKEN: { icon: '🐔', label: 'Hühner' },
+    COW:     { icon: '', label: 'Kühe' },
+    PIG:     { icon: '', label: 'Schweine' },
+    SHEEP:   { icon: '', label: 'Schafe / Ziegen' },
+    GOAT:    { icon: '', label: 'Ziegen' },
+    HORSE:   { icon: '', label: 'Pferde' },
+    CHICKEN: { icon: '', label: 'Hühner' },
 };
 
 function animalTypeMeta(type) {
-    return ANIMAL_TYPE_META[String(type || '').toUpperCase()] || { icon: '🐾', label: type || 'Tiere' };
+    return ANIMAL_TYPE_META[String(type || '').toUpperCase()] || { icon: '', label: type || 'Tiere' };
 }
 
 function formatAnimalLiters(value) {
@@ -303,6 +303,7 @@ function renderAnimalResourceBar(label, resource, detail) {
     const value = capacity > 0
         ? `${formatAnimalLiters(level)} / ${formatAnimalLiters(capacity)} L · ${pct.toFixed(0)}%`
         : `${formatAnimalLiters(level)} L`;
+    const forecast = animalResourceForecast(resource);
 
     return `<div class="animal-resource${emptyClass}">
         <div class="animal-resource-head">
@@ -311,17 +312,61 @@ function renderAnimalResourceBar(label, resource, detail) {
         </div>
         ${capacity > 0 ? `<div class="bar-track"><div class="bar-fill ${barClass(1 - pct / 100)}" style="width:${pct}%"></div></div>` : ''}
         ${detail ? `<div class="animal-resource-detail">${detail}</div>` : ''}
+        ${forecast ? `<div class="animal-resource-detail ${forecast.urgent ? 'animal-forecast-warn' : ''}">${escapeHtml(forecast.label)}</div>` : ''}
+    </div>`;
+}
+
+function animalResourceForecast(resource) {
+    if (!resource || resource.automatic) return null;
+    const level = Number(resource.level || 0);
+    const rate = Number(resource.litersPerHour || 0);
+    if (level <= 0 || rate <= 0) return null;
+    const hours = level / rate;
+    const label = hours >= 24
+        ? `Prognose: reicht ca. ${(hours / 24).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Tage`
+        : `Prognose: reicht ca. ${hours.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Stunden`;
+    return { label, hours, urgent: hours <= 24 };
+}
+
+function animalFeedForecastItems(source = animalsCache) {
+    return (Array.isArray(source) ? source : [])
+        .map(barn => {
+            const forecast = animalResourceForecast(barn.food);
+            if (!forecast) return null;
+            return {
+                barn,
+                forecast,
+                percent: Math.max(0, Math.min(100, Number(barn.food?.percent || 0))),
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.forecast.hours - b.forecast.hours)
+        .slice(0, 6);
+}
+
+function renderAnimalFeedForecast() {
+    const items = animalFeedForecastItems();
+    if (items.length === 0) return '';
+
+    return `<div class="animal-feed-forecast">
+        <div class="plan-header">
+            <div>
+                <div class="plan-kicker">Futterprognose</div>
+                <h3>Nächste Futterfenster</h3>
+            </div>
+            <span>${items.length} Stall${items.length === 1 ? '' : 'e'}</span>
+        </div>
+        <div class="plan-list">
+            ${items.map(item => `<div class="plan-row">
+                <span class="plan-title">${escapeHtml(item.barn.name || 'Tierhaltung')}</span>
+                <span class="plan-meta">${escapeHtml(item.forecast.label.replace('Prognose: ', ''))} · ${item.percent.toFixed(0)}%</span>
+            </div>`).join('')}
+        </div>
     </div>`;
 }
 
 function animalOutputIcon(output) {
-    const ft = String(output.fillType || '').toUpperCase();
-    if (ft.includes('MILK')) return '🥛';
-    if (ft === 'WOOL') return '🧶';
-    if (ft === 'EGG') return '🥚';
-    if (ft === 'MANURE') return '🟫';
-    if (ft === 'LIQUIDMANURE') return '💧';
-    return output.kind === 'PALLET' ? '📦' : '🪣';
+    return '';
 }
 
 async function loadAnimalsData() {
@@ -333,6 +378,8 @@ async function loadAnimalsData() {
 
     animalsCache = Array.isArray(data.husbandries) ? data.husbandries : [];
     beehivesCache = data.beehives || beehivesCache;
+    const feedForecast = animalFeedForecastItems(animalsCache);
+    const urgentFeed = feedForecast.filter(item => item.forecast.hours <= 24).length;
 
     document.getElementById('animalStatGrid').innerHTML = `
         <div class="stat-card">
@@ -344,13 +391,18 @@ async function loadAnimalsData() {
             <div class="stat-value">${Number(data.totalAnimals || 0)}</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">🐝 Bienenstöcke</div>
+            <div class="stat-label">Bienenstöcke</div>
             <div class="stat-value">${Number(beehivesCache.hiveCount || 0)}</div>
             <div class="stat-sub">${Number(beehivesCache.activeHiveCount || 0)} aktiv</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">🍯 Honigproduktion</div>
+            <div class="stat-label">Honigproduktion</div>
             <div class="stat-value">${formatAnimalRate(beehivesCache.honeyLitersPerHour || 0)} L/h</div>
+        </div>
+        <div class="stat-card ${urgentFeed > 0 ? 'stat-highlight' : ''}">
+            <div class="stat-label">Futterprognose</div>
+            <div class="stat-value ${urgentFeed > 0 ? 'stat-warn' : ''}">${urgentFeed}</div>
+            <div class="stat-sub">unter 24 h</div>
         </div>
     `;
     renderAnimals();
@@ -418,7 +470,7 @@ function renderAnimalFood(barn) {
         </div>`).join('')}</div>`;
     }
 
-    return renderAnimalResourceBar('🌾 Futter', food, detail);
+    return renderAnimalResourceBar('Futter', food, detail);
 }
 
 function renderAnimalOutputs(barn) {
@@ -438,7 +490,7 @@ function renderAnimalOutputs(barn) {
 
                 return `<div class="animal-output-card${emptyClass}">
                     <div class="animal-output-head">
-                        <span>${animalOutputIcon(output)} ${escapeHtml(output.title || output.fillType || 'Produkt')}</span>
+                        <span>${animalOutputIcon(output)}${escapeHtml(output.title || output.fillType || 'Produkt')}</span>
                         ${rate > 0 ? `<span class="animal-output-rate">${formatAnimalRate(rate)} L/h</span>` : ''}
                     </div>
                     ${capacity > 0 ? `
@@ -487,7 +539,7 @@ function renderAnimals() {
         return `<div class="animal-card">
             <div class="animal-card-header">
                 <div class="animal-card-title">
-                    <span class="animal-name">${meta.icon} ${escapeHtml(barn.name || meta.label)}</span>
+                    <span class="animal-name">${meta.icon ? `${escapeHtml(meta.icon)} ` : ''}${escapeHtml(barn.name || meta.label)}</span>
                     <span class="animal-kind">${escapeHtml(meta.label)}</span>
                 </div>
                 <div class="animal-card-badges">
@@ -506,9 +558,9 @@ function renderAnimals() {
             <div class="animal-section">
                 <div class="animal-section-title">Versorgung</div>
                 ${renderAnimalFood(barn)}
-                ${renderAnimalResourceBar('💧 Wasser', barn.water, waterDetail)}
-                ${renderAnimalResourceBar('🌾 Stroh', barn.straw, strawDetail)}
-                ${renderAnimalResourceBar('🌱 Weide', barn.meadow, meadowDetail)}
+                ${renderAnimalResourceBar('Wasser', barn.water, waterDetail)}
+                ${renderAnimalResourceBar('Stroh', barn.straw, strawDetail)}
+                ${renderAnimalResourceBar('Weide', barn.meadow, meadowDetail)}
             </div>
 
             ${renderAnimalOutputs(barn)}
@@ -518,7 +570,7 @@ function renderAnimals() {
     const beehiveCard = Number(beehivesCache.hiveCount || 0) > 0 ? `<div class="animal-card">
         <div class="animal-card-header">
             <div class="animal-card-title">
-                <span class="animal-name">🐝 Bienen</span>
+                <span class="animal-name">Bienen</span>
                 <span class="animal-kind">Bienenhaltung</span>
             </div>
             <div class="animal-card-badges">
@@ -534,12 +586,12 @@ function renderAnimals() {
             <div class="animal-section-title">Honigproduktion</div>
             <div class="animal-output-grid">
                 <div class="animal-output-card ${Number(beehivesCache.pendingHoneyLiters || 0) <= 0 ? 'is-empty' : ''}">
-                    <div class="animal-output-head"><span>🍯 Wartender Honig</span></div>
+                    <div class="animal-output-head"><span>Wartender Honig</span></div>
                     <div class="animal-output-stock"><span>Sammelpunkt</span><span>${beehivesCache.hasSpawner ? 'vorhanden' : 'nicht vorhanden'}</span></div>
                     <div class="animal-output-note">${formatAnimalLiters(beehivesCache.pendingHoneyLiters || 0)} L vorgemerkt</div>
                 </div>
                 <div class="animal-output-card ${Number(beehivesCache.honeyOnPalletsLiters || 0) <= 0 ? 'is-empty' : ''}">
-                    <div class="animal-output-head"><span>📦 Fertige Paletten</span></div>
+                    <div class="animal-output-head"><span>Fertige Paletten</span></div>
                     <div class="animal-output-stock"><span>${Number(beehivesCache.finishedPallets || 0)} Palette(n)</span><span>${formatAnimalLiters(beehivesCache.honeyOnPalletsLiters || 0)} L</span></div>
                     ${beehivesCache.palletLimitReached ? '<div class="animal-output-note" style="color:var(--rust-500)">Palettenlimit erreicht / Ausgabe blockiert</div>' : ''}
                 </div>
@@ -561,7 +613,7 @@ function renderAnimals() {
         container.innerHTML = '<div class="empty-note">Keine eigenen Tierhaltungen oder Bienenstöcke gefunden.</div>';
         return;
     }
-    container.innerHTML = husbandryCards + beehiveCard;
+    container.innerHTML = renderAnimalFeedForecast() + husbandryCards + beehiveCard;
 }
 
 // =================================================================
@@ -585,7 +637,7 @@ function renderProductionStorage(storage, icon) {
 
     return `<div class="production-storage-card">
         <div class="production-storage-head">
-            <span class="production-storage-name">${icon} ${escapeHtml(label)}</span>
+            <span class="production-storage-name">${icon ? `${escapeHtml(icon)} ` : ''}${escapeHtml(label)}</span>
             ${capacity > 0 ? `<span class="production-storage-percent">${percent.toFixed(0)}%</span>` : ''}
         </div>
         ${capacity > 0 ? `<div class="bar-track"><div class="bar-fill-progress" style="width:${percent}%"></div></div>` : ''}
@@ -748,14 +800,14 @@ function renderProduction() {
             <div class="production-section">
                 <div class="production-section-label">Betriebsstoffe</div>
                 <div class="production-storage-grid">
-                    ${inputStorages.map(storage => renderProductionStorage(storage, String(storage.fillType || '').toUpperCase() === 'WATER' ? '💧' : '📥')).join('')}
+                    ${inputStorages.map(storage => renderProductionStorage(storage, '')).join('')}
                 </div>
             </div>` : '';
         const outputSection = outputStorages.length > 0 ? `
             <div class="production-section">
                 <div class="production-section-label">Produzierte Waren</div>
                 <div class="production-storage-grid">
-                    ${outputStorages.map(storage => renderProductionStorage(storage, '📦')).join('')}
+                    ${outputStorages.map(storage => renderProductionStorage(storage, '')).join('')}
                 </div>
             </div>` : '';
 

@@ -42,33 +42,45 @@
                 <span class="mark">LS25 · HOF-DASHBOARD</span>
                 <div style="display:flex; align-items:center; gap:8px;">
                     <h1 id="farmHeading">Lade …</h1>
-                    <button class="small" onclick="editFarmName()" title="Hofnamen ändern (im Singleplayer im Spiel selbst nicht möglich)" style="opacity:0.65">✏️</button>
+                    <button class="small icon-only" onclick="editFarmName()" title="Hofnamen ändern (im Singleplayer im Spiel selbst nicht möglich)" style="opacity:0.65"><span class="ui-icon">✎</span></button>
                 </div>
                 <div class="masthead-sub" id="farmSub"></div>
             </div>
             <div class="tabbar">
-                <button class="tab-btn active" id="tabBtnHome" onclick="switchTab('home')">🏠 Übersicht</button>
-                <button class="tab-btn" id="tabBtnFields" onclick="switchTab('fields')">🌾 Felder</button>
-                <button class="tab-btn" id="tabBtnMarkers" onclick="switchTab('markers')">📋 Marker</button>
-                <button class="tab-btn" id="tabBtnMap" onclick="switchTab('map')">🗺️ Karte</button>
-                <button class="tab-btn" id="tabBtnVehicles" onclick="switchTab('vehicles')">🚜 Fuhrpark</button>
-                <button class="tab-btn" id="tabBtnAnimals" onclick="switchTab('animals')">🐄 Tiere</button>
-                <button class="tab-btn" id="tabBtnProduction" onclick="switchTab('production')">🏭 Produktion</button>
-                <button class="tab-btn" id="tabBtnMarket" onclick="switchTab('market')">💰 Markt</button>
-                <button class="tab-btn" id="tabBtnMissions" onclick="switchTab('missions')">🤝 Verträge</button>
-                <button class="tab-btn" id="tabBtnSystem" onclick="switchTab('system')">🩺 System</button>
+                <div class="tab-group">
+                    <span class="tab-group-label">Live</span>
+                    <button class="tab-btn active" id="tabBtnHome" onclick="switchTab('home')"><span class="ui-icon">⌂</span> Übersicht</button>
+                    <button class="tab-btn" id="tabBtnFields" onclick="switchTab('fields')"><span class="ui-icon">▤</span> Felder</button>
+                    <button class="tab-btn" id="tabBtnVehicles" onclick="switchTab('vehicles')"><span class="ui-icon">▣</span> Fuhrpark</button>
+                    <button class="tab-btn" id="tabBtnAnimals" onclick="switchTab('animals')"><span class="ui-icon">◎</span> Tiere</button>
+                </div>
+                <div class="tab-group">
+                    <span class="tab-group-label">Planung</span>
+                    <button class="tab-btn" id="tabBtnProduction" onclick="switchTab('production')"><span class="ui-icon">▦</span> Produktion</button>
+                    <button class="tab-btn" id="tabBtnMarket" onclick="switchTab('market')"><span class="ui-icon">€</span> Markt</button>
+                    <button class="tab-btn" id="tabBtnMissions" onclick="switchTab('missions')"><span class="ui-icon">#</span> Verträge</button>
+                </div>
+                <div class="tab-group">
+                    <span class="tab-group-label">AutoDrive</span>
+                    <button class="tab-btn" id="tabBtnMarkers" onclick="switchTab('markers')"><span class="ui-icon">⌗</span> Marker</button>
+                    <button class="tab-btn" id="tabBtnMap" onclick="switchTab('map')"><span class="ui-icon">◇</span> Karte</button>
+                </div>
+                <div class="tab-group">
+                    <span class="tab-group-label">System</span>
+                    <button class="tab-btn" id="tabBtnSystem" onclick="switchTab('system')"><span class="ui-icon">!</span> System</button>
+                </div>
             </div>
             <div class="header-actions">
                 <span id="liveStatusBadge" class="live-badge live-badge-no_mod" title="Mod nicht aktiv"><span class="live-pulse"></span>Kein Mod</span>
-                <button onclick="openFullBackupPanel()">💾 Backup</button>
-                <button onclick="switchSavegame()">⇄ Spielstand wechseln</button>
+                <button onclick="openFullBackupPanel()"><span class="ui-icon">□</span> Backup</button>
+                <button onclick="switchSavegame()"><span class="ui-icon">⇄</span> Spielstand wechseln</button>
             </div>
         </div>
         <div class="subtitle" id="mapInfo">Lade …</div>
 
         <div id="tabHome" style="display:block">
             <div class="toolbar">
-                <button onclick="loadFarmOverview()">↻ Aktualisieren</button>
+                <button onclick="loadFarmOverview()"><span class="ui-icon">↻</span> Aktualisieren</button>
             </div>
             <div class="stat-grid" id="statGrid">
                 <div class="empty-note">Lade Hof-Übersicht …</div>
@@ -79,7 +91,7 @@
 
         <div id="tabFields" style="display:none">
             <div class="toolbar">
-                <button onclick="loadFieldsData()">↻ Aktualisieren</button>
+                <button onclick="loadFieldsData()"><span class="ui-icon">↻</span> Aktualisieren</button>
                 <input type="text" id="fieldFilterInput" placeholder="Filtern nach Fruchtart oder Feldnummer …" style="width:280px; margin-left:auto" oninput="renderFields()">
             </div>
             <div id="fieldsContainer"></div>
@@ -87,16 +99,16 @@
 
         <div id="tabMarkers" style="display:none">
             <div class="toolbar">
-                <button class="primary" onclick="saveMarkers()">💾 Speichern</button>
-                <button onclick="addRow()">➕ Marker hinzufügen</button>
+                <button class="primary" onclick="saveMarkers()"><span class="ui-icon">□</span> Speichern</button>
+                <button onclick="addRow()"><span class="ui-icon">+</span> Marker hinzufügen</button>
                 <div class="toolbar-more">
-                    <button onclick="toggleMoreMenu('markerMoreMenu')">⋯ Mehr</button>
+                    <button onclick="toggleMoreMenu('markerMoreMenu')"><span class="ui-icon">⋯</span> Mehr</button>
                     <div class="more-menu" id="markerMoreMenu" style="display:none">
-                        <button onclick="createGroup(); closeAllMoreMenus()">📁 Neue Gruppe anlegen</button>
-                        <button id="toggleAllGroupsBtn" onclick="toggleAllGroups(); closeAllMoreMenus()">⤢ Ausklappen</button>
-                        <button onclick="openBackupPanel(); closeAllMoreMenus()">🕓 Backups</button>
-                        <button onclick="exportJson(); closeAllMoreMenus()">⬇ Export</button>
-                        <button onclick="document.getElementById('importFileInput').click(); closeAllMoreMenus()">⬆ Import</button>
+                        <button onclick="createGroup(); closeAllMoreMenus()"><span class="ui-icon">▣</span> Neue Gruppe anlegen</button>
+                        <button id="toggleAllGroupsBtn" onclick="toggleAllGroups(); closeAllMoreMenus()"><span class="ui-icon">⤢</span> Ausklappen</button>
+                        <button onclick="openBackupPanel(); closeAllMoreMenus()"><span class="ui-icon">◷</span> Backups</button>
+                        <button onclick="exportJson(); closeAllMoreMenus()"><span class="ui-icon">↓</span> Export</button>
+                        <button onclick="document.getElementById('importFileInput').click(); closeAllMoreMenus()"><span class="ui-icon">↑</span> Import</button>
                     </div>
                 </div>
                 <input type="file" id="importFileInput" accept="application/json" style="display:none" onchange="importJson(this)">
@@ -113,12 +125,19 @@
 
         <div id="tabMap" style="display:none">
             <div class="toolbar">
-                <button onclick="mapResetView()">⤢ Alle anzeigen</button>
+                <div class="mode-switch map-mode-switch" aria-label="Karteneditor-Modus">
+                    <button class="mode-btn active" id="modeBtnView" onclick="setEditMode('view')" title="Ansehen und Karte verschieben"><span class="ui-icon">↔</span> Ansehen</button>
+                    <button class="mode-btn" id="modeBtnDraw" onclick="setEditMode('draw')" title="Wegpunkte setzen und verbinden"><span class="ui-icon">＋</span> Zeichnen</button>
+                    <button class="mode-btn" id="modeBtnDisconnect" onclick="setEditMode('disconnect')" title="Verbindung zwischen zwei Punkten trennen"><span class="ui-icon">⌁</span> Trennen</button>
+                    <button class="mode-btn" id="modeBtnDelete" onclick="setEditMode('delete')" title="Wegpunkte löschen"><span class="ui-icon">×</span> Löschen</button>
+                </div>
+                <button id="undoBtn" onclick="undoCourseEdit()" disabled title="Letzte Änderung rückgängig"><span class="ui-icon">↶</span> Rückgängig</button>
+                <button onclick="mapResetView()"><span class="ui-icon">⤢</span> Alle anzeigen</button>
                 <select id="mapJumpSelect" style="width:220px; margin-left:auto" onchange="mapJumpToMarker(this.value)">
                     <option value="">— Zu Marker springen —</option>
                 </select>
                 <div class="toolbar-more">
-                    <button onclick="toggleMoreMenu('mapMoreMenu')">⋯ Mehr</button>
+                    <button onclick="toggleMoreMenu('mapMoreMenu')"><span class="ui-icon">⋯</span> Mehr</button>
                     <div class="more-menu" id="mapMoreMenu" style="display:none">
                         <select id="mapCalibration" onchange="mapRedraw()">
                             <option value="normal">Ausrichtung: Normal</option>
@@ -127,10 +146,10 @@
                             <option value="swap">Ausrichtung: X/Z vertauscht</option>
                         </select>
                         <input type="file" id="terrainFileInput" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="uploadTerrainImage(this)">
-                        <button onclick="loadMapTerrainFromGame(); closeAllMoreMenus()">📥 Kartenbild aus Spieldateien laden</button>
-                        <button onclick="document.getElementById('terrainFileInput').click(); closeAllMoreMenus()">🖼️ Hintergrundbild manuell hochladen</button>
+                        <button onclick="loadMapTerrainFromGame(); closeAllMoreMenus()"><span class="ui-icon">↓</span> Kartenbild aus Spieldateien laden</button>
+                        <button onclick="document.getElementById('terrainFileInput').click(); closeAllMoreMenus()"><span class="ui-icon">↑</span> Hintergrundbild manuell hochladen</button>
                         <div class="map-size-hint" id="mapSizeHint"></div>
-                        <button id="removeTerrainBtn" onclick="removeTerrainImage(); closeAllMoreMenus()" disabled>🗑️ Hintergrundbild entfernen</button>
+                        <button id="removeTerrainBtn" onclick="removeTerrainImage(); closeAllMoreMenus()" disabled><span class="ui-icon">×</span> Hintergrundbild entfernen</button>
                         <div style="padding:4px 4px 2px; display:flex; flex-direction:column; gap:4px;">
                             <span style="font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em;">Bild-Ausrichtung (manuell)</span>
                             <div style="display:flex; gap:4px;">
@@ -139,7 +158,7 @@
                                 <input type="number" id="terrainScale" step="0.01" value="1" title="Skalierungsfaktor" style="width:34%" onchange="updateTerrainAlignFromInputs()">
                             </div>
                         </div>
-                        <button onclick="resetTerrainAlign()">↺ Ausrichtung zurücksetzen</button>
+                        <button onclick="resetTerrainAlign()"><span class="ui-icon">↺</span> Ausrichtung zurücksetzen</button>
                     </div>
                 </div>
             </div>
@@ -153,12 +172,12 @@
 
         <div id="tabVehicles" style="display:none">
             <div class="toolbar">
-                <button onclick="loadVehiclesData()">↻ Aktualisieren</button>
+                <button onclick="loadVehiclesData()"><span class="ui-icon">↻</span> Aktualisieren</button>
                 <div class="mode-switch" id="vehicleTypeSwitch">
                     <button class="mode-btn active" data-type="ALL" onclick="setVehicleTypeFilter('ALL')">Alle</button>
-                    <button class="mode-btn" data-type="VEHICLE" onclick="setVehicleTypeFilter('VEHICLE')">🚜 Fahrzeuge</button>
-                    <button class="mode-btn" data-type="TRAILER" onclick="setVehicleTypeFilter('TRAILER')">🚛 Anhänger</button>
-                    <button class="mode-btn" data-type="IMPLEMENT" onclick="setVehicleTypeFilter('IMPLEMENT')">🔧 Anbaugeräte</button>
+                    <button class="mode-btn" data-type="VEHICLE" onclick="setVehicleTypeFilter('VEHICLE')">Fahrzeuge</button>
+                    <button class="mode-btn" data-type="TRAILER" onclick="setVehicleTypeFilter('TRAILER')">Anhänger</button>
+                    <button class="mode-btn" data-type="IMPLEMENT" onclick="setVehicleTypeFilter('IMPLEMENT')">Anbaugeräte</button>
                 </div>
                 <input type="text" id="vehicleFilterInput" placeholder="Filtern nach Marke/Modell …" style="flex:1" oninput="renderVehicles()">
                 <select id="vehicleSortSelect" style="width:220px" onchange="renderVehicles()">
@@ -171,7 +190,7 @@
             </div>
             <div class="legend-line">
                 <span><span class="legend-swatch" style="background:var(--rust-500)"></span>Roter Rahmen = Verschleiß oder Dreck über 50%, Wartung/Wäsche empfohlen</span>
-                <span>🚜 Fahrzeug · 🚛 Anhänger · 🔧 Anbaugerät</span>
+                <span>Fahrzeug · Anhänger · Anbaugerät</span>
                 <span>Dreck ist ein rechnerischer Durchschnitt über alle Schmutz-Sensorpunkte des Fahrzeugs und kann geringfügig von der im Spiel gezeigten Prozentzahl abweichen</span>
             </div>
             <div class="stat-grid" id="vehicleStatGrid"></div>
@@ -180,16 +199,16 @@
 
         <div id="tabAnimals" style="display:none">
             <div class="toolbar">
-                <button onclick="loadAnimalsData()">↻ Aktualisieren</button>
+                <button onclick="loadAnimalsData()"><span class="ui-icon">↻</span> Aktualisieren</button>
             </div>
-            <div class="legend-line">Live aus FS25 · Tierbestand nach Rasse und Alter · Gesundheit/Reproduktion · Futter, Wasser, Stroh und Weide · Milch, Wolle, Eier, Mist/Gülle und weitere Tierprodukte · 🐝 Honig</div>
+            <div class="legend-line">Live aus FS25 · Tierbestand nach Rasse und Alter · Gesundheit/Reproduktion · Futterprognose · Wasser, Stroh und Weide · Milch, Wolle, Eier, Mist/Gülle und weitere Tierprodukte · Honig</div>
             <div class="stat-grid" id="animalStatGrid"></div>
             <div id="animalsContainer"></div>
         </div>
 
         <div id="tabProduction" style="display:none">
             <div class="toolbar">
-                <button onclick="loadProductionData()">↻ Aktualisieren</button>
+                <button onclick="loadProductionData()"><span class="ui-icon">↻</span> Aktualisieren</button>
             </div>
             <div class="legend-line">Live aus FS25 · aktive Produktionsketten je Anlage · Füllstände von Rohstoffen und Ausstoß · Wasserbedarf und Lagerrollen</div>
             <div class="stat-grid" id="productionStatGrid"></div>
@@ -198,11 +217,11 @@
 
         <div id="tabMarket" style="display:none">
             <div class="toolbar">
-                <button onclick="loadMarketData()">↻ Aktualisieren</button>
+                <button onclick="loadMarketData()"><span class="ui-icon">↻</span> Aktualisieren</button>
                 <div class="mode-switch" id="marketCategorySwitch">
                     <button class="mode-btn active" data-cat="ALL" onclick="setMarketFilter('ALL')">Alle</button>
-                    <button class="mode-btn" data-cat="crop" onclick="setMarketFilter('crop')">🌾 Kulturen</button>
-                    <button class="mode-btn" data-cat="product" onclick="setMarketFilter('product')">🏭 Produkte</button>
+                    <button class="mode-btn" data-cat="crop" onclick="setMarketFilter('crop')">Kulturen</button>
+                    <button class="mode-btn" data-cat="product" onclick="setMarketFilter('product')">Produkte</button>
                 </div>
                 <input type="text" id="marketFilterInput" placeholder="Filtern nach Ware oder Verkaufsstation …" style="flex:1" oninput="renderMarket()">
                 <select id="marketSortSelect" onchange="setMarketSort(this.value)" style="width:auto">
@@ -215,13 +234,13 @@
                 </select>
                 <span class="map-hint" id="marketPeriodLabel"></span>
             </div>
-            <div class="legend-line">Live-Verkaufspreise direkt aus den FS25-Verkaufsstationen · der große Preis ist der aktuell beste erzielbare Preis je 1.000 L · darunter stehen alle Stationen mit ihrem echten Livepreis · 🔔 Preis-Alarm wird gegen den aktuellen Bestpreis geprüft und Treffer werden hervorgehoben</div>
+            <div class="legend-line">Live-Verkaufspreise direkt aus den FS25-Verkaufsstationen · Verkaufsassistent verknüpft eigene erntereife Felder und Produktionsoutputs mit aktuellen Bestpreisen · Preis-Alarm wird gegen den aktuellen Bestpreis geprüft und Treffer werden hervorgehoben</div>
             <div id="marketContainer"></div>
         </div>
 
         <div id="tabMissions" style="display:none">
             <div class="toolbar">
-                <button onclick="loadMissionsData()">↻ Aktualisieren</button>
+                <button onclick="loadMissionsData()"><span class="ui-icon">↻</span> Aktualisieren</button>
                 <span class="map-hint">Belohnung wird im Spiel dynamisch berechnet – im Spielstand nicht hinterlegt</span>
             </div>
             <div class="legend-line">Weiß: vom Vertrag geforderte Fruchtart · Grün: erscheint nur, wenn auf dem Feld aktuell etwas anderes wächst als vom Vertrag verlangt</div>

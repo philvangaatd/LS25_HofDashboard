@@ -126,6 +126,21 @@
     button.danger { color: var(--rust-500); }
     button.danger:hover { border-color: var(--danger); background: rgba(168,85,57,0.08); }
     button.small { padding: 4px 9px; font-size: 12px; }
+    .icon-only { min-width: 30px; }
+    .ui-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.1em;
+        margin-right: 6px;
+        font-family: var(--font-mono);
+        font-weight: 700;
+        line-height: 1;
+    }
+    .icon-only .ui-icon,
+    .tab-btn .ui-icon {
+        margin-right: 0;
+    }
 
     input, select {
         background: var(--ink-950);
@@ -357,9 +372,29 @@
     /* Tabs */
     .tabbar {
         display: flex;
-        gap: 4px;
+        gap: 14px;
         flex-shrink: 0;
         align-self: flex-end;
+    }
+    .tab-group {
+        display: flex;
+        align-items: flex-end;
+        gap: 4px;
+        padding-right: 10px;
+        border-right: 1px solid var(--ink-800);
+    }
+    .tab-group:last-child {
+        border-right: 0;
+        padding-right: 0;
+    }
+    .tab-group-label {
+        align-self: center;
+        color: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 9px;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        margin-right: 3px;
     }
     .tab-btn {
         background: transparent;
@@ -367,9 +402,12 @@
         border-bottom: 2px solid transparent;
         border-radius: 0;
         padding: 8px 4px 12px;
-        margin-left: 22px;
+        margin-left: 0;
         color: var(--muted);
         font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
     }
     .tab-btn:hover { border-color: var(--border); color: var(--text); }
     .tab-btn.active { color: var(--accent); border-color: var(--accent); }
@@ -433,8 +471,9 @@
         flex-wrap: wrap;
         width: 100%;
         min-width: 0;
-        gap: 4px 18px;
+        gap: 8px 16px;
     }
+    #mainScreen > .masthead .tab-group { flex-wrap: wrap; }
     #mainScreen > .masthead .tab-btn {
         flex: 0 0 auto;
         margin-left: 0;
@@ -465,6 +504,14 @@
         #mainScreen > .masthead > .tabbar {
             gap: 2px 10px;
         }
+        #mainScreen > .masthead .tab-group {
+            width: 100%;
+            align-items: center;
+            border-right: 0;
+            border-bottom: 1px solid var(--ink-800);
+            padding: 4px 0 7px;
+        }
+        .tab-group-label { width: 58px; }
         #mainScreen > .masthead .tab-btn {
             padding-top: 7px;
             padding-bottom: 9px;
@@ -519,6 +566,7 @@
         font-weight: 700;
     }
     .mode-btn.active.delete-active { background: var(--rust-500); }
+    .map-mode-switch .mode-btn { min-width: 96px; }
 
     /* Hof-Übersicht */
     .stat-grid {
@@ -894,7 +942,9 @@
     .vehicle-fill-volume { white-space: nowrap; }
     .vehicle-fill-unit .bar-track { margin: 0; }
     .vehicle-maintenance-plan,
-    .production-planner {
+    .production-planner,
+    .animal-feed-forecast,
+    .sales-assistant {
         grid-column: 1 / -1;
         background: var(--panel);
         border: 1px solid var(--border);
@@ -902,7 +952,10 @@
         border-radius: 8px;
         padding: 14px;
     }
-    .production-planner.is-calm { border-left-color: var(--moss-500); }
+    .production-planner.is-calm,
+    .sales-assistant.is-calm {
+        border-left-color: var(--moss-500);
+    }
     .plan-header {
         display: flex;
         justify-content: space-between;
@@ -960,6 +1013,8 @@
         text-align: right;
         overflow-wrap: anywhere;
     }
+    .animal-feed-forecast { margin-bottom: 2px; }
+    .animal-forecast-warn { color: var(--rust-500); }
 
     @media (max-width: 700px) {
         #vehiclesContainer { grid-template-columns: 1fr; }
@@ -1400,6 +1455,7 @@
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         gap: 12px;
         margin-top: 18px;
+        align-items: start;
     }
     .market-card {
         background: var(--panel);
