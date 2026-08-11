@@ -372,45 +372,50 @@
     /* Tabs */
     .tabbar {
         display: flex;
-        gap: 14px;
+        gap: 10px;
         flex-shrink: 0;
         align-self: flex-end;
     }
     .tab-group {
         display: flex;
-        align-items: flex-end;
-        gap: 4px;
-        padding-right: 10px;
-        border-right: 1px solid var(--ink-800);
-    }
-    .tab-group:last-child {
-        border-right: 0;
-        padding-right: 0;
+        align-items: center;
+        gap: 3px;
+        padding: 4px;
+        border: 1px solid var(--ink-800);
+        border-radius: 7px;
+        background: rgba(20,22,14,0.42);
     }
     .tab-group-label {
-        align-self: center;
+        align-self: stretch;
+        display: inline-flex;
+        align-items: center;
         color: var(--muted);
         font-family: var(--font-mono);
-        font-size: 9px;
-        letter-spacing: .08em;
+        font-size: 8.5px;
+        letter-spacing: .07em;
         text-transform: uppercase;
-        margin-right: 3px;
+        padding: 0 7px 0 5px;
+        border-right: 1px solid var(--ink-800);
     }
     .tab-btn {
         background: transparent;
         border: none;
-        border-bottom: 2px solid transparent;
-        border-radius: 0;
-        padding: 8px 4px 12px;
+        border-radius: 5px;
+        padding: 6px 9px;
         margin-left: 0;
         color: var(--muted);
         font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
+        font-size: 12.5px;
+        line-height: 1.15;
     }
-    .tab-btn:hover { border-color: var(--border); color: var(--text); }
-    .tab-btn.active { color: var(--accent); border-color: var(--accent); }
+    .tab-btn:hover {
+        background: var(--ink-800);
+        color: var(--text);
+    }
+    .tab-btn.active {
+        background: var(--accent);
+        color: var(--ink-950);
+    }
     .tab-badge {
         display: inline-block;
         margin-left: 5px;
@@ -471,9 +476,9 @@
         flex-wrap: wrap;
         width: 100%;
         min-width: 0;
-        gap: 8px 16px;
+        gap: 8px;
     }
-    #mainScreen > .masthead .tab-group { flex-wrap: wrap; }
+    #mainScreen > .masthead .tab-group { flex-wrap: nowrap; }
     #mainScreen > .masthead .tab-btn {
         flex: 0 0 auto;
         margin-left: 0;
@@ -502,19 +507,19 @@
             padding: 20px 16px 40px;
         }
         #mainScreen > .masthead > .tabbar {
-            gap: 2px 10px;
+            gap: 8px;
         }
         #mainScreen > .masthead .tab-group {
-            width: 100%;
+            width: auto;
             align-items: center;
-            border-right: 0;
-            border-bottom: 1px solid var(--ink-800);
-            padding: 4px 0 7px;
+            flex-wrap: wrap;
         }
-        .tab-group-label { width: 58px; }
+        .tab-group-label {
+            width: auto;
+            min-width: 54px;
+        }
         #mainScreen > .masthead .tab-btn {
-            padding-top: 7px;
-            padding-bottom: 9px;
+            padding: 6px 8px;
         }
     }
 
