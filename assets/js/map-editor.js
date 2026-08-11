@@ -14,9 +14,9 @@ let mapMouseDownPos = null;
 let mapLastMouse = null;
 let mapCanvasEl = null;
 let mapCtx = null;
-let editMode = 'view';       // 'view' | 'draw' | 'delete'
+let editMode = 'view';
 let chainSelection = null;   // id des zuletzt gesetzten Punkts beim Routenzeichnen
-let disconnectSelection = null; // erster ausgewählter Punkt im Trennen-Modus
+let disconnectSelection = null;
 let lastClickedPointId = null;  // zuletzt angeklickter Punkt, für "Als Marker anlegen"
 let dragOriginalPos = null;     // Position eines Punkts vor dem Ziehen, für Undo
 let orphanHighlightIds = null;  // Set von IDs isolierter Stränge (nach Konnektivitätsprüfung)
@@ -49,10 +49,8 @@ function guessMapWorldBounds(bounds) {
 function updateMapSizeHint() {
     const el = document.getElementById('mapSizeHint');
     if (!el || !guessedMapBounds) return;
-    const detail = guessedMapBounds.exact
-        ? 'aus den Spieldateien ermittelt, exakt'
-        : 'geschätzt anhand der Wegpunkt-Ausdehnung, nicht garantiert exakt';
-    el.textContent = `Empfohlen für das Hintergrundbild: quadratisch (1:1), zeigt die komplette Karte von Rand zu Rand – Kartengröße ${guessedMapBounds.size}×${guessedMapBounds.size} m (${detail}). Bild sollte mindestens ${guessedMapBounds.size}×${guessedMapBounds.size} Pixel haben, sonst wirkt es beim Hineinzoomen unscharf.`;
+    const detail = guessedMapBounds.exact ? 'exakt erkannt' : 'geschätzt';
+    el.textContent = `Kartenbild: quadratisch, komplette Karte von Rand zu Rand. Empfohlen: mindestens ${guessedMapBounds.size}×${guessedMapBounds.size} px (${detail}).`;
 }
 
 // Versucht die exakte Kartengröße direkt aus der Karten-XML zu lesen (siehe
@@ -116,7 +114,6 @@ async function ensureMapLoaded() {
         nextNewId = maxId + 1;
         undoStack = [];
         orphanHighlightIds = null;
-        updateUndoButton();
 
         rebuildEdgesList();
         courseOriginalSnapshot = courseSnapshot();
@@ -160,34 +157,6 @@ function rebuildEdgesList() {
             }
         }
     }
-}
-
-function setEditMode(mode) {
-    if (mode !== 'draw') chainSelection = null;
-    if (mode !== 'disconnect') disconnectSelection = null;
-    editMode = mode;
-    document.getElementById('modeBtnView').classList.toggle('active', mode === 'view');
-    document.getElementById('modeBtnDraw').classList.toggle('active', mode === 'draw');
-    document.getElementById('modeBtnDisconnect').classList.toggle('active', mode === 'disconnect');
-    document.getElementById('modeBtnDelete').classList.toggle('active', mode === 'delete');
-    document.getElementById('modeBtnDelete').classList.toggle('delete-active', mode === 'delete');
-    if (mapCanvasEl) {
-        mapCanvasEl.classList.toggle('mode-draw', mode === 'draw');
-        mapCanvasEl.classList.toggle('mode-delete', mode === 'delete');
-        mapCanvasEl.classList.toggle('mode-disconnect', mode === 'disconnect');
-    }
-
-    const hintBar = document.getElementById('mapHintBar');
-    if (mode === 'view') {
-        hintBar.textContent = 'Scrollen = Zoom · Ziehen = Karte verschieben';
-    } else if (mode === 'draw') {
-        hintBar.textContent = 'Klick = Punkt setzen/verbinden (fortlaufende Kette) · Klick auf bestehenden Punkt = andocken · vorhandenen Punkt ziehen = verschieben · Esc = Kette beenden';
-    } else if (mode === 'disconnect') {
-        hintBar.textContent = 'Zwei verbundene Punkte nacheinander anklicken = Verbindung zwischen ihnen entfernen (Punkte bleiben erhalten) · Esc = Auswahl zurücksetzen';
-    } else if (mode === 'delete') {
-        hintBar.textContent = 'Klick auf einen Wegpunkt = löschen (inkl. aller Verbindungen)';
-    }
-    if (mapCanvasEl) mapRedraw();
 }
 
 function populateMapJumpList() {
@@ -582,56 +551,12 @@ function isMarkerReferencing(id) {
 }
 
 // -----------------------------------------------------------------
-// Undo-System: jeder Bearbeitungsschritt (Klick/Zug) wird als Liste von
-// Einzel-Operationen gespeichert; Strg+Z macht sie in umgekehrter Reihenfolge rückgängig.
+// Interne Änderungshistorie für alte Routenbearbeitung; aktuell nicht über die UI erreichbar.
 // -----------------------------------------------------------------
 function pushUndoStep(entries) {
     if (!entries || entries.length === 0) return;
     undoStack.push(entries);
     if (undoStack.length > UNDO_STACK_LIMIT) undoStack.shift();
-    updateUndoButton();
-}
-
-function applyInverseEntry(entry) {
-    if (entry.type === 'addPoint') {
-        points.delete(entry.id);
-    } else if (entry.type === 'deletePoint') {
-        points.set(entry.id, { x: entry.data.x, y: entry.data.y, z: entry.data.z, out: new Set(), flags: entry.data.flags });
-        const restored = points.get(entry.id);
-        for (const nb of entry.neighbors) {
-            const n = points.get(nb);
-            if (n) { n.out.add(entry.id); restored.out.add(nb); }
-        }
-    } else if (entry.type === 'connect') {
-        const a = points.get(entry.a), b = points.get(entry.b);
-        if (a) a.out.delete(entry.b);
-        if (b) b.out.delete(entry.a);
-    } else if (entry.type === 'disconnect') {
-        const a = points.get(entry.a), b = points.get(entry.b);
-        if (a) a.out.add(entry.b);
-        if (b) b.out.add(entry.a);
-    } else if (entry.type === 'move') {
-        const p = points.get(entry.id);
-        if (p) { p.x = entry.oldX; p.z = entry.oldZ; }
-    }
-}
-
-function undoCourseEdit() {
-    if (undoStack.length === 0) return;
-    const step = undoStack.pop();
-    for (let i = step.length - 1; i >= 0; i--) applyInverseEntry(step[i]);
-    chainSelection = null;
-    disconnectSelection = null;
-    orphanHighlightIds = null;
-    rebuildEdgesList();
-    updateUndoButton();
-    mapRedraw();
-    showToast('Änderung rückgängig gemacht', 'ok');
-}
-
-function updateUndoButton() {
-    const btn = document.getElementById('undoBtn');
-    if (btn) btn.disabled = undoStack.length === 0;
 }
 
 // -----------------------------------------------------------------
@@ -640,7 +565,7 @@ function updateUndoButton() {
 function markSelectedAsMarker() {
     const id = lastClickedPointId;
     if (id === null || !points.has(id)) {
-        showToast('Erst einen Wegpunkt im Zeichen- oder Trennen-Modus anklicken.', 'err');
+        showToast('Erst einen Wegpunkt auf der Karte anklicken.', 'err');
         return;
     }
     if (isMarkerReferencing(id)) {
@@ -723,7 +648,7 @@ function mapOnMouseDown(ev) {
     mapMouseDownPos = { x: ev.clientX, y: ev.clientY };
     mapLastMouse = { x: ev.clientX, y: ev.clientY };
 
-    // Treffertest nur in Zeichnen/Trennen/Löschen-Modus – im Ansehen-Modus gibt es keine
+    // Treffertest nur in internen Bearbeitungsmodi; im normalen Kartenmodus gibt es keine
     // Punkt-Interaktion, und ein Treffertest würde dort das Verschieben der Karte
     // stören (die 30k Punkte liegen dicht am gesamten Straßennetz).
     if (editMode !== 'view') {
@@ -743,7 +668,7 @@ function mapOnMouseMove(ev) {
     if (mapDraggingPoint !== null) {
         const moved = Math.hypot(ev.clientX - mapMouseDownPos.x, ev.clientY - mapMouseDownPos.y);
         // Tatsächliches Verschieben der Position nur im Zeichenmodus erlauben –
-        // in Ansehen/Trennen/Löschen soll ein Ziehen keine unbeabsichtigte Positionsänderung auslösen.
+        // Außerhalb der alten Routenbearbeitung soll Ziehen keine Positionsänderung auslösen.
         if (moved > DRAG_THRESHOLD_PX && editMode === 'draw') {
             const rect = mapCanvasEl.getBoundingClientRect();
             const [wx, wz] = canvasToWorld(ev.clientX - rect.left, ev.clientY - rect.top);
@@ -870,10 +795,6 @@ document.addEventListener('keydown', (ev) => {
         if (editMode === 'draw') { chainSelection = null; mapRedraw(); }
         else if (editMode === 'disconnect') { disconnectSelection = null; mapRedraw(); }
     }
-    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z' && activeTab === 'map') {
-        ev.preventDefault();
-        undoCourseEdit();
-    }
 });
 
 async function saveCourse() {
@@ -968,7 +889,7 @@ function mapRedraw() {
     }
 
     // Isolierte Stränge (nach Konnektivitätsprüfung) rot markieren – immer sichtbar,
-    // auch im Ansehen-Modus, damit die Warnung nicht übersehen wird.
+    // auch im normalen Kartenmodus, damit die Warnung nicht übersehen wird.
     if (orphanHighlightIds && orphanHighlightIds.size > 0) {
         const cx0 = rect.width / 2, cy0 = rect.height / 2;
         mapCtx.fillStyle = '#A85539';
@@ -999,7 +920,7 @@ function mapRedraw() {
         }
         mapCtx.fill();
 
-        // Auswahl-Highlight: im Zeichenmodus der Kettenpunkt, im Trennen-Modus der erste gewählte Punkt
+        // Auswahl-Highlight für alte interne Routenbearbeitung.
         const highlightId = editMode === 'draw' ? chainSelection : (editMode === 'disconnect' ? disconnectSelection : null);
         if (highlightId !== null && points.has(highlightId)) {
             const p = points.get(highlightId);

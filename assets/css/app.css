@@ -141,86 +141,17 @@
     .tab-btn .ui-icon {
         margin-right: 0;
     }
-    .cmd-icon {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+    .icon-sprite { display: none; }
+    .app-icon {
         width: 14px;
         height: 14px;
         margin-right: 7px;
         flex: 0 0 14px;
-        color: currentColor;
-    }
-    .cmd-icon::before,
-    .cmd-icon::after {
-        content: "";
-        position: absolute;
-        box-sizing: border-box;
-    }
-    .icon-backup::before {
-        width: 12px;
-        height: 10px;
-        top: 2px;
-        border: 1.6px solid currentColor;
-        border-radius: 2px;
-    }
-    .icon-backup::after {
-        width: 5px;
-        height: 3px;
-        top: 4px;
-        background: currentColor;
-        border-radius: 1px;
-    }
-    .icon-group::before {
-        width: 11px;
-        height: 8px;
-        top: 4px;
-        border: 1.5px solid currentColor;
-        border-radius: 2px;
-    }
-    .icon-group::after {
-        width: 7px;
-        height: 5px;
-        top: 2px;
-        border: 1.5px solid currentColor;
-        border-bottom: 0;
-        border-radius: 2px 2px 0 0;
-    }
-    .icon-expand::before {
-        width: 10px;
-        height: 10px;
-        border-top: 1.6px solid currentColor;
-        border-left: 1.6px solid currentColor;
-        transform: rotate(45deg);
-        top: 5px;
-    }
-    .icon-export::before,
-    .icon-import::before {
-        width: 1.6px;
-        height: 9px;
-        left: 6px;
-        top: 2px;
-        background: currentColor;
-        border-radius: 1px;
-    }
-    .icon-export::after {
-        width: 6px;
-        height: 6px;
-        left: 4px;
-        bottom: 2px;
-        border-right: 1.6px solid currentColor;
-        border-bottom: 1.6px solid currentColor;
-        transform: rotate(45deg);
-    }
-    .icon-import::after {
-        width: 6px;
-        height: 6px;
-        left: 4px;
-        top: 2px;
-        border-left: 1.6px solid currentColor;
-        border-top: 1.6px solid currentColor;
-        transform: rotate(45deg);
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
     }
 
     input, select {
@@ -615,9 +546,6 @@
     }
     #mapCanvas { display: block; width: 100%; height: 100%; cursor: grab; }
     #mapCanvas.dragging { cursor: grabbing; }
-    #mapCanvas.mode-draw { cursor: crosshair; }
-    #mapCanvas.mode-delete { cursor: default; }
-    #mapCanvas.mode-disconnect { cursor: default; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     button:disabled:hover { border-color: var(--border); }
     .map-hint {
@@ -667,7 +595,6 @@
         background: var(--rust-500);
         color: var(--ink-950);
     }
-    .map-mode-switch .mode-btn { min-width: 96px; }
 
     /* Hof-Übersicht */
     .stat-grid {
