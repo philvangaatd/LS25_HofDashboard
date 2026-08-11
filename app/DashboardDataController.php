@@ -59,9 +59,6 @@ $vehiclesNeedingAttention = array_values(array_map(
 usort($vehiclesNeedingAttention, fn($a,$b) =>
     max($b['wear'],$b['dirt']) <=> max($a['wear'],$a['dirt']));
 
-// Verträge heute fällig (aus Mod: daysLeft nicht verfügbar, daher 0 nutzen)
-$missionsTodayCount = 0;  // Deadline aus Mod-API nicht exportierbar
-
 echo json_encode([
     'farmName'               => $farm['name']  ?? '',
     'manager'                => '',
@@ -76,7 +73,6 @@ echo json_encode([
     'vehicleCount'           => $vehicleCount,
     'harvestReadyFields'     => $harvestReadyFields,
     'vehiclesNeedingAttention' => array_slice($vehiclesNeedingAttention, 0, 5),
-    'missionsTodayCount'     => $missionsTodayCount,
     'missionsTotalCount'     => count($contracts),
     'weatherForecast'        => ($folder && $currentDayLive > 0 && isset($dir) && is_dir($dir))
         ? get_weather_forecast($dir, $currentDayLive, 5)
@@ -652,7 +648,6 @@ $missions = array_map(fn($lc) => [
     'farmId'    => (int)($lc['farmId']    ?? 0),
     'isActive'  => (bool)($lc['isActive'] ?? false),
     'progress'  => (int)($lc['progress']  ?? 0),
-    'daysLeft'  => 99,   // Deadline aus Mod-API nicht lesbar – zeige "laufend"
     'fieldCrop' => '',
 ], $liveContracts);
 

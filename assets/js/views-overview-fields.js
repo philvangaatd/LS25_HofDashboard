@@ -190,8 +190,8 @@ function renderQuickAccess(data) {
                 <h3>🤝 Verträge</h3>
                 <div class="quick-list">
                     <div class="quick-row" onclick="switchTab('missions')">
-                        <span class="quick-title">${data.missionsTodayCount} von ${data.missionsTotalCount} Verträgen laufen heute ab</span>
-                        <span class="quick-meta">→ Vertrags-Tab öffnen</span>
+                        <span class="quick-title">${data.missionsTotalCount} Verträge verfügbar</span>
+                        <span class="quick-meta">Vertrags-Tab öffnen</span>
                     </div>
                 </div>
             </div>
