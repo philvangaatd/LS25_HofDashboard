@@ -1189,66 +1189,7 @@ if ($action === 'course_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // Kartenhintergrundbild hochladen (Ingame-Screenshot als Kartenbasis)
 // ---------------------------------------------------------------
 if ($action === 'upload_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-
-    // Ohne die PHP-Erweiterung "gd" schlägt jede einzelne Bildprüfung weiter unten fehl
-    // (function_exists() für imagecreatefrompng/-jpeg/-webp ist dann immer false) – das
-    // sah bisher aus wie "Format nicht unterstützt", obwohl PNG und JPEG eigentlich gültig
-    // waren. Das hier direkt am Anfang klarstellen statt es als Formatfehler zu tarnen.
-    if (!extension_loaded('gd')) {
-        http_response_code(500);
-        $iniPath = php_ini_loaded_file() ?: null;
-        $hint = $iniPath
-            ? "Bitte in \"$iniPath\" die Zeile \"extension=gd\" aktivieren (führendes Semikolon entfernen) und den Server neu starten."
-            : 'Bitte in der php.ini die Zeile "extension=gd" aktivieren (führendes Semikolon entfernen) und den Server neu starten.';
-        echo json_encode(['error' => 'Die PHP-Erweiterung "gd" ist nicht aktiviert (wird für die Bildverarbeitung benötigt). ' . $hint]);
-        exit;
-    }
-
-    if (empty($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
-        $uploadErr = $_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE;
-        if ($uploadErr === UPLOAD_ERR_INI_SIZE || $uploadErr === UPLOAD_ERR_FORM_SIZE) {
-            // Besonders relevant bei großen Kartentexturen (z. B. dekodierte 4096×4096-DDS-Bilder
-            // können unkomprimiert als PNG 10-15 MB groß sein) – das PHP-Standardlimit von oft nur
-            // 2 MB (upload_max_filesize) greift dann VOR unserer eigenen 25-MB-Prüfung weiter unten,
-            // und ohne diese Fallunterscheidung sah das bisher wie "kein Bild empfangen" aus.
-            http_response_code(413);
-            $iniPath = php_ini_loaded_file() ?: null;
-            $currentLimit = ini_get('upload_max_filesize') . ' / post_max_size ' . ini_get('post_max_size');
-            $hint = $iniPath
-                ? "Bitte in \"$iniPath\" die Werte \"upload_max_filesize\" und \"post_max_size\" erhöhen (z. B. auf 32M) und den Server neu starten."
-                : 'Bitte in der php.ini die Werte "upload_max_filesize" und "post_max_size" erhöhen (z. B. auf 32M) und den Server neu starten.';
-            echo json_encode(['error' => "Datei überschreitet das aktuelle PHP-Upload-Limit (upload_max_filesize $currentLimit). $hint"]);
-            exit;
-        }
-        http_response_code(400);
-        echo json_encode(['error' => 'Kein gültiges Bild empfangen.']);
-        exit;
-    }
-
-    $maxBytes = 25 * 1024 * 1024;
-    if ($_FILES['image']['size'] > $maxBytes) {
-        http_response_code(413);
-        echo json_encode(['error' => 'Datei zu groß (maximal 25 MB).']);
-        exit;
-    }
-
-    $assetsDir = MAP_ASSETS_DIR;
-    $destPath = $assetsDir . '/terrain_' . $folder . '.png';
-    $result = save_terrain_image_from_path($_FILES['image']['tmp_name'], $destPath);
-
-    if (isset($result['error'])) {
-        http_response_code(422);
-        echo json_encode($result);
-        exit;
-    }
-
-    echo json_encode($result);
+    handle_terrain_upload();
     exit;
 }
 
@@ -1266,81 +1207,7 @@ if ($action === 'map_size_info' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // Kartenhintergrundbild automatisch aus den Moddateien laden
 // ---------------------------------------------------------------
 if ($action === 'load_map_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-
-    if (!extension_loaded('gd')) {
-        http_response_code(500);
-        $iniPath = php_ini_loaded_file() ?: null;
-        $hint = $iniPath
-            ? "Bitte in \"$iniPath\" die Zeile \"extension=gd\" aktivieren (führendes Semikolon entfernen) und den Server neu starten."
-            : 'Bitte in der php.ini die Zeile "extension=gd" aktivieren (führendes Semikolon entfernen) und den Server neu starten.';
-        echo json_encode(['error' => 'Die PHP-Erweiterung "gd" ist nicht aktiviert (wird für die Bildverarbeitung benötigt). ' . $hint]);
-        exit;
-    }
-
-    $dir = get_general_savegame_dir($folder);
-    if (!$dir) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Spielstand nicht gefunden.']);
-        exit;
-    }
-
-    $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
-    $mapId = '';
-    if (file_exists($careerFile)) {
-        libxml_use_internal_errors(true);
-        $career = simplexml_load_file($careerFile);
-        if ($career && isset($career->settings)) {
-            $mapId = (string)($career->settings->mapId ?? '');
-        }
-    }
-
-    $found = find_map_overview_image($mapId);
-
-    if (!$found['found']) {
-        $messages = [
-            'no_zip_extension' => 'Die PHP-Erweiterung "zip" wird für die automatische Kartensuche benötigt und ist nicht aktiviert.',
-            'no_map_id' => 'Im Spielstand konnte keine Karten-ID gefunden werden.',
-            'no_mod_zip' => 'Für diese Karte wurde keine Mod-Datei im "mods"-Ordner gefunden.',
-            'zip_open_failed' => 'Die Mod-Datei der Karte konnte nicht geöffnet werden.',
-            'no_candidate' => 'Es wurde kein Kartenbild gefunden.',
-            'dds_only' => 'Es wurde ein Kartenbild gefunden, aber nur im DDS-Format – das kann dieses Tool nicht lesen (nur PNG/JPEG werden unterstützt).',
-            'extract_failed' => 'Das gefundene Kartenbild konnte nicht gelesen werden.',
-            'no_install_dir' => 'Das ist eine offizielle GIANTS-Karte ohne Mod-Datei – dafür müsste der Installationsordner des Spiels bekannt sein. Der wurde automatisch nicht gefunden. Trage ihn in config.php unter FS_INSTALL_DIR_OVERRIDE manuell ein, z. B. define(\'FS_INSTALL_DIR_OVERRIDE\', \'D:\\\\SteamLibrary\\\\steamapps\\\\common\\\\Farming Simulator 25\');.',
-            'map_dir_not_found' => 'Im Installationsordner des Spiels wurde kein Datenordner für diese Karte gefunden.',
-        ];
-        $reason = $found['reason'] ?? 'no_candidate';
-        http_response_code(404);
-        echo json_encode([
-            'error' => ($messages[$reason] ?? 'Kein automatisch nutzbares Kartenbild gefunden.') . ' Bitte manuell ein Bild hochladen.',
-            'ddsAvailable' => $found['ddsOnly'] ?? false,
-        ]);
-        exit;
-    }
-
-    // Extrahierte Bilddaten in eine temporäre Datei schreiben, damit dieselbe
-    // Verarbeitung wie beim manuellen Upload greifen kann (Formatprüfung, Downscale).
-    $tmpFile = tempnam(sys_get_temp_dir(), 'mapimg_');
-    file_put_contents($tmpFile, $found['data']);
-
-    $assetsDir = MAP_ASSETS_DIR;
-    $destPath = $assetsDir . '/terrain_' . $folder . '.png';
-    $result = save_terrain_image_from_path($tmpFile, $destPath);
-    @unlink($tmpFile);
-
-    if (isset($result['error'])) {
-        http_response_code(422);
-        echo json_encode($result);
-        exit;
-    }
-
-    $result['source'] = $found['sourceName'];
-    echo json_encode($result);
+    handle_load_map_terrain();
     exit;
 }
 
@@ -1348,36 +1215,7 @@ if ($action === 'load_map_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Rohe DDS-Kartentextur ausliefern (für client-seitige Dekodierung im Browser)
 // ---------------------------------------------------------------
 if ($action === 'fetch_map_dds' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        exit;
-    }
-    $dir = get_general_savegame_dir($folder);
-    if (!$dir) {
-        http_response_code(404);
-        exit;
-    }
-
-    $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
-    $mapId = '';
-    if (file_exists($careerFile)) {
-        libxml_use_internal_errors(true);
-        $career = simplexml_load_file($careerFile);
-        if ($career && isset($career->settings)) {
-            $mapId = (string)($career->settings->mapId ?? '');
-        }
-    }
-
-    $ddsData = find_map_overview_dds($mapId);
-    if ($ddsData === null) {
-        http_response_code(404);
-        exit;
-    }
-
-    header('Content-Type: application/octet-stream');
-    header('Content-Length: ' . strlen($ddsData));
-    echo $ddsData;
+    handle_fetch_map_dds();
     exit;
 }
 
