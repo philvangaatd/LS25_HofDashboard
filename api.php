@@ -6,6 +6,7 @@ date_default_timezone_set('Europe/Berlin');
 require __DIR__ . '/config.php';
 require __DIR__ . '/app/LiveDataService.php';
 require __DIR__ . '/app/SavegameService.php';
+require __DIR__ . '/app/BackupService.php';
 require __DIR__ . '/user_settings.php';
 require __DIR__ . '/production_data.php';
 
@@ -989,77 +990,6 @@ function parse_missions(string $savegameDir, int $currentDay): array {
     }
     usort($result, fn($a, $b) => $a['daysLeft'] <=> $b['daysLeft'] ?: strcmp($a['typeLabel'], $b['typeLabel']));
     return $result;
-}
-
-function list_backups_for(string $folder): array {
-    $files = glob(BACKUP_DIR . '/' . $folder . '_AutoDrive_config_*.xml');
-    rsort($files); // neueste zuerst (Zeitstempel im Dateinamen sortiert lexikalisch korrekt)
-    return $files;
-}
-
-function prune_old_backups(string $folder, int $keep): void {
-    $files = list_backups_for($folder);
-    foreach (array_slice($files, $keep) as $old) {
-        @unlink($old);
-    }
-}
-
-function make_backup_filename(string $folder): string {
-    // Millisekunden-Anteil verhindert Kollisionen bei mehreren Speichervorgängen
-    // innerhalb derselben Sekunde (z. B. schnelles Testen/Skripten).
-    $ms = sprintf('%03d', (int)(microtime(true) * 1000) % 1000);
-    return BACKUP_DIR . '/' . $folder . '_AutoDrive_config_' . date('Y-m-d_His') . '_' . $ms . '.xml';
-}
-
-// -----------------------------------------------------------------
-// Vollständige Spielstand-Backups (ZIP des kompletten savegameN-Ordners) –
-// unabhängig von den automatischen AutoDrive-XML-Backups oben. Eigener
-// Unterordner backups/full/, da diese Dateien deutlich größer sind.
-// -----------------------------------------------------------------
-function full_backup_dir(): string {
-    $dir = BACKUP_DIR . '/full';
-    if (!is_dir($dir)) mkdir($dir, 0777, true);
-    return $dir;
-}
-
-function list_full_backups_for(string $folder): array {
-    $files = glob(full_backup_dir() . '/' . $folder . '_full_*.zip');
-    rsort($files);
-    return $files;
-}
-
-function prune_old_full_backups(string $folder, int $keep): void {
-    $files = list_full_backups_for($folder);
-    foreach (array_slice($files, $keep) as $old) {
-        @unlink($old);
-    }
-}
-
-function make_full_backup_filename(string $folder): string {
-    $ms = sprintf('%03d', (int)(microtime(true) * 1000) % 1000);
-    return full_backup_dir() . '/' . $folder . '_full_' . date('Y-m-d_His') . '_' . $ms . '.zip';
-}
-
-// -----------------------------------------------------------------
-// Backups für farms.xml (eigener, kleiner Satz an Sicherungen, unabhängig von den
-// AutoDrive-Backups, da eine andere Datei betroffen ist)
-// -----------------------------------------------------------------
-function list_farms_backups_for(string $folder): array {
-    $files = glob(BACKUP_DIR . '/' . $folder . '_farms_*.xml');
-    rsort($files);
-    return $files;
-}
-
-function prune_old_farms_backups(string $folder, int $keep): void {
-    $files = list_farms_backups_for($folder);
-    foreach (array_slice($files, $keep) as $old) {
-        @unlink($old);
-    }
-}
-
-function make_farms_backup_filename(string $folder): string {
-    $ms = sprintf('%03d', (int)(microtime(true) * 1000) % 1000);
-    return BACKUP_DIR . '/' . $folder . '_farms_' . date('Y-m-d_His') . '_' . $ms . '.xml';
 }
 
 // -----------------------------------------------------------------
