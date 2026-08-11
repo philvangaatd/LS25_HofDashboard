@@ -7,6 +7,7 @@ require __DIR__ . '/config.php';
 require __DIR__ . '/app/ApiResponseService.php';
 require __DIR__ . '/app/LiveDataService.php';
 require __DIR__ . '/app/SavegameService.php';
+require __DIR__ . '/app/SavegameController.php';
 require __DIR__ . '/app/BackupService.php';
 require __DIR__ . '/app/MapAssetService.php';
 require __DIR__ . '/app/AutoDriveService.php';
@@ -1041,47 +1042,7 @@ if ($action === 'user_settings') {
 // Spielstände auflisten (Auswahlmaske)
 // ---------------------------------------------------------------
 if ($action === 'list_savegames' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $result = [];
-    foreach (glob(FS_BASE_DIR . DIRECTORY_SEPARATOR . 'savegame*', GLOB_ONLYDIR) as $dir) {
-        $folder = basename($dir);
-        if (!preg_match('/^savegame\d+$/', $folder)) continue;
-
-        $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
-        $adFile = $dir . DIRECTORY_SEPARATOR . 'AutoDrive_config.xml';
-        if (!file_exists($careerFile)) continue;
-
-        $entry = [
-            'folder' => $folder,
-            'savegameName' => $folder,
-            'farmName' => '',
-            'manager' => '',
-            'mapTitle' => '',
-            'saveDate' => '',
-            'saveDateSort' => '',
-            'hasAutoDrive' => file_exists($adFile),
-        ];
-
-        libxml_use_internal_errors(true);
-        $career = simplexml_load_file($careerFile);
-        if ($career && isset($career->settings)) {
-            $s = $career->settings;
-            $entry['savegameName'] = (string)($s->savegameName ?? $folder);
-            $entry['mapTitle'] = (string)($s->mapTitle ?? '');
-            $entry['saveDate'] = (string)($s->saveDateFormatted ?? '');
-            $entry['saveDateSort'] = (string)($s->saveDate ?? '');
-        }
-
-        $farmInfo = get_farm_info($dir);
-        $entry['farmName'] = $farmInfo['farmName'];
-        $entry['manager'] = $farmInfo['manager'];
-
-        $result[] = $entry;
-    }
-
-    // Neueste zuerst (ISO-Datum sortiert korrekt lexikalisch)
-    usort($result, fn($a, $b) => strcmp($b['saveDateSort'], $a['saveDateSort']));
-
-    echo json_encode(['savegames' => $result, 'baseDir' => FS_BASE_DIR]);
+    handle_savegames_list();
     exit;
 }
 
@@ -1089,18 +1050,7 @@ if ($action === 'list_savegames' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // Spielstand auswählen
 // ---------------------------------------------------------------
 if ($action === 'select_savegame' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $body = json_decode(file_get_contents('php://input'), true);
-    $folder = $body['folder'] ?? '';
-    $dir = get_general_savegame_dir($folder);
-
-    if (!$dir) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Spielstand nicht gefunden.']);
-        exit;
-    }
-
-    $_SESSION['savegame_folder'] = $folder;
-    echo json_encode(['success' => true, 'folder' => $folder, 'hasAutoDrive' => get_config_path_for_folder($folder) !== null]);
+    handle_savegame_select();
     exit;
 }
 
@@ -1108,12 +1058,7 @@ if ($action === 'select_savegame' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Aktuell ausgewählten Spielstand abfragen
 // ---------------------------------------------------------------
 if ($action === 'current_savegame' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    $dir = $folder ? get_general_savegame_dir($folder) : null;
-    echo json_encode([
-        'folder' => $dir ? $folder : null,
-        'hasAutoDrive' => $dir ? (get_config_path_for_folder($folder) !== null) : false,
-    ]);
+    handle_current_savegame();
     exit;
 }
 
@@ -1121,8 +1066,7 @@ if ($action === 'current_savegame' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // Spielstand-Auswahl aufheben (zurück zur Auswahlmaske)
 // ---------------------------------------------------------------
 if ($action === 'clear_savegame' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    unset($_SESSION['savegame_folder']);
-    echo json_encode(['success' => true]);
+    handle_savegame_clear();
     exit;
 }
 
