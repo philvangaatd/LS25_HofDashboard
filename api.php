@@ -11,6 +11,7 @@ require __DIR__ . '/app/BackupService.php';
 require __DIR__ . '/app/MapAssetService.php';
 require __DIR__ . '/app/AutoDriveService.php';
 require __DIR__ . '/app/AutoDriveMarkerController.php';
+require __DIR__ . '/app/AutoDriveBackupController.php';
 require __DIR__ . '/user_settings.php';
 require __DIR__ . '/production_data.php';
 
@@ -1128,28 +1129,7 @@ if ($action === 'clear_savegame' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Backups auflisten
 // ---------------------------------------------------------------
 if ($action === 'list_backups' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-
-    $files = list_backups_for($folder);
-    $result = array_map(function ($f) {
-        // Millisekunden-Suffix ist optional: ältere Backups von vor dessen Einführung
-        // haben nur Datum+Uhrzeit ohne "_XXX" am Ende.
-        preg_match('/_(\d{4}-\d{2}-\d{2}_\d{6})(?:_\d{3})?\.xml$/', $f, $m);
-        $ts = $m[1] ?? '';
-        $formatted = $ts ? sprintf(
-            '%s.%s.%s %s:%s:%s',
-            substr($ts, 8, 2), substr($ts, 5, 2), substr($ts, 0, 4),
-            substr($ts, 11, 2), substr($ts, 13, 2), substr($ts, 15, 2)
-        ) : '';
-        return ['file' => basename($f), 'formatted' => $formatted, 'size' => filesize($f)];
-    }, $files);
-
-    echo json_encode(['backups' => $result]);
+    handle_autodrive_backups_list();
     exit;
 }
 
@@ -1157,44 +1137,7 @@ if ($action === 'list_backups' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // Backup wiederherstellen
 // ---------------------------------------------------------------
 if ($action === 'restore_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-    $configPath = get_selected_config_path();
-    if (!$configPath) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_autodrive']);
-        exit;
-    }
-
-    $body = json_decode(file_get_contents('php://input'), true);
-    $file = basename($body['file'] ?? ''); // basename() verhindert Path-Traversal
-
-    // Millisekunden-Suffix optional (ältere Backups von vor dessen Einführung haben ihn nicht)
-    if (!preg_match('/^' . preg_quote($folder, '/') . '_AutoDrive_config_\d{4}-\d{2}-\d{2}_\d{6}(?:_\d{3})?\.xml$/', $file)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Ungültiger Backup-Dateiname.']);
-        exit;
-    }
-
-    $backupPath = BACKUP_DIR . '/' . $file;
-    if (!file_exists($backupPath)) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Backup nicht gefunden.']);
-        exit;
-    }
-
-    // Sicherheitsnetz: aktuellen Stand vor dem Zurückspielen selbst sichern
-    $safetyBackup = make_backup_filename($folder);
-    copy($configPath, $safetyBackup);
-
-    copy($backupPath, $configPath);
-    prune_old_backups($folder, 20);
-
-    echo json_encode(['success' => true, 'restoredFrom' => $file]);
+    handle_autodrive_backup_restore();
     exit;
 }
 
@@ -1202,33 +1145,7 @@ if ($action === 'restore_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Backup manuell löschen
 // ---------------------------------------------------------------
 if ($action === 'delete_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-
-    $body = json_decode(file_get_contents('php://input'), true);
-    $file = basename($body['file'] ?? ''); // basename() verhindert Path-Traversal
-
-    // Millisekunden-Suffix optional (ältere Backups von vor dessen Einführung haben ihn nicht)
-    if (!preg_match('/^' . preg_quote($folder, '/') . '_AutoDrive_config_\d{4}-\d{2}-\d{2}_\d{6}(?:_\d{3})?\.xml$/', $file)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Ungültiger Backup-Dateiname.']);
-        exit;
-    }
-
-    $path = BACKUP_DIR . '/' . $file;
-    if (!file_exists($path)) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Backup nicht gefunden.']);
-        exit;
-    }
-
-    @unlink($path);
-
-    echo json_encode(['success' => true]);
+    handle_autodrive_backup_delete();
     exit;
 }
 
