@@ -780,61 +780,6 @@
         align-items: center;
     }
     .legend-swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
-    .vehicle-type-legend {
-        display: inline-flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .vehicle-type-legend > span {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        white-space: nowrap;
-    }
-    .vehicle-type-icon {
-        position: relative;
-        display: inline-block;
-        width: 15px;
-        height: 10px;
-        border: 1.4px solid var(--moss-400);
-        border-radius: 2px;
-    }
-    .vehicle-type-icon::before,
-    .vehicle-type-icon::after {
-        content: "";
-        position: absolute;
-        box-sizing: border-box;
-    }
-    .vehicle-type-icon::before,
-    .vehicle-type-icon::after {
-        width: 3px;
-        height: 3px;
-        bottom: -3px;
-        background: var(--panel);
-        border: 1.2px solid currentColor;
-        border-radius: 50%;
-    }
-    .vehicle-type-icon::before { left: 2px; }
-    .vehicle-type-icon::after { right: 2px; }
-    .vehicle-type-icon.is-vehicle {
-        color: var(--accent);
-        border-color: var(--accent);
-    }
-    .vehicle-type-icon.is-trailer {
-        color: var(--moss-400);
-        border-color: var(--moss-400);
-    }
-    .vehicle-type-icon.is-implement {
-        width: 12px;
-        height: 12px;
-        color: var(--muted);
-        border-color: var(--muted);
-        border-radius: 50%;
-    }
-    .vehicle-type-icon.is-implement::before,
-    .vehicle-type-icon.is-implement::after {
-        display: none;
-    }
 
     /* Feld-Dashboard */
     #fieldsContainer {
