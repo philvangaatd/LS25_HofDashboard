@@ -196,6 +196,7 @@ Compress-Archive -Path (Join-Path $packageDirectory "*") -DestinationPath $packa
 $packageHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $packageZip).Hash.ToLowerInvariant()
 $packageSize = (Get-Item -LiteralPath $packageZip).Length
 $releaseTag = "v$applicationVersion"
+$modReleaseTag = "v$($dashboardManifestSource.minimumModVersion)"
 $releaseBaseUrl = "https://github.com/philvangaatd/LS25_HofDashboard/releases"
 $modReleaseBaseUrl = "https://github.com/philvangaatd/LS25_HofDashboardMod/releases"
 $updateManifest = [ordered]@{
@@ -211,8 +212,8 @@ $updateManifest = [ordered]@{
     }
     mod = [ordered]@{
         version = [string]$dashboardManifestSource.minimumModVersion
-        downloadUrl = "$modReleaseBaseUrl/download/$releaseTag/FS25_HofDashboard.zip"
-        releaseNotesUrl = "$modReleaseBaseUrl/tag/$releaseTag"
+        downloadUrl = "$modReleaseBaseUrl/download/$modReleaseTag/FS25_HofDashboard.zip"
+        releaseNotesUrl = "$modReleaseBaseUrl/tag/$modReleaseTag"
     }
     compatibility = [ordered]@{
         protocolVersion = [int]$dashboardManifestSource.apiProtocol.max
