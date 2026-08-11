@@ -2595,29 +2595,15 @@ if ($action === 'markers' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     }
 
     $dom = load_dom($configPath);
-    $markerNode = $dom->getElementsByTagName('mapmarker')->item(0);
-    $result = [];
-    $groups = [];
-
-    if ($markerNode) {
-        foreach ($markerNode->childNodes as $mm) {
-            if ($mm->nodeType !== XML_ELEMENT_NODE) continue;
-            $id = trim($mm->getElementsByTagName('id')->item(0)->textContent ?? '');
-            $name = trim($mm->getElementsByTagName('name')->item(0)->textContent ?? '');
-            $groupNode = $mm->getElementsByTagName('group')->item(0);
-            $group = $groupNode ? trim($groupNode->textContent) : '';
-            $result[] = ['key' => $mm->nodeName, 'id' => $id, 'name' => $name, 'group' => $group];
-            if ($group !== '') $groups[$group] = true;
-        }
-    }
+    $markerData = read_autodrive_markers($dom);
 
     $folder = $_SESSION['savegame_folder'];
     $farmInfo = get_farm_info(FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder);
 
     echo json_encode([
-        'markers' => $result,
-        'groups' => array_keys($groups),
-        'mapName' => $dom->getElementsByTagName('MapName')->item(0)->textContent ?? '',
+        'markers' => $markerData['markers'],
+        'groups' => $markerData['groups'],
+        'mapName' => $markerData['mapName'],
         'farmName' => $farmInfo['farmName'],
         'manager' => $farmInfo['manager'],
     ]);
@@ -2650,18 +2636,11 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $dom = load_dom($configPath);
     $validIds = get_valid_waypoint_ids($dom);
 
-    foreach ($body['markers'] as $m) {
-        $id = (string)(int)floatval($m['id']);
-        if (!isset($validIds[$id])) {
-            http_response_code(422);
-            echo json_encode(['error' => "Wegpunkt-ID {$m['id']} existiert nicht im Spielstand."]);
-            exit;
-        }
-        if (trim($m['name']) === '') {
-            http_response_code(422);
-            echo json_encode(['error' => 'Marker-Name darf nicht leer sein.']);
-            exit;
-        }
+    $validationError = validate_autodrive_markers($body['markers'], $validIds);
+    if ($validationError !== null) {
+        http_response_code($validationError['status']);
+        echo json_encode(['error' => $validationError['error']]);
+        exit;
     }
 
     $folder = $_SESSION['savegame_folder'];
@@ -2673,34 +2652,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     // nächsten Spielstart nicht fälschlich einen Synchronisationskonflikt meldet.
     $originalMTime = filemtime($configPath);
 
-    $markerNode = $dom->getElementsByTagName('mapmarker')->item(0);
-    $autoDriveRoot = $dom->getElementsByTagName('AutoDrive')->item(0);
-
-    if (!$markerNode) {
-        $markerNode = $dom->createElement('mapmarker');
-        $autoDriveRoot->appendChild($markerNode);
-    }
-
-    while ($markerNode->firstChild) {
-        $markerNode->removeChild($markerNode->firstChild);
-    }
-
-    $i = 1;
-    foreach ($body['markers'] as $m) {
-        $mm = $dom->createElement('mm' . $i);
-        $idEl = $dom->createElement('id', (string)(int)floatval($m['id']) . '.000000');
-        $nameEl = $dom->createElement('name');
-        $nameEl->appendChild($dom->createTextNode($m['name']));
-        $mm->appendChild($idEl);
-        $mm->appendChild($nameEl);
-        if (!empty($m['group'])) {
-            $groupEl = $dom->createElement('group');
-            $groupEl->appendChild($dom->createTextNode($m['group']));
-            $mm->appendChild($groupEl);
-        }
-        $markerNode->appendChild($mm);
-        $i++;
-    }
+    replace_autodrive_markers($dom, $body['markers']);
 
     $dom->save($configPath);
     if ($originalMTime !== false) touch($configPath, $originalMTime);
