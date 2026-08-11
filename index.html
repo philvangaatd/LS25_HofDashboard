@@ -8,6 +8,38 @@
 <link rel="stylesheet" href="assets/css/app.css">
 </head>
 <body>
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+        <symbol id="icon-save" viewBox="0 0 24 24">
+            <path d="M5 4h11l3 3v13H5z"></path>
+            <path d="M8 4v6h7V4"></path>
+            <path d="M8 16h8"></path>
+        </symbol>
+        <symbol id="icon-backup" viewBox="0 0 24 24">
+            <path d="M6 7h12v10H6z"></path>
+            <path d="M9 7V4h6v3"></path>
+            <path d="M9 11h6"></path>
+        </symbol>
+        <symbol id="icon-group" viewBox="0 0 24 24">
+            <path d="M7 8h10v10H7z"></path>
+            <path d="M10 5h7v7"></path>
+        </symbol>
+        <symbol id="icon-expand" viewBox="0 0 24 24">
+            <path d="M8 4H4v4"></path>
+            <path d="M16 4h4v4"></path>
+            <path d="M8 20H4v-4"></path>
+            <path d="M16 20h4v-4"></path>
+        </symbol>
+        <symbol id="icon-export" viewBox="0 0 24 24">
+            <path d="M12 4v12"></path>
+            <path d="M7 11l5 5 5-5"></path>
+            <path d="M5 20h14"></path>
+        </symbol>
+        <symbol id="icon-import" viewBox="0 0 24 24">
+            <path d="M12 20V8"></path>
+            <path d="M7 13l5-5 5 5"></path>
+            <path d="M5 4h14"></path>
+        </symbol>
+    </svg>
     <div id="toastContainer"></div>
     <div id="modalContainer"></div>
 
@@ -72,7 +104,7 @@
             </div>
             <div class="header-actions">
                 <span id="liveStatusBadge" class="live-badge live-badge-no_mod" title="Mod nicht aktiv"><span class="live-pulse"></span>Kein Mod</span>
-                <button onclick="openFullBackupPanel()"><span class="cmd-icon icon-backup" aria-hidden="true"></span> Backup</button>
+                <button onclick="openFullBackupPanel()"><svg class="app-icon" aria-hidden="true"><use href="#icon-backup"></use></svg> Backup</button>
                 <button onclick="switchSavegame()"><span class="ui-icon">⇄</span> Spielstand wechseln</button>
             </div>
         </div>
@@ -99,16 +131,16 @@
 
         <div id="tabMarkers" style="display:none">
             <div class="toolbar">
-                <button class="primary" onclick="saveMarkers()"><span class="ui-icon">□</span> Speichern</button>
+                <button class="primary" onclick="saveMarkers()"><svg class="app-icon" aria-hidden="true"><use href="#icon-save"></use></svg> Speichern</button>
                 <button onclick="addRow()"><span class="ui-icon">+</span> Marker hinzufügen</button>
                 <div class="toolbar-more">
                     <button onclick="toggleMoreMenu('markerMoreMenu')"><span class="ui-icon">⋯</span> Mehr</button>
                     <div class="more-menu" id="markerMoreMenu" style="display:none">
-                        <button onclick="createGroup(); closeAllMoreMenus()"><span class="cmd-icon icon-group" aria-hidden="true"></span> Neue Gruppe anlegen</button>
-                        <button id="toggleAllGroupsBtn" onclick="toggleAllGroups(); closeAllMoreMenus()"><span class="cmd-icon icon-expand" aria-hidden="true"></span> Ausklappen</button>
-                        <button onclick="openBackupPanel(); closeAllMoreMenus()"><span class="cmd-icon icon-backup" aria-hidden="true"></span> Backups</button>
-                        <button onclick="exportJson(); closeAllMoreMenus()"><span class="cmd-icon icon-export" aria-hidden="true"></span> Export</button>
-                        <button onclick="document.getElementById('importFileInput').click(); closeAllMoreMenus()"><span class="cmd-icon icon-import" aria-hidden="true"></span> Import</button>
+                        <button onclick="createGroup(); closeAllMoreMenus()"><svg class="app-icon" aria-hidden="true"><use href="#icon-group"></use></svg> Neue Gruppe anlegen</button>
+                        <button id="toggleAllGroupsBtn" onclick="toggleAllGroups(); closeAllMoreMenus()"><svg class="app-icon" aria-hidden="true"><use href="#icon-expand"></use></svg> Ausklappen</button>
+                        <button onclick="openBackupPanel(); closeAllMoreMenus()"><svg class="app-icon" aria-hidden="true"><use href="#icon-backup"></use></svg> Backups</button>
+                        <button onclick="exportJson(); closeAllMoreMenus()"><svg class="app-icon" aria-hidden="true"><use href="#icon-export"></use></svg> Export</button>
+                        <button onclick="document.getElementById('importFileInput').click(); closeAllMoreMenus()"><svg class="app-icon" aria-hidden="true"><use href="#icon-import"></use></svg> Import</button>
                     </div>
                 </div>
                 <input type="file" id="importFileInput" accept="application/json" style="display:none" onchange="importJson(this)">
@@ -125,13 +157,6 @@
 
         <div id="tabMap" style="display:none">
             <div class="toolbar">
-                <div class="mode-switch map-mode-switch" aria-label="Karteneditor-Modus">
-                    <button class="mode-btn active" id="modeBtnView" onclick="setEditMode('view')" title="Ansehen und Karte verschieben"><span class="ui-icon">↔</span> Ansehen</button>
-                    <button class="mode-btn" id="modeBtnDraw" onclick="setEditMode('draw')" title="Wegpunkte setzen und verbinden"><span class="ui-icon">＋</span> Zeichnen</button>
-                    <button class="mode-btn" id="modeBtnDisconnect" onclick="setEditMode('disconnect')" title="Verbindung zwischen zwei Punkten trennen"><span class="ui-icon">⌁</span> Trennen</button>
-                    <button class="mode-btn" id="modeBtnDelete" onclick="setEditMode('delete')" title="Wegpunkte löschen"><span class="ui-icon">×</span> Löschen</button>
-                </div>
-                <button id="undoBtn" onclick="undoCourseEdit()" disabled title="Letzte Änderung rückgängig"><span class="ui-icon">↶</span> Rückgängig</button>
                 <button onclick="mapResetView()"><span class="ui-icon">⤢</span> Alle anzeigen</button>
                 <select id="mapJumpSelect" style="width:220px; margin-left:auto" onchange="mapJumpToMarker(this.value)">
                     <option value="">— Zu Marker springen —</option>
