@@ -72,7 +72,7 @@
             </div>
             <div class="header-actions">
                 <span id="liveStatusBadge" class="live-badge live-badge-no_mod" title="Mod nicht aktiv"><span class="live-pulse"></span>Kein Mod</span>
-                <button onclick="openFullBackupPanel()"><span class="ui-icon">□</span> Backup</button>
+                <button onclick="openFullBackupPanel()"><span class="cmd-icon icon-backup" aria-hidden="true"></span> Backup</button>
                 <button onclick="switchSavegame()"><span class="ui-icon">⇄</span> Spielstand wechseln</button>
             </div>
         </div>
@@ -104,11 +104,11 @@
                 <div class="toolbar-more">
                     <button onclick="toggleMoreMenu('markerMoreMenu')"><span class="ui-icon">⋯</span> Mehr</button>
                     <div class="more-menu" id="markerMoreMenu" style="display:none">
-                        <button onclick="createGroup(); closeAllMoreMenus()"><span class="ui-icon">▣</span> Neue Gruppe anlegen</button>
-                        <button id="toggleAllGroupsBtn" onclick="toggleAllGroups(); closeAllMoreMenus()"><span class="ui-icon">⤢</span> Ausklappen</button>
-                        <button onclick="openBackupPanel(); closeAllMoreMenus()"><span class="ui-icon">◷</span> Backups</button>
-                        <button onclick="exportJson(); closeAllMoreMenus()"><span class="ui-icon">↓</span> Export</button>
-                        <button onclick="document.getElementById('importFileInput').click(); closeAllMoreMenus()"><span class="ui-icon">↑</span> Import</button>
+                        <button onclick="createGroup(); closeAllMoreMenus()"><span class="cmd-icon icon-group" aria-hidden="true"></span> Neue Gruppe anlegen</button>
+                        <button id="toggleAllGroupsBtn" onclick="toggleAllGroups(); closeAllMoreMenus()"><span class="cmd-icon icon-expand" aria-hidden="true"></span> Ausklappen</button>
+                        <button onclick="openBackupPanel(); closeAllMoreMenus()"><span class="cmd-icon icon-backup" aria-hidden="true"></span> Backups</button>
+                        <button onclick="exportJson(); closeAllMoreMenus()"><span class="cmd-icon icon-export" aria-hidden="true"></span> Export</button>
+                        <button onclick="document.getElementById('importFileInput').click(); closeAllMoreMenus()"><span class="cmd-icon icon-import" aria-hidden="true"></span> Import</button>
                     </div>
                 </div>
                 <input type="file" id="importFileInput" accept="application/json" style="display:none" onchange="importJson(this)">
@@ -190,7 +190,11 @@
             </div>
             <div class="legend-line">
                 <span><span class="legend-swatch" style="background:var(--rust-500)"></span>Roter Rahmen = Verschleiß oder Dreck über 50%, Wartung/Wäsche empfohlen</span>
-                <span>Fahrzeug · Anhänger · Anbaugerät</span>
+                <span class="vehicle-type-legend">
+                    <span><span class="vehicle-type-icon is-vehicle" aria-hidden="true"></span>Fahrzeug</span>
+                    <span><span class="vehicle-type-icon is-trailer" aria-hidden="true"></span>Anhänger</span>
+                    <span><span class="vehicle-type-icon is-implement" aria-hidden="true"></span>Anbaugerät</span>
+                </span>
                 <span>Dreck ist ein rechnerischer Durchschnitt über alle Schmutz-Sensorpunkte des Fahrzeugs und kann geringfügig von der im Spiel gezeigten Prozentzahl abweichen</span>
             </div>
             <div class="stat-grid" id="vehicleStatGrid"></div>
