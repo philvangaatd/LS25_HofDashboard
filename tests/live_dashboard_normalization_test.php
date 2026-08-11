@@ -105,7 +105,7 @@ expect_live_dashboard_normalization($market['market'][0]['stations'][0]['price']
 $missions = capture_live_dashboard_response('handle_missions_data');
 expect_live_dashboard_normalization(count($missions['missions']) === 1, 'Expected one mission.');
 expect_live_dashboard_normalization($missions['missions'][0]['typeLabel'] === 'Ernten', 'Expected mission type label.');
-expect_live_dashboard_normalization($missions['missions'][0]['daysLeft'] === 99, 'Expected current placeholder compatibility.');
+expect_live_dashboard_normalization(!array_key_exists('daysLeft', $missions['missions'][0]), 'Expected mission placeholder daysLeft to be absent.');
 
 unlink($liveDir . DIRECTORY_SEPARATOR . 'liveData.json');
 rmdir($liveDir);

@@ -149,20 +149,18 @@ async function loadMissionsData() {
     }
 
     container.innerHTML = data.missions.map(m => {
-        const urgent = m.daysLeft === 0;
-        const daysText = m.daysLeft === 0 ? 'läuft heute ab'
-                       : m.daysLeft === 99 ? 'laufend'
-                       : `noch ${m.daysLeft} Tag(e)`;
+        const progress = Number(m.progress || 0);
+        const statusText = m.isActive ? 'aktiv' : (progress > 0 ? `${Math.round(progress)}%` : 'verfügbar');
         const showFieldCrop = m.fieldCrop && m.fieldCrop !== m.detail;
         const cropInfo = showFieldCrop ? `<span class="mission-extra">Aktuell auf dem Feld: ${escapeHtml(m.fieldCrop)}</span>` : '';
         const rewardInfo = m.reward > 0 ? `<span class="mission-reward">${Math.round(m.reward).toLocaleString('de-DE')} €</span>` : '';
         return `
-            <div class="mission-row ${urgent ? 'urgent' : ''}">
+            <div class="mission-row ${m.isActive ? 'urgent' : ''}">
                 <span class="mission-type">${escapeHtml(m.typeLabel)}</span>
                 <span class="mission-field">Feld ${escapeHtml(m.fieldId || '–')}</span>
                 <span class="mission-detail">${escapeHtml(m.detail || '')} ${cropInfo}</span>
                 ${rewardInfo}
-                <span class="mission-days ${urgent ? 'urgent' : ''}">${daysText}</span>
+                <span class="mission-days ${m.isActive ? 'urgent' : ''}">${statusText}</span>
             </div>
         `;
     }).join('');
