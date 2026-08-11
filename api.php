@@ -12,6 +12,7 @@ require __DIR__ . '/app/MapAssetService.php';
 require __DIR__ . '/app/AutoDriveService.php';
 require __DIR__ . '/app/AutoDriveMarkerController.php';
 require __DIR__ . '/app/AutoDriveBackupController.php';
+require __DIR__ . '/app/FullBackupController.php';
 require __DIR__ . '/user_settings.php';
 require __DIR__ . '/production_data.php';
 
@@ -1153,51 +1154,7 @@ if ($action === 'delete_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Vollständiges Spielstand-Backup erstellen (ZIP des kompletten Ordners)
 // ---------------------------------------------------------------
 if ($action === 'create_full_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-    $dir = get_general_savegame_dir($folder);
-    if (!$dir) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Spielstand nicht gefunden.']);
-        exit;
-    }
-    if (!class_exists('ZipArchive')) {
-        http_response_code(500);
-        $iniPath = php_ini_loaded_file() ?: null;
-        $hint = $iniPath
-            ? "Bitte in \"$iniPath\" die Zeile \"extension=zip\" aktivieren (führendes Semikolon entfernen) und den Server neu starten."
-            : 'Bitte in der php.ini die Zeile "extension=zip" aktivieren (führendes Semikolon entfernen) und den Server neu starten. Den Pfad der geladenen php.ini zeigt "php --ini" im Terminal.';
-        echo json_encode(['error' => 'Die PHP-Erweiterung "zip" ist nicht aktiviert. ' . $hint]);
-        exit;
-    }
-
-    set_time_limit(180); // große Spielstände (Terrain-Caches etc.) können etwas dauern
-
-    $zipPath = make_full_backup_filename($folder);
-    $zip = new ZipArchive();
-    if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
-        http_response_code(500);
-        echo json_encode(['error' => 'ZIP-Datei konnte nicht angelegt werden.']);
-        exit;
-    }
-
-    $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-    );
-    foreach ($files as $file) {
-        if (!$file->isFile()) continue;
-        $localName = substr($file->getPathname(), strlen($dir) + 1);
-        $zip->addFile($file->getPathname(), $localName);
-    }
-    $zip->close();
-
-    prune_old_full_backups($folder, 5); // große Dateien – bewusst weniger Generationen als bei den AutoDrive-Backups
-
-    echo json_encode(['success' => true, 'file' => basename($zipPath), 'size' => filesize($zipPath)]);
+    handle_full_backup_create();
     exit;
 }
 
@@ -1205,26 +1162,7 @@ if ($action === 'create_full_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Vollständige Spielstand-Backups auflisten
 // ---------------------------------------------------------------
 if ($action === 'list_full_backups' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-
-    $files = list_full_backups_for($folder);
-    $result = array_map(function ($f) {
-        preg_match('/_full_(\d{4}-\d{2}-\d{2}_\d{6})_\d{3}\.zip$/', $f, $m);
-        $ts = $m[1] ?? '';
-        $formatted = $ts ? sprintf(
-            '%s.%s.%s %s:%s:%s',
-            substr($ts, 8, 2), substr($ts, 5, 2), substr($ts, 0, 4),
-            substr($ts, 11, 2), substr($ts, 13, 2), substr($ts, 15, 2)
-        ) : '';
-        return ['file' => basename($f), 'formatted' => $formatted, 'size' => filesize($f)];
-    }, $files);
-
-    echo json_encode(['backups' => $result]);
+    handle_full_backups_list();
     exit;
 }
 
@@ -1232,32 +1170,7 @@ if ($action === 'list_full_backups' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // Vollständiges Spielstand-Backup manuell löschen
 // ---------------------------------------------------------------
 if ($action === 'delete_full_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-
-    $body = json_decode(file_get_contents('php://input'), true);
-    $file = basename($body['file'] ?? '');
-
-    if (!preg_match('/^' . preg_quote($folder, '/') . '_full_\d{4}-\d{2}-\d{2}_\d{6}_\d{3}\.zip$/', $file)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Ungültiger Backup-Dateiname.']);
-        exit;
-    }
-
-    $path = full_backup_dir() . '/' . $file;
-    if (!file_exists($path)) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Backup nicht gefunden.']);
-        exit;
-    }
-
-    @unlink($path);
-
-    echo json_encode(['success' => true]);
+    handle_full_backup_delete();
     exit;
 }
 
@@ -1265,28 +1178,7 @@ if ($action === 'delete_full_backup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Vollständiges Spielstand-Backup herunterladen
 // ---------------------------------------------------------------
 if ($action === 'download_full_backup' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        exit;
-    }
-
-    $file = basename($_GET['file'] ?? '');
-    if (!preg_match('/^' . preg_quote($folder, '/') . '_full_\d{4}-\d{2}-\d{2}_\d{6}_\d{3}\.zip$/', $file)) {
-        http_response_code(400);
-        exit;
-    }
-
-    $path = full_backup_dir() . '/' . $file;
-    if (!file_exists($path)) {
-        http_response_code(404);
-        exit;
-    }
-
-    header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="' . $file . '"');
-    header('Content-Length: ' . filesize($path));
-    readfile($path);
+    handle_full_backup_download();
     exit;
 }
 
