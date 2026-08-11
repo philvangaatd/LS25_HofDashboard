@@ -57,6 +57,48 @@ function read_autodrive_markers(DOMDocument $dom): array
     ];
 }
 
+function read_autodrive_course_data(DOMDocument $dom): array
+{
+    $idsRaw = trim($dom->getElementsByTagName('id')->item(0)->textContent ?? '');
+    $xsRaw = trim($dom->getElementsByTagName('x')->item(0)->textContent ?? '');
+    $ysRaw = trim($dom->getElementsByTagName('y')->item(0)->textContent ?? '');
+    $zsRaw = trim($dom->getElementsByTagName('z')->item(0)->textContent ?? '');
+    $outRaw = trim($dom->getElementsByTagName('out')->item(0)->textContent ?? '');
+    $flagsRaw = trim($dom->getElementsByTagName('flags')->item(0)->textContent ?? '');
+
+    $ids = $idsRaw !== '' ? explode(',', $idsRaw) : [];
+    $xs = $xsRaw !== '' ? array_map('floatval', explode(',', $xsRaw)) : [];
+    $ys = $ysRaw !== '' ? array_map('floatval', explode(',', $ysRaw)) : [];
+    $zs = $zsRaw !== '' ? array_map('floatval', explode(',', $zsRaw)) : [];
+    $outParts = $outRaw !== '' ? explode(';', $outRaw) : [];
+    $flags = $flagsRaw !== '' ? explode(',', $flagsRaw) : [];
+
+    $idToIndex = array_flip($ids);
+    $edges = [];
+    $out = [];
+    foreach ($ids as $index => $id) {
+        $targets = $outParts[$index] ?? '';
+        $targetList = $targets !== '' ? explode(',', $targets) : [];
+        $out[] = $targetList;
+        foreach ($targetList as $target) {
+            if (isset($idToIndex[$target]) && $idToIndex[$target] > $index) {
+                // Nur einmal pro Kante (i<j), Canvas zeichnet ungerichtet.
+                $edges[] = [$index, $idToIndex[$target]];
+            }
+        }
+    }
+
+    return [
+        'ids' => $ids,
+        'x' => $xs,
+        'y' => $ys,
+        'out' => $out,
+        'flags' => $flags,
+        'z' => $zs,
+        'edges' => $edges,
+    ];
+}
+
 function validate_autodrive_markers(array $markers, array $validIds): ?array
 {
     foreach ($markers as $marker) {

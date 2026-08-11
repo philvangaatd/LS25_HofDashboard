@@ -12,7 +12,7 @@ function expect_autodrive_test(bool $condition, string $message): void
 require __DIR__ . '/../app/AutoDriveService.php';
 
 $xmlPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hofdashboard-autodrive-' . bin2hex(random_bytes(4)) . '.xml';
-file_put_contents($xmlPath, '<AutoDrive><MapName>Test Map</MapName><waypoints><id>1,2,42</id></waypoints><mapmarker><mm1><id>1.000000</id><name>Farm</name><group>Home</group></mm1><mm2><id>2.000000</id><name>Field</name></mm2></mapmarker></AutoDrive>');
+file_put_contents($xmlPath, '<AutoDrive><MapName>Test Map</MapName><waypoints><id>1,2,42</id><x>10.5,20,30</x><y>0,0,0</y><z>100,200,300</z><out>2,42;42;</out><flags>0,1,0</flags></waypoints><mapmarker><mm1><id>1.000000</id><name>Farm</name><group>Home</group></mm1><mm2><id>2.000000</id><name>Field</name></mm2></mapmarker></AutoDrive>');
 
 $dom = load_dom($xmlPath);
 expect_autodrive_test($dom instanceof DOMDocument, 'Expected AutoDrive XML to load as DOMDocument.');
@@ -26,6 +26,14 @@ expect_autodrive_test($markerData['mapName'] === 'Test Map', 'Expected map name 
 expect_autodrive_test(count($markerData['markers']) === 2, 'Expected two markers to be read.');
 expect_autodrive_test($markerData['markers'][0] === ['key' => 'mm1', 'id' => '1.000000', 'name' => 'Farm', 'group' => 'Home'], 'Expected first marker data.');
 expect_autodrive_test($markerData['groups'] === ['Home'], 'Expected marker groups.');
+
+$courseData = read_autodrive_course_data($dom);
+expect_autodrive_test($courseData['ids'] === ['1', '2', '42'], 'Expected course waypoint IDs.');
+expect_autodrive_test($courseData['x'] === [10.5, 20.0, 30.0], 'Expected course X coordinates.');
+expect_autodrive_test($courseData['z'] === [100.0, 200.0, 300.0], 'Expected course Z coordinates.');
+expect_autodrive_test($courseData['out'] === [['2', '42'], ['42'], []], 'Expected course outgoing targets.');
+expect_autodrive_test($courseData['flags'] === ['0', '1', '0'], 'Expected course flags.');
+expect_autodrive_test($courseData['edges'] === [[0, 1], [0, 2], [1, 2]], 'Expected undirected course edges.');
 
 expect_autodrive_test(validate_autodrive_markers([
     ['id' => '1.000000', 'name' => 'Farm', 'group' => 'Home'],
