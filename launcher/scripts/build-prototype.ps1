@@ -23,6 +23,33 @@ $updateManifestPath = Join-Path $ArtifactDirectory "update-manifest.json"
 $runtimeDirectory = Join-Path $packageDirectory "runtime"
 $webDirectory = Join-Path $packageDirectory "web"
 
+function Get-RelativePathCompat {
+    param(
+        [Parameter(Mandatory = $true)][string]$BasePath,
+        [Parameter(Mandatory = $true)][string]$TargetPath
+    )
+
+    if ([System.IO.Path].GetMethod("GetRelativePath", [type[]]@([string], [string]))) {
+        return [System.IO.Path]::GetRelativePath($BasePath, $TargetPath)
+    }
+
+    $baseUri = New-Object System.Uri(($BasePath.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar))
+    $targetUri = New-Object System.Uri($TargetPath)
+    return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($targetUri).ToString()).Replace("/", [System.IO.Path]::DirectorySeparatorChar)
+}
+
+function Write-Utf8NoBomJson {
+    param(
+        [Parameter(Mandatory = $true)][object]$Value,
+        [Parameter(Mandatory = $true)][string]$Path,
+        [int]$Depth = 5
+    )
+
+    $json = $Value | ConvertTo-Json -Depth $Depth
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $json, $encoding)
+}
+
 $phpVersion = "8.5.9"
 $phpUrl = "https://downloads.php.net/~windows/releases/archives/php-$phpVersion-nts-Win32-vs17-x64.zip"
 $phpSha256 = "516c2d72231bd035c8a910120834add0ad208098b790b4909b2cbeb93ce135fc"
@@ -58,7 +85,7 @@ Copy-Item -LiteralPath (Join-Path $launcherRoot "launcher-manifest.json") -Desti
 Copy-Item -LiteralPath (Join-Path $launcherRoot "THIRD-PARTY-NOTICES.md") -Destination $packageDirectory
 
 Write-Host "Assembling dashboard web files..."
-$excludedRootEntries = @(".git", ".github", ".gitignore", "backups", "dist", "launcher", "tests")
+$excludedRootEntries = @(".git", ".github", ".gitignore", ".dotnet-sdk", "backups", "dist", "launcher", "tests")
 Get-ChildItem -LiteralPath $repositoryRoot -Force |
     Where-Object { $_.Name -notin $excludedRootEntries } |
     ForEach-Object {
@@ -149,7 +176,7 @@ $packageFiles = Get-ChildItem -LiteralPath $packageDirectory -File -Recurse |
     Where-Object { $_.Name -ne "package-files.json" } |
     ForEach-Object {
         [ordered]@{
-            path = [System.IO.Path]::GetRelativePath($packageDirectory, $_.FullName).Replace("\", "/")
+            path = (Get-RelativePathCompat -BasePath $packageDirectory -TargetPath $_.FullName).Replace("\", "/")
             sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
             sizeBytes = $_.Length
         }
@@ -161,9 +188,7 @@ $packageFileManifest = [ordered]@{
     applicationVersion = $applicationVersion
     files = @($packageFiles)
 }
-$packageFileManifest |
-    ConvertTo-Json -Depth 5 |
-    Set-Content -LiteralPath (Join-Path $packageDirectory "package-files.json") -Encoding utf8NoBOM
+Write-Utf8NoBomJson -Value $packageFileManifest -Path (Join-Path $packageDirectory "package-files.json") -Depth 5
 
 Write-Host "Creating Windows release ZIP..."
 Compress-Archive -Path (Join-Path $packageDirectory "*") -DestinationPath $packageZip -CompressionLevel Optimal
@@ -195,9 +220,7 @@ $updateManifest = [ordered]@{
         minimumModVersion = [string]$dashboardManifestSource.minimumModVersion
     }
 }
-$updateManifest |
-    ConvertTo-Json -Depth 8 |
-    Set-Content -LiteralPath $updateManifestPath -Encoding utf8NoBOM
+Write-Utf8NoBomJson -Value $updateManifest -Path $updateManifestPath -Depth 8
 
 Write-Host "Windows package: $packageZip"
 Write-Host "SHA-256: $packageHash"
