@@ -116,7 +116,7 @@ function renderPriceAlertQuickAccess(hits) {
     section.id = 'priceAlertQuickSection';
     section.className = 'quick-section';
     section.innerHTML = `
-        <h3>🔔 Preis-Alarm ausgelöst</h3>
+        <h3>Preis-Alarm ausgelöst</h3>
         <div class="quick-list">
             ${hits.map(m => `
                 <div class="quick-row" onclick="switchTab('market')">
@@ -134,12 +134,12 @@ function renderWeatherForecast(forecast) {
     if (!forecast || forecast.length === 0) { container.innerHTML = ''; return; }
     container.innerHTML = `
         <div class="quick-section">
-            <h3>🌤️ Wettervorschau</h3>
+            <h3>Wettervorschau</h3>
             <div class="weather-row">
                 ${forecast.map((f, i) => `
                     <div class="weather-day">
                         <div class="weather-day-label">${i === 0 ? 'Heute' : (i === 1 ? 'Morgen' : 'Tag ' + f.day)}</div>
-                        <div class="weather-day-icon">${f.dominantTypeIcon}</div>
+                        <div class="weather-day-icon" aria-label="Wetter">${f.dominantTypeIcon}</div>
                         <div class="weather-day-season">${SEASON_LABELS[f.season] || f.season}</div>
                         ${f.hasPrecipitation ? '<div class="weather-day-precip">🌧 Niederschlag</div>' : ''}
                     </div>
@@ -310,7 +310,7 @@ function renderQuickAccess(data, details = {}) {
         return;
     }
 
-    container.innerHTML = renderTaskSection('📋 Aufgaben-Cockpit', tasks);
+    container.innerHTML = renderTaskSection('Aufgaben-Cockpit', tasks);
 }
 
 // =================================================================

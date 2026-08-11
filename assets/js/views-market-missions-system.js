@@ -1,13 +1,22 @@
 let marketCache = [];
 let marketSortMode = 'smart';
+let marketAssistantInventory = [];
 
 async function loadMarketData() {
     const container = document.getElementById('marketContainer');
     container.innerHTML = '<div class="empty-note">Lade Marktpreise …</div>';
-    const res = await fetch('api.php?action=market_data');
-    const data = await res.json();
+    const [marketResult, fieldsResult, productionResult] = await Promise.allSettled([
+        fetch('api.php?action=market_data').then(res => res.json()),
+        fetch('api.php?action=fields_data').then(res => res.json()),
+        fetch('api.php?action=production_data').then(res => res.json()),
+    ]);
+    const data = marketResult.status === 'fulfilled' ? marketResult.value : { error: 'Marktdaten konnten nicht geladen werden.' };
     if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
     marketCache = data.market;
+    marketAssistantInventory = buildMarketAssistantInventory(
+        fieldsResult.status === 'fulfilled' && !fieldsResult.value.error ? fieldsResult.value : null,
+        productionResult.status === 'fulfilled' && !productionResult.value.error ? productionResult.value : null
+    );
     document.getElementById('marketPeriodLabel').textContent = `Livepreise · ${data.currentPeriodLabel} · ${Number(data.liveAge || 0)} s alt`;
     renderMarket();
 }
@@ -66,14 +75,14 @@ function renderMarket() {
         return;
     }
 
-    container.innerHTML = visible.map(m => {
+    container.innerHTML = renderSalesAssistant(visible) + visible.map(m => {
         const alertValue = getPriceAlert(m.fruitType);
         const alertHit = isAlertHit(m);
         const stations = Array.isArray(m.stations) ? m.stations : [];
         const stationRows = stations.length > 0
             ? stations.map((s, idx) => `
                 <div class="market-station-row ${idx === 0 ? 'best' : ''}">
-                    <span class="market-station-name">${idx === 0 ? '★ ' : ''}${escapeHtml(s.name || 'Verkaufsstation')}</span>
+                    <span class="market-station-name">${idx === 0 ? 'Bestpreis · ' : ''}${escapeHtml(s.name || 'Verkaufsstation')}</span>
                     <span class="market-station-price">${Number(s.price || 0).toLocaleString('de-DE')} €</span>
                 </div>
               `).join('')
@@ -100,13 +109,95 @@ function renderMarket() {
                     <span>${Number(m.stationCount || 0)} Verkaufsstation${Number(m.stationCount || 0) === 1 ? '' : 'en'} · Spanne ${rangeText} / 1.000 L</span>
                 </div>
                 <div class="market-alert-row">
-                    <label>🔔 Alarm ab</label>
+                    <label>Alarm ab</label>
                     <input type="number" value="${alertValue !== null ? alertValue : ''}" placeholder="z. B. 400" data-fruit="${escapeAttr(m.fruitType)}" onchange="updatePriceAlert(this)">
                     <span>€ / 1.000 L</span>
                 </div>
             </div>
         `;
     }).join('');
+}
+
+function buildMarketAssistantInventory(fieldsData, productionData) {
+    const inventory = [];
+    (Array.isArray(fieldsData?.fields) ? fieldsData.fields : []).forEach(field => {
+        const status = String(field.status || '').toUpperCase();
+        const fruitType = field.fruitType || field.fruitTypeName || field.fruitTypeLabel;
+        if (!fruitType || status !== 'READY') return;
+        inventory.push({
+            fillType: String(fruitType).toUpperCase(),
+            title: field.fruitTypeLabel || fruitType,
+            source: `Feld ${field.id}`,
+            volume: null,
+            kind: 'crop',
+        });
+    });
+
+    (Array.isArray(productionData?.productionPoints) ? productionData.productionPoints : []).forEach(point => {
+        (Array.isArray(point.outputStorages) ? point.outputStorages : []).forEach(storage => {
+            const level = Number(storage.level || 0);
+            if (level <= 0) return;
+            inventory.push({
+                fillType: String(storage.fillType || '').toUpperCase(),
+                title: storage.title || storage.fillType || 'Produkt',
+                source: point.name || 'Produktion',
+                volume: level,
+                kind: 'product',
+            });
+        });
+    });
+
+    return inventory;
+}
+
+function renderSalesAssistant(visibleMarket) {
+    const recommendations = marketAssistantInventory
+        .map(item => {
+            const market = visibleMarket.find(entry => String(entry.fruitType || '').toUpperCase() === item.fillType);
+            if (!market || Number(market.currentPrice || 0) <= 0) return null;
+            const estimatedValue = item.volume !== null ? item.volume / 1000 * Number(market.currentPrice || 0) : null;
+            return { item, market, estimatedValue, alertHit: isAlertHit(market) };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+            if (a.alertHit !== b.alertHit) return a.alertHit ? -1 : 1;
+            return Number(b.market.currentPrice || 0) - Number(a.market.currentPrice || 0);
+        })
+        .slice(0, 6);
+
+    if (recommendations.length === 0) {
+        return `<div class="sales-assistant is-calm">
+            <div class="plan-header">
+                <div>
+                    <div class="plan-kicker">Verkaufsassistent</div>
+                    <h3>Keine verkaufsfertigen eigenen Waren im aktuellen Filter</h3>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    return `<div class="sales-assistant">
+        <div class="plan-header">
+            <div>
+                <div class="plan-kicker">Verkaufsassistent</div>
+                <h3>Beste aktuelle Verkaufschancen</h3>
+            </div>
+            <span>${recommendations.length} Treffer</span>
+        </div>
+        <div class="plan-list">
+            ${recommendations.map(rec => {
+                const price = Number(rec.market.currentPrice || 0).toLocaleString('de-DE');
+                const station = rec.market.bestStation || 'beste Station offen';
+                const value = rec.estimatedValue !== null
+                    ? ` · ca. ${Math.round(rec.estimatedValue).toLocaleString('de-DE')} € Warenwert`
+                    : '';
+                return `<div class="plan-row">
+                    <span class="plan-title">${escapeHtml(rec.item.title)} verkaufen</span>
+                    <span class="plan-meta">${escapeHtml(rec.item.source)} · ${price} € / 1.000 L · ${escapeHtml(station)}${value}${rec.alertHit ? ' · Alarm erreicht' : ''}</span>
+                </div>`;
+            }).join('')}
+        </div>
+    </div>`;
 }
 
 function getPriceAlert(fruitType) {
@@ -169,7 +260,7 @@ async function loadMissionsData() {
 // =================================================================
 // Systemcheck
 // =================================================================
-const SYSCHECK_ICONS = { ok: '✅', warn: '⚠️', error: '❌', info: 'ℹ️' };
+const SYSCHECK_ICONS = { ok: 'OK', warn: 'WARN', error: 'FEHLER', info: 'INFO' };
 const HIDDEN_SYSTEM_CHECKS = new Set([
     'PHP-Version',
     'Upload-Limit (upload_max_filesize / post_max_size)',

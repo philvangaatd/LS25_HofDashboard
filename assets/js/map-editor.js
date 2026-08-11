@@ -171,9 +171,11 @@ function setEditMode(mode) {
     document.getElementById('modeBtnDisconnect').classList.toggle('active', mode === 'disconnect');
     document.getElementById('modeBtnDelete').classList.toggle('active', mode === 'delete');
     document.getElementById('modeBtnDelete').classList.toggle('delete-active', mode === 'delete');
-    mapCanvasEl.classList.toggle('mode-draw', mode === 'draw');
-    mapCanvasEl.classList.toggle('mode-delete', mode === 'delete');
-    mapCanvasEl.classList.toggle('mode-disconnect', mode === 'disconnect');
+    if (mapCanvasEl) {
+        mapCanvasEl.classList.toggle('mode-draw', mode === 'draw');
+        mapCanvasEl.classList.toggle('mode-delete', mode === 'delete');
+        mapCanvasEl.classList.toggle('mode-disconnect', mode === 'disconnect');
+    }
 
     const hintBar = document.getElementById('mapHintBar');
     if (mode === 'view') {
@@ -185,7 +187,7 @@ function setEditMode(mode) {
     } else if (mode === 'delete') {
         hintBar.textContent = 'Klick auf einen Wegpunkt = löschen (inkl. aller Verbindungen)';
     }
-    mapRedraw();
+    if (mapCanvasEl) mapRedraw();
 }
 
 function populateMapJumpList() {
