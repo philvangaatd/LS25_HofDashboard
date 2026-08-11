@@ -4,6 +4,7 @@
 date_default_timezone_set('Europe/Berlin');
 
 require __DIR__ . '/config.php';
+require __DIR__ . '/app/ApiResponseService.php';
 require __DIR__ . '/app/LiveDataService.php';
 require __DIR__ . '/app/SavegameService.php';
 require __DIR__ . '/app/BackupService.php';
@@ -2583,14 +2584,12 @@ if ($action === 'missions_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // ---------------------------------------------------------------
 if ($action === 'markers' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     if (empty($_SESSION['savegame_folder'])) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
+        api_json_error('no_savegame_selected', 409);
         exit;
     }
     $configPath = get_selected_config_path();
     if (!$configPath) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_autodrive']);
+        api_json_error('no_autodrive', 409);
         exit;
     }
 
@@ -2600,7 +2599,7 @@ if ($action === 'markers' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $folder = $_SESSION['savegame_folder'];
     $farmInfo = get_farm_info(FS_BASE_DIR . DIRECTORY_SEPARATOR . $folder);
 
-    echo json_encode([
+    api_json_response([
         'markers' => $markerData['markers'],
         'groups' => $markerData['groups'],
         'mapName' => $markerData['mapName'],
@@ -2615,21 +2614,18 @@ if ($action === 'markers' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // ---------------------------------------------------------------
 if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($_SESSION['savegame_folder'])) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
+        api_json_error('no_savegame_selected', 409);
         exit;
     }
     $configPath = get_selected_config_path();
     if (!$configPath) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_autodrive']);
+        api_json_error('no_autodrive', 409);
         exit;
     }
 
     $body = json_decode(file_get_contents('php://input'), true);
     if (!is_array($body) || !isset($body['markers'])) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Ungültige Daten.']);
+        api_json_error('Ungültige Daten.', 400);
         exit;
     }
 
@@ -2638,8 +2634,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $validationError = validate_autodrive_markers($body['markers'], $validIds);
     if ($validationError !== null) {
-        http_response_code($validationError['status']);
-        echo json_encode(['error' => $validationError['error']]);
+        api_json_error($validationError['error'], $validationError['status']);
         exit;
     }
 
@@ -2655,7 +2650,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $dom->save($configPath);
     if ($originalMTime !== false) touch($configPath, $originalMTime);
 
-    echo json_encode(['success' => true, 'backup' => basename($backupFile), 'count' => count($body['markers'])]);
+    api_json_success(['backup' => basename($backupFile), 'count' => count($body['markers'])]);
     exit;
 }
 
@@ -2667,5 +2662,4 @@ if ($action === 'live_data') {
     exit;
 }
 
-http_response_code(404);
-echo json_encode(['error' => 'Unbekannte Aktion.']);
+api_json_error('Unbekannte Aktion.', 404);
