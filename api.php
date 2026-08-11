@@ -10,6 +10,7 @@ require __DIR__ . '/app/SavegameService.php';
 require __DIR__ . '/app/SavegameController.php';
 require __DIR__ . '/app/BackupService.php';
 require __DIR__ . '/app/MapAssetService.php';
+require __DIR__ . '/app/TerrainController.php';
 require __DIR__ . '/app/AutoDriveService.php';
 require __DIR__ . '/app/AutoDriveMarkerController.php';
 require __DIR__ . '/app/AutoDriveBackupController.php';
@@ -1257,30 +1258,7 @@ if ($action === 'upload_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Hintergrundbilds genutzt (statt der Schätzung anhand der Wegpunkt-Ausdehnung).
 // ---------------------------------------------------------------
 if ($action === 'map_size_info' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-    $dir = get_general_savegame_dir($folder);
-    if (!$dir) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Spielstand nicht gefunden.']);
-        exit;
-    }
-
-    $careerFile = $dir . DIRECTORY_SEPARATOR . 'careerSavegame.xml';
-    $mapId = '';
-    if (file_exists($careerFile)) {
-        libxml_use_internal_errors(true);
-        $career = simplexml_load_file($careerFile);
-        if ($career && isset($career->settings)) {
-            $mapId = (string)($career->settings->mapId ?? '');
-        }
-    }
-
-    echo json_encode(['size' => find_map_size($mapId)]);
+    handle_map_size_info();
     exit;
 }
 
@@ -1515,28 +1493,7 @@ if ($action === 'system_check' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // App-Datenordner bevorzugt; mitgelieferte Bilder dienen als Fallback.
 // ---------------------------------------------------------------
 if ($action === 'terrain_image' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $folder = (string)($_GET['folder'] ?? '');
-    if (!preg_match('/^savegame\d+$/', $folder)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'invalid_savegame_folder']);
-        exit;
-    }
-
-    $fileName = 'terrain_' . $folder . '.png';
-    $persistentPath = MAP_ASSETS_DIR . DIRECTORY_SEPARATOR . $fileName;
-    $bundledPath = BUNDLED_ASSETS_DIR . DIRECTORY_SEPARATOR . $fileName;
-    $path = is_file($persistentPath) ? $persistentPath : $bundledPath;
-
-    if (!is_file($path)) {
-        http_response_code(404);
-        echo json_encode(['error' => 'terrain_not_found']);
-        exit;
-    }
-
-    header('Content-Type: image/png');
-    header('Content-Length: ' . filesize($path));
-    header('Cache-Control: private, max-age=300');
-    readfile($path);
+    handle_terrain_image();
     exit;
 }
 
@@ -1544,17 +1501,7 @@ if ($action === 'terrain_image' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 // Kartenhintergrundbild entfernen
 // ---------------------------------------------------------------
 if ($action === 'delete_terrain' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $folder = $_SESSION['savegame_folder'] ?? null;
-    if (!$folder) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-
-    $path = MAP_ASSETS_DIR . DIRECTORY_SEPARATOR . 'terrain_' . $folder . '.png';
-    if (file_exists($path)) @unlink($path);
-
-    echo json_encode(['success' => true]);
+    handle_terrain_delete();
     exit;
 }
 
