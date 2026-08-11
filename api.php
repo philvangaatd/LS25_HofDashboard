@@ -12,6 +12,7 @@ require __DIR__ . '/app/BackupService.php';
 require __DIR__ . '/app/MapAssetService.php';
 require __DIR__ . '/app/TerrainController.php';
 require __DIR__ . '/app/AutoDriveService.php';
+require __DIR__ . '/app/AutoDriveCourseController.php';
 require __DIR__ . '/app/AutoDriveMarkerController.php';
 require __DIR__ . '/app/AutoDriveBackupController.php';
 require __DIR__ . '/app/FullBackupController.php';
@@ -1131,57 +1132,7 @@ if ($action === 'download_full_backup' && $_SERVER['REQUEST_METHOD'] === 'GET') 
 // Vollständige Kursdaten (alle Wegpunkte + Verbindungen) für die Kartenansicht
 // ---------------------------------------------------------------
 if ($action === 'course_data' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    if (empty($_SESSION['savegame_folder'])) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_savegame_selected']);
-        exit;
-    }
-    $configPath = get_selected_config_path();
-    if (!$configPath) {
-        http_response_code(409);
-        echo json_encode(['error' => 'no_autodrive']);
-        exit;
-    }
-
-    $dom = load_dom($configPath);
-    $idsRaw = trim($dom->getElementsByTagName('id')->item(0)->textContent ?? '');
-    $xsRaw = trim($dom->getElementsByTagName('x')->item(0)->textContent ?? '');
-    $ysRaw = trim($dom->getElementsByTagName('y')->item(0)->textContent ?? '');
-    $zsRaw = trim($dom->getElementsByTagName('z')->item(0)->textContent ?? '');
-    $outRaw = trim($dom->getElementsByTagName('out')->item(0)->textContent ?? '');
-    $flagsRaw = trim($dom->getElementsByTagName('flags')->item(0)->textContent ?? '');
-
-    $ids = $idsRaw !== '' ? explode(',', $idsRaw) : [];
-    $xs = $xsRaw !== '' ? array_map('floatval', explode(',', $xsRaw)) : [];
-    $ys = $ysRaw !== '' ? array_map('floatval', explode(',', $ysRaw)) : [];
-    $zs = $zsRaw !== '' ? array_map('floatval', explode(',', $zsRaw)) : [];
-    $outParts = $outRaw !== '' ? explode(';', $outRaw) : [];
-    $flags = $flagsRaw !== '' ? explode(',', $flagsRaw) : [];
-
-    $idToIdx = array_flip($ids);
-    $edges = [];
-    $out = [];
-    foreach ($ids as $i => $id) {
-        $targets = $outParts[$i] ?? '';
-        $targetList = $targets !== '' ? explode(',', $targets) : [];
-        $out[] = $targetList;
-        foreach ($targetList as $t) {
-            if (isset($idToIdx[$t]) && $idToIdx[$t] > $i) {
-                // nur einmal pro Kante (i<j), Canvas zeichnet ungerichtet
-                $edges[] = [$i, $idToIdx[$t]];
-            }
-        }
-    }
-
-    echo json_encode([
-        'ids' => $ids,
-        'x' => $xs,
-        'y' => $ys,
-        'out' => $out,
-        'flags' => $flags,
-        'z' => $zs,
-        'edges' => $edges,
-    ]);
+    handle_autodrive_course_data();
     exit;
 }
 
