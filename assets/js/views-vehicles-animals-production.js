@@ -72,6 +72,54 @@ function formatVehicleLiters(value) {
     return Number(value || 0).toLocaleString('de-DE', { maximumFractionDigits: 1 });
 }
 
+function vehicleMaintenanceItems(source = vehiclesCache) {
+    return (Array.isArray(source) ? source : [])
+        .map(vehicle => {
+            const wear = Math.max(0, Math.min(1, Number(vehicle.wear || 0)));
+            const dirt = Math.max(0, Math.min(1, Number(vehicle.dirt || 0)));
+            const hours = Number(vehicle.operatingHours || 0);
+            const reasons = [];
+
+            if (wear > 0.5) reasons.push(`Wartung ${(wear * 100).toFixed(0)}%`);
+            if (dirt > 0.5) reasons.push(`Waschen ${(dirt * 100).toFixed(0)}%`);
+            if (hours >= 100) reasons.push(`${hours.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Bh`);
+
+            return {
+                vehicle,
+                reasons,
+                score: Math.max(wear, dirt) * 100 + Math.min(hours, 250) / 10,
+            };
+        })
+        .filter(item => item.reasons.length > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 6);
+}
+
+function renderVehicleMaintenancePlan(source = vehiclesCache) {
+    const items = vehicleMaintenanceItems(source);
+    if (items.length === 0) return '';
+
+    return `<div class="vehicle-maintenance-plan">
+        <div class="plan-header">
+            <div>
+                <div class="plan-kicker">Wartungsplan</div>
+                <h3>Fuhrpark-Prioritäten</h3>
+            </div>
+            <span>${items.length} Aufgabe${items.length === 1 ? '' : 'n'}</span>
+        </div>
+        <div class="plan-list">
+            ${items.map(item => {
+                const vehicle = item.vehicle;
+                const shopPrice = Math.round(Number(vehicle.shopPrice || 0));
+                return `<div class="plan-row">
+                    <span class="plan-title">${escapeHtml(vehicle.name || vehicle.model || 'Unbekannt')}</span>
+                    <span class="plan-meta">${escapeHtml(item.reasons.join(' · '))}${shopPrice > 0 ? ` · ${shopPrice.toLocaleString('de-DE')} €` : ''}</span>
+                </div>`;
+            }).join('')}
+        </div>
+    </div>`;
+}
+
 function renderVehicleFillUnits(vehicle) {
     const fillUnits = Array.isArray(vehicle.fillUnits) ? vehicle.fillUnits : [];
     if (fillUnits.length === 0) return '';
@@ -153,7 +201,7 @@ function renderVehicles() {
         </div>`;
     };
 
-    container.innerHTML = visible.map(v => {
+    container.innerHTML = renderVehicleMaintenancePlan(typeFiltered) + visible.map(v => {
         const wear = Number(v.wear || 0);
         const dirt = Number(v.dirt || 0);
         const needsMaintenance = wear > 0.5;
@@ -545,6 +593,102 @@ function renderProductionStorage(storage, icon) {
     </div>`;
 }
 
+function productionStoragePercent(storage) {
+    const capacity = Number(storage?.capacity || 0);
+    const explicit = Number(storage?.percent);
+    if (Number.isFinite(explicit)) return Math.max(0, Math.min(100, explicit));
+    if (capacity <= 0) return 0;
+    return Math.max(0, Math.min(100, Number(storage?.level || 0) / capacity * 100));
+}
+
+function productionPlannerItems(points = productionCache) {
+    const bottlenecks = [];
+    const fullOutputs = [];
+    let activeChains = 0;
+
+    (Array.isArray(points) ? points : []).forEach(point => {
+        const pointName = point.name || 'Produktionsanlage';
+        const productions = Array.isArray(point.productions) ? point.productions : [];
+        const activeCountValue = Number(point.activeCount);
+        activeChains += Number.isFinite(activeCountValue)
+            ? activeCountValue
+            : productions.filter(prod => prod?.enabled === true).length;
+
+        (Array.isArray(point.inputStorages) ? point.inputStorages : []).forEach(storage => {
+            const percent = productionStoragePercent(storage);
+            const isWater = String(storage.fillType || '').toUpperCase() === 'WATER';
+            const threshold = isWater ? 25 : 15;
+            if (Number(storage.capacity || 0) > 0 && percent <= threshold) {
+                bottlenecks.push({
+                    title: storage.title || storage.fillType || 'Betriebsstoff',
+                    place: pointName,
+                    percent,
+                    priority: percent <= 5 ? 0 : 1,
+                });
+            }
+        });
+
+        (Array.isArray(point.outputStorages) ? point.outputStorages : []).forEach(storage => {
+            const percent = productionStoragePercent(storage);
+            if (Number(storage.capacity || 0) > 0 && percent >= 90) {
+                fullOutputs.push({
+                    title: storage.title || storage.fillType || 'Ausstoß',
+                    place: pointName,
+                    percent,
+                    priority: percent >= 98 ? 0 : 1,
+                });
+            }
+        });
+    });
+
+    return {
+        activeChains,
+        bottlenecks: bottlenecks.sort((a, b) => a.priority - b.priority || a.percent - b.percent),
+        fullOutputs: fullOutputs.sort((a, b) => a.priority - b.priority || b.percent - a.percent),
+    };
+}
+
+function renderProductionPlanner(plan) {
+    const rows = [
+        ...plan.bottlenecks.slice(0, 5).map(item => ({
+            title: `${item.title} nachfüllen`,
+            meta: `${item.place} · ${item.percent.toFixed(0)}%`,
+        })),
+        ...plan.fullOutputs.slice(0, 5).map(item => ({
+            title: `${item.title} abholen`,
+            meta: `${item.place} · ${item.percent.toFixed(0)}% voll`,
+        })),
+    ].slice(0, 8);
+
+    if (rows.length === 0) {
+        return `<div class="production-planner is-calm">
+            <div class="plan-header">
+                <div>
+                    <div class="plan-kicker">Produktionsplaner</div>
+                    <h3>Keine Engpässe oder vollen Outputs</h3>
+                </div>
+                <span>${plan.activeChains} aktiv</span>
+            </div>
+        </div>`;
+    }
+
+    return `<div class="production-planner">
+        <div class="plan-header">
+            <div>
+                <div class="plan-kicker">Produktionsplaner</div>
+                <h3>Nächste Produktionsaufgaben</h3>
+            </div>
+            <span>${plan.activeChains} aktiv</span>
+        </div>
+        <div class="plan-list">
+            ${rows.map(row => `<div class="plan-row">
+                <span class="plan-title">${escapeHtml(row.title)}</span>
+                <span class="plan-meta">${escapeHtml(row.meta)}</span>
+            </div>`).join('')}
+        </div>
+    </div>`;
+}
+
 async function loadProductionData() {
     const container = document.getElementById('productionContainer');
     container.innerHTML = '<div class="empty-note">Lade Produktionsanlagen …</div>';
@@ -552,11 +696,24 @@ async function loadProductionData() {
     const data = await res.json();
     if (data.error) { container.innerHTML = `<div class="empty-note">${escapeHtml(data.error)}</div>`; return; }
     productionCache = data.productionPoints;
+    const plan = productionPlannerItems(productionCache);
 
     document.getElementById('productionStatGrid').innerHTML = `
         <div class="stat-card">
             <div class="stat-label">Produktionsanlagen</div>
             <div class="stat-value">${data.pointCount}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Aktive Ketten</div>
+            <div class="stat-value">${plan.activeChains}</div>
+        </div>
+        <div class="stat-card ${plan.bottlenecks.length > 0 ? 'stat-highlight' : ''}">
+            <div class="stat-label">Engpässe</div>
+            <div class="stat-value ${plan.bottlenecks.length > 0 ? 'stat-warn' : ''}">${plan.bottlenecks.length}</div>
+        </div>
+        <div class="stat-card ${plan.fullOutputs.length > 0 ? 'stat-highlight' : ''}">
+            <div class="stat-label">Volle Outputs</div>
+            <div class="stat-value">${plan.fullOutputs.length}</div>
         </div>
     `;
     renderProduction();
@@ -570,7 +727,9 @@ function renderProduction() {
         return;
     }
 
-    container.innerHTML = productionCache.map(pp => {
+    const plan = productionPlannerItems(productionCache);
+
+    container.innerHTML = renderProductionPlanner(plan) + productionCache.map(pp => {
         const productions = Array.isArray(pp.productions) ? pp.productions : [];
         const inputStorages = Array.isArray(pp.inputStorages) ? pp.inputStorages : [];
         const outputStorages = Array.isArray(pp.outputStorages) ? pp.outputStorages : [];

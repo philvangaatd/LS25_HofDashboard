@@ -45,7 +45,8 @@ async function loadFarmOverview() {
         </div>
     `;
 
-    renderQuickAccess(data);
+    const taskDetails = await loadTaskCockpitDetails();
+    renderQuickAccess(data, taskDetails);
     renderWeatherForecast(data.weatherForecast);
     checkPriceAlerts();
     renderLastSavedInfo(data.lastSaved);
@@ -148,62 +149,168 @@ function renderWeatherForecast(forecast) {
     `;
 }
 
-function renderQuickAccess(data) {
-    const container = document.getElementById('quickAccessContainer');
-    const sections = [];
+async function loadTaskCockpitDetails() {
+    const [productionResult, animalsResult] = await Promise.allSettled([
+        fetch('api.php?action=production_data').then(res => res.json()),
+        fetch('api.php?action=animals_data').then(res => res.json()),
+    ]);
 
-    if (data.harvestReadyFields && data.harvestReadyFields.length > 0) {
-        sections.push(`
-            <div class="quick-section">
-                <h3>🌾 Bereit zur Ernte</h3>
-                <div class="quick-list">
-                    ${data.harvestReadyFields.map(f => `
-                        <div class="quick-row" onclick="switchTab('fields')">
-                            <span class="quick-title">Feld ${escapeHtml(f.id)}</span>
-                            <span class="quick-meta">${escapeHtml(f.fruitTypeLabel)}</span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `);
+    return {
+        production: productionResult.status === 'fulfilled' && !productionResult.value.error ? productionResult.value : null,
+        animals: animalsResult.status === 'fulfilled' && !animalsResult.value.error ? animalsResult.value : null,
+    };
+}
+
+function storagePercent(storage) {
+    const capacity = Number(storage?.capacity || 0);
+    const explicit = Number(storage?.percent);
+    if (Number.isFinite(explicit)) return Math.max(0, Math.min(100, explicit));
+    if (capacity <= 0) return 0;
+    return Math.max(0, Math.min(100, Number(storage?.level || 0) / capacity * 100));
+}
+
+function cockpitProductionTasks(productionData) {
+    const points = Array.isArray(productionData?.productionPoints) ? productionData.productionPoints : [];
+    const tasks = [];
+
+    points.forEach(point => {
+        const pointName = point.name || 'Produktionsanlage';
+        (Array.isArray(point.inputStorages) ? point.inputStorages : []).forEach(storage => {
+            const percent = storagePercent(storage);
+            const label = storage.title || storage.fillType || 'Betriebsstoff';
+            const isWater = String(storage.fillType || '').toUpperCase() === 'WATER';
+            const threshold = isWater ? 25 : 15;
+            if (Number(storage.capacity || 0) > 0 && percent <= threshold) {
+                tasks.push({
+                    title: `${label} nachfüllen`,
+                    meta: `${pointName} · ${percent.toFixed(0)}%`,
+                    target: 'production',
+                    priority: percent <= 5 ? 0 : 1,
+                });
+            }
+        });
+
+        (Array.isArray(point.outputStorages) ? point.outputStorages : []).forEach(storage => {
+            const percent = storagePercent(storage);
+            const label = storage.title || storage.fillType || 'Ausstoß';
+            if (Number(storage.capacity || 0) > 0 && percent >= 90) {
+                tasks.push({
+                    title: `${label} abholen`,
+                    meta: `${pointName} · ${percent.toFixed(0)}% voll`,
+                    target: 'production',
+                    priority: percent >= 98 ? 0 : 1,
+                });
+            }
+        });
+    });
+
+    return tasks.sort((a, b) => a.priority - b.priority).slice(0, 4);
+}
+
+function cockpitAnimalTasks(animalsData) {
+    const husbandries = Array.isArray(animalsData?.husbandries) ? animalsData.husbandries : [];
+    const tasks = [];
+
+    const addResourceTask = (barn, key, label, threshold) => {
+        const resource = barn[key];
+        if (!resource?.enabled || resource.automatic || Number(resource.capacity || 0) <= 0) return;
+        const percent = storagePercent(resource);
+        if (percent <= threshold) {
+            tasks.push({
+                title: `${label} versorgen`,
+                meta: `${barn.name || 'Tierhaltung'} · ${percent.toFixed(0)}%`,
+                target: 'animals',
+                priority: percent <= 5 ? 0 : 1,
+            });
+        }
+    };
+
+    husbandries.forEach(barn => {
+        addResourceTask(barn, 'food', 'Futter', 15);
+        addResourceTask(barn, 'water', 'Wasser', 20);
+        addResourceTask(barn, 'straw', 'Stroh', 15);
+
+        (Array.isArray(barn.outputs) ? barn.outputs : []).forEach(output => {
+            const percent = storagePercent(output);
+            const label = output.title || output.fillType || 'Produkt';
+            if (output.palletLimitReached || (Number(output.capacity || 0) > 0 && percent >= 90)) {
+                tasks.push({
+                    title: `${label} abholen`,
+                    meta: `${barn.name || 'Tierhaltung'}${Number(output.capacity || 0) > 0 ? ` · ${percent.toFixed(0)}% voll` : ''}`,
+                    target: 'animals',
+                    priority: output.palletLimitReached || percent >= 98 ? 0 : 1,
+                });
+            }
+        });
+    });
+
+    const beehives = animalsData?.beehives || {};
+    if (beehives.palletLimitReached || Number(beehives.finishedPallets || 0) > 0) {
+        tasks.push({
+            title: 'Honigpaletten abholen',
+            meta: `${Number(beehives.finishedPallets || 0).toLocaleString('de-DE')} Palette(n)`,
+            target: 'animals',
+            priority: beehives.palletLimitReached ? 0 : 1,
+        });
     }
 
-    if (data.vehiclesNeedingAttention && data.vehiclesNeedingAttention.length > 0) {
-        sections.push(`
-            <div class="quick-section">
-                <h3>🚜 Fahrzeuge mit Wartungs-/Waschbedarf</h3>
-                <div class="quick-list">
-                    ${data.vehiclesNeedingAttention.map(v => `
-                        <div class="quick-row" onclick="switchTab('vehicles')">
-                            <span class="quick-title">${escapeHtml(v.name)}</span>
-                            <span class="quick-meta">Verschleiß ${(v.wear * 100).toFixed(0)}% · Dreck ${(v.dirt * 100).toFixed(0)}%</span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `);
-    }
+    return tasks.sort((a, b) => a.priority - b.priority).slice(0, 4);
+}
 
-    if (data.missionsTotalCount > 0) {
-        sections.push(`
-            <div class="quick-section">
-                <h3>🤝 Verträge</h3>
-                <div class="quick-list">
-                    <div class="quick-row" onclick="switchTab('missions')">
-                        <span class="quick-title">${data.missionsTotalCount} Verträge verfügbar</span>
-                        <span class="quick-meta">Vertrags-Tab öffnen</span>
+function renderTaskSection(title, tasks) {
+    if (!tasks || tasks.length === 0) return '';
+    return `
+        <div class="quick-section">
+            <h3>${title}</h3>
+            <div class="quick-list">
+                ${tasks.map(task => `
+                    <div class="quick-row" onclick="switchTab('${escapeHtml(task.target)}')">
+                        <span class="quick-title">${escapeHtml(task.title)}</span>
+                        <span class="quick-meta">${escapeHtml(task.meta)}</span>
                     </div>
-                </div>
+                `).join('')}
             </div>
-        `);
-    }
+        </div>
+    `;
+}
 
-    if (sections.length === 0) {
+function renderQuickAccess(data, details = {}) {
+    const container = document.getElementById('quickAccessContainer');
+    const productionTasks = cockpitProductionTasks(details.production);
+    const animalTasks = cockpitAnimalTasks(details.animals);
+    const harvestTasks = (Array.isArray(data.harvestReadyFields) ? data.harvestReadyFields : []).map(field => ({
+        title: `Feld ${field.id} ernten`,
+        meta: field.fruitTypeLabel || 'erntereif',
+        target: 'fields',
+        priority: 0,
+    }));
+    const vehicleTasks = (Array.isArray(data.vehiclesNeedingAttention) ? data.vehiclesNeedingAttention : []).map(vehicle => ({
+        title: vehicle.name || 'Fahrzeug prüfen',
+        meta: `Verschleiß ${(Number(vehicle.wear || 0) * 100).toFixed(0)}% · Dreck ${(Number(vehicle.dirt || 0) * 100).toFixed(0)}%`,
+        target: 'vehicles',
+        priority: Number(vehicle.wear || 0) > 0.75 || Number(vehicle.dirt || 0) > 0.75 ? 0 : 1,
+    }));
+    const missionTasks = Number(data.missionsTotalCount || 0) > 0 ? [{
+        title: `${data.missionsTotalCount} Verträge prüfen`,
+        meta: 'Vertrags-Tab öffnen',
+        target: 'missions',
+        priority: 2,
+    }] : [];
+
+    const tasks = [
+        ...harvestTasks,
+        ...productionTasks,
+        ...animalTasks,
+        ...vehicleTasks,
+        ...missionTasks,
+    ].sort((a, b) => a.priority - b.priority).slice(0, 10);
+
+    if (tasks.length === 0) {
         container.innerHTML = '<div class="quick-section"><div class="quick-all-good">✓ Aktuell nichts Dringendes – alles im grünen Bereich.</div></div>';
         return;
     }
 
-    container.innerHTML = sections.join('');
+    container.innerHTML = renderTaskSection('📋 Aufgaben-Cockpit', tasks);
 }
 
 // =================================================================

@@ -893,11 +893,84 @@
     }
     .vehicle-fill-volume { white-space: nowrap; }
     .vehicle-fill-unit .bar-track { margin: 0; }
+    .vehicle-maintenance-plan,
+    .production-planner {
+        grid-column: 1 / -1;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 8px;
+        padding: 14px;
+    }
+    .production-planner.is-calm { border-left-color: var(--moss-500); }
+    .plan-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+    .plan-header h3 {
+        margin: 2px 0 0;
+        font-family: var(--font-display);
+        font-size: 15px;
+        font-weight: 600;
+    }
+    .plan-header > span {
+        flex-shrink: 0;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--ink-950);
+        background: var(--accent);
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+    .plan-kicker {
+        color: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+    .plan-list {
+        display: grid;
+        gap: 6px;
+    }
+    .plan-row {
+        display: grid;
+        grid-template-columns: minmax(120px, 1fr) auto;
+        gap: 10px;
+        align-items: baseline;
+        padding: 8px 10px;
+        background: var(--ink-950);
+        border: 1px solid var(--ink-800);
+        border-radius: 6px;
+        font-size: 12px;
+    }
+    .plan-title {
+        min-width: 0;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+    .plan-meta {
+        color: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 10px;
+        text-align: right;
+        overflow-wrap: anywhere;
+    }
 
     @media (max-width: 700px) {
         #vehiclesContainer { grid-template-columns: 1fr; }
         .vehicle-meta-grid,
         .vehicle-condition-grid { grid-template-columns: 1fr 1fr; }
+        .plan-header,
+        .plan-row {
+            grid-template-columns: 1fr;
+        }
+        .plan-header { flex-direction: column; }
+        .plan-meta { text-align: left; }
     }
 
     /* Gemeinsame Fortschrittsbalken */
