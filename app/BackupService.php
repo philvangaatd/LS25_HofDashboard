@@ -24,6 +24,15 @@ function make_backup_filename(string $folder): string
     return BACKUP_DIR . '/' . $folder . '_AutoDrive_config_' . date('Y-m-d_His') . '_' . $ms . '.xml';
 }
 
+function create_autodrive_config_backup(string $folder, string $configPath, int $keep): string
+{
+    $backupFile = make_backup_filename($folder);
+    copy($configPath, $backupFile);
+    prune_old_backups($folder, $keep);
+
+    return $backupFile;
+}
+
 function full_backup_dir(): string
 {
     $dir = BACKUP_DIR . '/full';

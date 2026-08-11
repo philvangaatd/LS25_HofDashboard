@@ -28,6 +28,13 @@ prune_old_backups('savegame1', 1);
 expect_backup_test(count(list_backups_for('savegame1')) === 1, 'Expected AutoDrive pruning to keep one file.');
 expect_backup_test(is_file($backupRoot . DIRECTORY_SEPARATOR . 'savegame2_AutoDrive_config_2026-08-11_120002_001.xml'), 'Expected pruning to keep other savegames.');
 
+$configPath = $backupRoot . DIRECTORY_SEPARATOR . 'AutoDrive_config.xml';
+file_put_contents($configPath, '<AutoDrive/>');
+$createdBackup = create_autodrive_config_backup('savegame1', $configPath, 1);
+expect_backup_test(is_file($createdBackup), 'Expected AutoDrive config backup file to be created.');
+expect_backup_test(file_get_contents($createdBackup) === '<AutoDrive/>', 'Expected AutoDrive config backup content.');
+expect_backup_test(count(list_backups_for('savegame1')) === 1, 'Expected AutoDrive config backup helper to prune old files.');
+
 $fullDir = full_backup_dir();
 expect_backup_test(is_dir($fullDir), 'Expected full backup directory to be created.');
 file_put_contents($fullDir . DIRECTORY_SEPARATOR . 'savegame1_full_2026-08-11_120000_001.zip', 'old');

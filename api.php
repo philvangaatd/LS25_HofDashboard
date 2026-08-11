@@ -2644,9 +2644,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $folder = $_SESSION['savegame_folder'];
-    $backupFile = make_backup_filename($folder);
-    copy($configPath, $backupFile);
-    prune_old_backups($folder, 20);
+    $backupFile = create_autodrive_config_backup($folder, $configPath, 20);
 
     // Siehe Kommentar bei save_course: Zeitstempel erhalten, damit Steam Cloud beim
     // nächsten Spielstart nicht fälschlich einen Synchronisationskonflikt meldet.
