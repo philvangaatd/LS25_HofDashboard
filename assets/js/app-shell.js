@@ -4,7 +4,7 @@
     if (window.__hofDashboardAppShellLoaded) return;
     window.__hofDashboardAppShellLoaded = true;
 
-    const VERSION = '5.5.0';
+    const VERSION = '5.5.2';
 
     function ensureStyles() {
         if (document.getElementById('appShellStyles')) return;
