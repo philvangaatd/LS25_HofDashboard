@@ -1,5 +1,17 @@
 # Changelog
 
+## 5.4.0 - 2026-09-05
+
+### Neu
+- Startscreen vollständig im Stil des Hof-Dashboards neu gestaltet: permanente Seitenleiste, große Spielstandkarten, Schnellzugriff und deutlichere visuelle Hierarchie.
+- **System** ist jetzt bereits vor der Auswahl eines Spielstands vollständig erreichbar.
+- LS25-Integration und Mod-Verwaltung können direkt vom Startscreen geöffnet und bedient werden.
+- Schnellzugriff zeigt Mod-Status, Dashboard-Version, Zeitpunkt des letzten Spielstandscans und Anzahl gefundener Spielstände.
+- Alle spielstandsabhängigen Bereiche sind schon in der Navigation sichtbar, bis zur Auswahl jedoch bewusst deaktiviert.
+- Spielstände werden mit Karte, Hofname, Manager, Speicherdatum und klarer Primäraktion dargestellt.
+- Eigener Systemscreen auf der Startseite kombiniert lokale Systemchecks mit der integrierten Mod-Verwaltung.
+- Neuer responsiver Startscreen passt sich auch schmaleren Fenstern an.
+
 ## 5.3.1 - 2026-09-05
 
 ### Verbesserungen
