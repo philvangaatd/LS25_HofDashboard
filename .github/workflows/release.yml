@@ -57,10 +57,12 @@ jobs:
           node --check assets/js/mod-manager.js
           node --check assets/js/app-shell.js
           node --check assets/js/app-shell-sync.js
+          node --check assets/js/sidebar-collapse.js
           foreach ($file in @(
             "assets/css/start-screen.css",
             "assets/css/start-screen-icon-fix.css",
-            "assets/css/app-shell.css"
+            "assets/css/app-shell.css",
+            "assets/css/sidebar-collapse.css"
           )) {
             if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing UI asset: $file" }
           }
@@ -123,15 +125,14 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Einheitliches App-Redesign
-          - komplette Haupt-App übernimmt die Designsprache des neuen Startscreens
-          - permanente linke Navigation für Übersicht, Felder, Fuhrpark, Tiere, Vorräte, Produktionen, Markt, Verträge, AutoDrive, Backups und System
-          - aktive Bereiche werden klar hervorgehoben; AutoDrive-Bereiche bleiben ohne AutoDrive sinnvoll deaktiviert
-          - Header, Toolbars, Eingabefelder, Statistikkarten, Listen, Modals und Systemkarten visuell vereinheitlicht
-          - responsive Sidebar klappt bei kleineren Fenstern auf eine kompakte Icon-Navigation zusammen
-          - Systemstatus bleibt dauerhaft sichtbar und erreichbar
-          - fehlendes/überdimensioniertes System-Icon im Schnellzugriff des Startscreens behoben
-          - WebView2 lädt die neuen UI-Skripte mit Versions-Cache-Busting
+          ### Einklappbare Navigation
+          - linke Navigation kann auf eine platzsparende reine Icon-Ansicht reduziert werden
+          - Einstellung gilt für Startscreen und Haupt-App gemeinsam
+          - gewählter Zustand wird lokal gespeichert und beim nächsten Start wiederhergestellt
+          - Icons zeigen im kompakten Zustand verständliche Hover-Hinweise
+          - aktiver Bereich, AutoDrive-Verfügbarkeit und System-Statuspunkt bleiben vollständig erhalten
+          - Fußbereich bleibt sichtbar: kompakt als © LS25 plus Versionsnummer
+          - auf kleinen Fenstern greift weiterhin automatisch die platzsparende Icon-Navigation
 
           ### Kompatibilität
           Dashboard v$env:VERSION verwendet weiterhin die aktuelle Live-Mod v${{ steps.meta.outputs.minimum_mod_version }}. Ein separates Mod-Update ist für dieses Release nicht erforderlich.
