@@ -1,0 +1,21 @@
+/* v5.6.0 — the permanent sidebar now owns navigation, backup, savegame switching and system status. */
+body.dashboard-mode .masthead {
+    display: none !important;
+}
+
+body.dashboard-mode .app-workspace {
+    padding-top: 28px;
+}
+
+/* Keep only the compact savegame context line below the sidebar-owned navigation. */
+body.dashboard-mode .subtitle {
+    margin: 0 0 22px;
+    padding: 0 0 12px;
+    border-bottom: 1px solid rgba(201, 162, 39, .48);
+}
+
+@media (max-width: 720px) {
+    body.dashboard-mode .app-workspace {
+        padding-top: 22px;
+    }
+}
