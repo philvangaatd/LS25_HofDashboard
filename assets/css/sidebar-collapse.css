@@ -1,0 +1,163 @@
+/* v5.5.2 — user-controlled compact sidebar shared by start screen and dashboard */
+.sidebar-collapse-toggle {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    margin-left: auto;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(123,153,112,.24);
+    border-radius: 7px;
+    background: rgba(20,25,16,.60);
+    color: #cfd4af;
+    cursor: pointer;
+    transition: border-color .14s ease, background .14s ease, color .14s ease, transform .16s ease;
+}
+.sidebar-collapse-toggle:hover {
+    border-color: rgba(201,162,39,.55);
+    background: rgba(201,162,39,.07);
+    color: #f0bd23;
+}
+.sidebar-collapse-toggle svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform .18s ease;
+}
+.sidebar-collapsed .sidebar-collapse-toggle svg { transform: rotate(180deg); }
+
+.sidebar-footer-compact { display: none; }
+
+#mainScreen.app-shell,
+#pickerScreen.start-shell {
+    transition: grid-template-columns .18s ease;
+}
+
+#mainScreen.app-shell.sidebar-collapsed,
+#pickerScreen.start-shell.sidebar-collapsed {
+    grid-template-columns: 86px minmax(0,1fr) !important;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .app-sidebar,
+#pickerScreen.start-shell.sidebar-collapsed .start-sidebar {
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .app-sidebar-brand,
+#pickerScreen.start-shell.sidebar-collapsed .start-brand {
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .app-sidebar-brand .brand-label,
+#pickerScreen.start-shell.sidebar-collapsed .start-brand .brand-label,
+#mainScreen.app-shell.sidebar-collapsed .app-nav-label,
+#pickerScreen.start-shell.sidebar-collapsed .start-nav-item > span,
+#mainScreen.app-shell.sidebar-collapsed .app-nav-item > span {
+    display: none !important;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .sidebar-collapse-toggle,
+#pickerScreen.start-shell.sidebar-collapsed .sidebar-collapse-toggle {
+    margin-left: 0;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .app-nav-item,
+#pickerScreen.start-shell.sidebar-collapsed .start-nav-item {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+    gap: 0;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .app-nav-divider {
+    margin-left: 8px;
+    margin-right: 8px;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .app-nav-badge,
+#pickerScreen.start-shell.sidebar-collapsed .start-system-dot {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    margin: 0;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .app-sidebar-footer,
+#pickerScreen.start-shell.sidebar-collapsed .start-sidebar-footer {
+    display: block !important;
+    padding: 14px 0 4px;
+    text-align: center;
+    line-height: 1.35;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .app-sidebar-footer > strong,
+#mainScreen.app-shell.sidebar-collapsed .app-sidebar-footer > br,
+#mainScreen.app-shell.sidebar-collapsed .app-sidebar-footer > span:not(.sidebar-footer-compact),
+#pickerScreen.start-shell.sidebar-collapsed .start-sidebar-footer > strong,
+#pickerScreen.start-shell.sidebar-collapsed .start-sidebar-footer > br,
+#pickerScreen.start-shell.sidebar-collapsed .start-sidebar-footer > span:not(.sidebar-footer-compact) {
+    display: none !important;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .sidebar-footer-compact,
+#pickerScreen.start-shell.sidebar-collapsed .sidebar-footer-compact {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    color: #727663;
+    font: 9px var(--font-mono);
+    white-space: nowrap;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .sidebar-footer-compact strong,
+#pickerScreen.start-shell.sidebar-collapsed .sidebar-footer-compact strong {
+    color: #c7c9b7;
+    font-weight: 500;
+}
+
+#mainScreen.app-shell.sidebar-collapsed .app-workspace::before { left: 86px !important; }
+#pickerScreen.start-shell.sidebar-collapsed .start-main::before { left: 86px !important; }
+
+@media (max-width: 980px) {
+    /* On narrow windows the existing responsive icon-only mode already applies.
+       Keep footer/version visible and hide the manual toggle because there is no extra width to reclaim. */
+    #mainScreen.app-shell .sidebar-collapse-toggle,
+    #pickerScreen.start-shell .sidebar-collapse-toggle { display: none; }
+
+    #mainScreen.app-shell .app-sidebar-footer,
+    #pickerScreen.start-shell .start-sidebar-footer {
+        display: block !important;
+        padding: 14px 0 4px;
+        text-align: center;
+    }
+
+    #mainScreen.app-shell .app-sidebar-footer > strong,
+    #mainScreen.app-shell .app-sidebar-footer > br,
+    #mainScreen.app-shell .app-sidebar-footer > span:not(.sidebar-footer-compact),
+    #pickerScreen.start-shell .start-sidebar-footer > strong,
+    #pickerScreen.start-shell .start-sidebar-footer > br,
+    #pickerScreen.start-shell .start-sidebar-footer > span:not(.sidebar-footer-compact) {
+        display: none !important;
+    }
+
+    #mainScreen.app-shell .sidebar-footer-compact,
+    #pickerScreen.start-shell .sidebar-footer-compact {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        color: #727663;
+        font: 9px var(--font-mono);
+    }
+}
