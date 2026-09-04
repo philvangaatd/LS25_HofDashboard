@@ -48,7 +48,7 @@ internal sealed class UpdateDialog : Form
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
-        ClientSize = new Size(700, 500);
+        ClientSize = new Size(700, 560);
         BackColor = BackgroundColor;
         ForeColor = TextColor;
         AutoScaleMode = AutoScaleMode.Dpi;
