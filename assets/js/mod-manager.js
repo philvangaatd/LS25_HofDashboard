@@ -12,7 +12,7 @@
 
     const css = document.createElement('link');
     css.rel = 'stylesheet';
-    css.href = 'assets/css/mod-manager.css?v=5.3.0';
+    css.href = 'assets/css/mod-manager.css?v=5.4.0';
     document.head.appendChild(css);
 
     function escapeHtml(value) {
@@ -31,19 +31,25 @@
     function requestStatus() {
         post('mod-status');
     }
+    window.requestHofModStatus = requestStatus;
 
-    function ensureSystemHost() {
+    function ensureSystemHosts() {
+        const hosts = [];
         const checks = document.getElementById('systemCheckContainer');
-        if (!checks || !checks.parentNode) return null;
-
-        let host = document.getElementById('modManagerContainer');
-        if (!host) {
-            host = document.createElement('div');
-            host.id = 'modManagerContainer';
-            host.className = 'mod-manager-host';
-            checks.parentNode.insertBefore(host, checks);
+        if (checks && checks.parentNode) {
+            let host = document.getElementById('modManagerContainer');
+            if (!host) {
+                host = document.createElement('div');
+                host.id = 'modManagerContainer';
+                host.className = 'mod-manager-host';
+                checks.parentNode.insertBefore(host, checks);
+            }
+            hosts.push(host);
         }
-        return host;
+
+        const pickerHost = document.getElementById('pickerModManagerContainer');
+        if (pickerHost) hosts.push(pickerHost);
+        return hosts;
     }
 
     function ensureBanner() {
@@ -79,10 +85,7 @@
         return 'is-info';
     }
 
-    function renderSystemCard(status) {
-        const host = ensureSystemHost();
-        if (!host) return;
-
+    function systemCardHtml(status) {
         const gameNotice = status.gameRunning
             ? '<div class="mod-manager-game-notice">Landwirtschafts-Simulator 25 läuft gerade. Für Installation oder Reparatur bitte zuerst das Spiel schließen.</div>'
             : '';
@@ -98,7 +101,7 @@
             status.availableVersion ? `Aktuell ${escapeHtml(status.availableVersion)}` : null,
         ].filter(Boolean).join(' · ');
 
-        host.innerHTML = `
+        return `
             <section class="mod-manager-card ${stateClass(status)}">
                 <div class="mod-manager-card-head">
                     <div>
@@ -129,8 +132,13 @@
                     </div>
                 </details>
             </section>`;
+    }
 
-        bindActions(host);
+    function renderSystemCard(status) {
+        ensureSystemHosts().forEach(host => {
+            host.innerHTML = systemCardHtml(status);
+            bindActions(host);
+        });
     }
 
     function renderBanner(status) {
@@ -162,23 +170,27 @@
         bindActions(banner);
     }
 
+    function progressCardHtml(progress) {
+        const percent = Math.max(0, Math.min(100, Number(progress.percent) || 0));
+        return `
+            <section class="mod-manager-card is-info">
+                <div class="mod-manager-card-head">
+                    <div>
+                        <div class="mod-manager-kicker">LS25-Integration</div>
+                        <h3>Mod wird eingerichtet</h3>
+                    </div>
+                    <span class="mod-manager-badge">${percent} %</span>
+                </div>
+                <p class="mod-manager-detail">${escapeHtml(progress.message || 'Bitte einen Moment …')}</p>
+                <div class="mod-manager-progress"><span style="width:${percent}%"></span></div>
+            </section>`;
+    }
+
     function renderProgress(progress) {
         busy = progress.percent < 100;
-        const host = ensureSystemHost();
-        if (host) {
-            host.innerHTML = `
-                <section class="mod-manager-card is-info">
-                    <div class="mod-manager-card-head">
-                        <div>
-                            <div class="mod-manager-kicker">LS25-Integration</div>
-                            <h3>Mod wird eingerichtet</h3>
-                        </div>
-                        <span class="mod-manager-badge">${Math.max(0, Math.min(100, Number(progress.percent) || 0))} %</span>
-                    </div>
-                    <p class="mod-manager-detail">${escapeHtml(progress.message || 'Bitte einen Moment …')}</p>
-                    <div class="mod-manager-progress"><span style="width:${Math.max(0, Math.min(100, Number(progress.percent) || 0))}%"></span></div>
-                </section>`;
-        }
+        ensureSystemHosts().forEach(host => {
+            host.innerHTML = progressCardHtml(progress);
+        });
 
         const banner = ensureBanner();
         if (banner && busy) {
@@ -236,6 +248,7 @@
             currentStatus = message.status;
             renderSystemCard(message.status);
             renderBanner(message.status);
+            if (typeof window.updateStartModStatus === 'function') window.updateStartModStatus(message.status);
             if (message.notice) showMessage(message.notice, false);
         } else if (message.type === 'mod-manager-progress') {
             renderProgress(message.progress || {});
