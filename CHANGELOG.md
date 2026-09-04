@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.5.1 - 2026-09-05
+
+### Fehlerbehebungen
+- Haupt-App bleibt auf dem Startscreen zuverlässig ausgeblendet; die neue Grid-Shell wird erst nach Auswahl eines Spielstands aktiviert.
+- Cache-Busting für die v5.5.1-UI-Ressourcen ergänzt, damit WebView2 sicher die korrigierten Styles und Skripte lädt.
+- System-Icon im Schnellzugriff des Startscreens rendert jetzt in der vorgesehenen Größe statt als übergroße schwarze SVG-Fläche.
+
 ## 5.5.0 - 2026-09-05
 
 ### Neu
