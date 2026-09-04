@@ -1,0 +1,111 @@
+name: Build and release dashboard
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve and validate versions
+        id: meta
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $dashboard = Get-Content -Raw -LiteralPath "app-manifest.json" | ConvertFrom-Json
+          $launcher = Get-Content -Raw -LiteralPath "launcher/launcher-manifest.json" | ConvertFrom-Json
+          [xml]$project = Get-Content -Raw -LiteralPath "launcher/HofDashboard.Launcher/HofDashboard.Launcher.csproj"
+          $projectVersion = [string]$project.Project.PropertyGroup.Version
+          $version = [string]$dashboard.version
+          $minimumModVersion = [string]$dashboard.minimumModVersion
+          if ($launcher.version -ne $version -or $launcher.dashboardVersion -ne $version -or $projectVersion -ne $version) {
+            throw "Dashboard/launcher/project version mismatch."
+          }
+          $tag = "v$version"
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "minimum_mod_version=$minimumModVersion" >> $env:GITHUB_OUTPUT
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if ($releaseExists) {
+            "publish=false" >> $env:GITHUB_OUTPUT
+            Write-Host "Release $tag already exists; skipping publication."
+          } else {
+            "publish=true" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Validate JavaScript syntax
+        if: steps.meta.outputs.publish == 'true'
+        shell: pwsh
+        run: node --check assets/js/app-state.js
+
+      - name: Verify matching mod release
+        if: steps.meta.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MOD_VERSION: ${{ steps.meta.outputs.minimum_mod_version }}
+        run: |
+          gh release view "v$env:MOD_VERSION" --repo philvangaatd/LS25_HofDashboardMod *> $null
+          $modReleaseExists = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if (-not $modReleaseExists) {
+            throw "Required mod release v$env:MOD_VERSION does not exist yet."
+          }
+
+      - name: Build Windows package
+        if: steps.meta.outputs.publish == 'true'
+        shell: pwsh
+        run: ./launcher/scripts/build-prototype.ps1 -ArtifactDirectory dist
+
+      - name: Verify release assets
+        if: steps.meta.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          $package = "dist/HofDashboard-win-x64-v$env:VERSION.zip"
+          foreach ($file in @($package, "dist/update-manifest.json")) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing release asset: $file" }
+          }
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $package).Hash.ToLowerInvariant()
+          Write-Host "SHA-256: $hash"
+
+      - name: Publish GitHub release
+        if: steps.meta.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          $package = "dist/HofDashboard-win-x64-v$env:VERSION.zip"
+          $notes = @"
+          ## LS25 Hof-Dashboard v$env:VERSION
+
+          ### Neu: Vorräte
+          - eigener Live-Tab für Silos, Silo-Erweiterungen, Güllebehälter, Misthaufen sowie Ballen-/Palettenlager
+          - Ansicht **Nach Lager** mit Produkt, Menge, Kapazität und Auslastung
+          - Ansicht **Nach Produkt** mit hofweiter Gesamtsumme und Aufteilung auf die einzelnen Lager
+          - ObjectStorage zeigt zusätzlich Ballen-/Palettenanzahl, soweit LS25 diese Daten liefert
+          - Mod-Lager werden automatisch unterstützt, wenn sie die standardisierten GIANTS-Storage-Spezialisierungen verwenden
+
+          ### Update
+          Dieses Release enthält das Windows-Paket und das `update-manifest.json` für den bereits vorhandenen automatischen Update-Checker.
+          "@
+          $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8
+          gh release create $env:TAG $package "dist/update-manifest.json" --repo $env:GITHUB_REPOSITORY --title "LS25 Hof-Dashboard v$env:VERSION" --notes-file release-notes.md
