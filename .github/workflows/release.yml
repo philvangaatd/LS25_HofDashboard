@@ -55,8 +55,14 @@ jobs:
           node --check assets/js/app-state.js
           node --check assets/js/app-init-savegame.js
           node --check assets/js/mod-manager.js
-          if (-not (Test-Path -LiteralPath "assets/css/start-screen.css" -PathType Leaf)) {
-            throw "Missing redesigned start-screen stylesheet."
+          node --check assets/js/app-shell.js
+          node --check assets/js/app-shell-sync.js
+          foreach ($file in @(
+            "assets/css/start-screen.css",
+            "assets/css/start-screen-icon-fix.css",
+            "assets/css/app-shell.css"
+          )) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing UI asset: $file" }
           }
 
       - name: Verify matching mod release
@@ -117,16 +123,15 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Neuer Startscreen
-          - komplett neue Startansicht im visuellen Stil des Hof-Dashboards
-          - permanente Seitenleiste mit klarer Orientierung bereits vor der Spielstandauswahl
-          - große Spielstandkarten mit Karte, Hofname, Manager, Speicherdatum und eindeutiger Öffnen-Aktion
-          - Schnellzugriff zeigt Mod-Status, Dashboard-Version, letzten Scan und Anzahl gefundener Spielstände
-          - System ist ab dem ersten App-Start vollständig erreichbar, auch ohne ausgewählten Spielstand
-          - LS25-Integration und Mod-Verwaltung lassen sich direkt vom Startscreen installieren, aktualisieren oder reparieren
-          - spielstandsabhängige Bereiche bleiben sichtbar, sind vor der Auswahl aber bewusst deaktiviert
-          - eigener Start-Systemscreen verbindet Systemcheck und Mod-Verwaltung
-          - responsive Darstellung für kleinere Fensterbreiten
+          ### Einheitliches App-Redesign
+          - komplette Haupt-App übernimmt die Designsprache des neuen Startscreens
+          - permanente linke Navigation für Übersicht, Felder, Fuhrpark, Tiere, Vorräte, Produktionen, Markt, Verträge, AutoDrive, Backups und System
+          - aktive Bereiche werden klar hervorgehoben; AutoDrive-Bereiche bleiben ohne AutoDrive sinnvoll deaktiviert
+          - Header, Toolbars, Eingabefelder, Statistikkarten, Listen, Modals und Systemkarten visuell vereinheitlicht
+          - responsive Sidebar klappt bei kleineren Fenstern auf eine kompakte Icon-Navigation zusammen
+          - Systemstatus bleibt dauerhaft sichtbar und erreichbar
+          - fehlendes/überdimensioniertes System-Icon im Schnellzugriff des Startscreens behoben
+          - WebView2 lädt die neuen UI-Skripte mit Versions-Cache-Busting
 
           ### Kompatibilität
           Dashboard v$env:VERSION verwendet weiterhin die aktuelle Live-Mod v${{ steps.meta.outputs.minimum_mod_version }}. Ein separates Mod-Update ist für dieses Release nicht erforderlich.
