@@ -197,10 +197,15 @@ internal sealed class MainForm : Form
                 if (window.__hofDashboardClientScriptsRequested) return;
                 window.__hofDashboardClientScriptsRequested = true;
 
-                const style = document.createElement('link');
-                style.rel = 'stylesheet';
-                style.href = 'assets/css/start-screen-icon-fix.css?v=5.5.1';
-                document.head.appendChild(style);
+                const loadStyle = (href) => {
+                    const style = document.createElement('link');
+                    style.rel = 'stylesheet';
+                    style.href = href;
+                    document.head.appendChild(style);
+                };
+
+                loadStyle('assets/css/start-screen-icon-fix.css?v=5.5.2');
+                loadStyle('assets/css/sidebar-collapse.css?v=5.5.2');
 
                 const load = (src) => {
                     const script = document.createElement('script');
@@ -209,9 +214,10 @@ internal sealed class MainForm : Form
                     document.head.appendChild(script);
                 };
 
-                load('assets/js/mod-manager.js?v=5.5.1');
-                load('assets/js/app-shell.js?v=5.5.1');
-                load('assets/js/app-shell-sync.js?v=5.5.1');
+                load('assets/js/mod-manager.js?v=5.5.2');
+                load('assets/js/app-shell.js?v=5.5.2');
+                load('assets/js/app-shell-sync.js?v=5.5.2');
+                load('assets/js/sidebar-collapse.js?v=5.5.2');
             })();
             """;
         await _webView.CoreWebView2.ExecuteScriptAsync(script);
