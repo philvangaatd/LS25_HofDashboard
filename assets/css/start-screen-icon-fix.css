@@ -1,4 +1,4 @@
-/* v5.5.0 hotfix: prevent the System quick-access SVG from using the browser default 300x150 size. */
+/* v5.5.0 UI fixes shared by the start screen and the persistent dashboard shell. */
 .start-system-button svg {
     width: 18px;
     height: 18px;
@@ -9,4 +9,10 @@
     fill: none;
     stroke-linecap: round;
     stroke-linejoin: round;
+}
+
+/* app-shell.css intentionally owns the grid layout, but the shell must still obey the
+   inline display:none used while the savegame picker is visible. */
+body:not(.dashboard-mode) #mainScreen.app-shell {
+    display: none !important;
 }
