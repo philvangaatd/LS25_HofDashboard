@@ -113,19 +113,17 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Neu: Mod direkt im Dashboard verwalten
-          - Benutzer müssen künftig nur noch das Windows-Dashboard herunterladen
-          - die benötigte LS25-Mod kann direkt aus dem Dashboard automatisch installiert, aktualisiert oder repariert werden
-          - der Mod-Ordner wird über den Windows-Dokumente-Pfad erkannt, einschließlich umgeleiteter Dokumente und OneDrive
-          - falls nötig kann der Mod-Ordner manuell ausgewählt und dauerhaft gespeichert werden
-          - das Dashboard erkennt die installierte Mod-Version direkt aus modDesc.xml
-          - Downloadgröße und SHA-256 der Mod werden vor jeder Installation geprüft
-          - die vorhandene Mod wird atomar ersetzt; bei einem Fehler bleibt die bisherige Datei erhalten
-          - während Landwirtschafts-Simulator 25 läuft, wird die Mod aus Sicherheitsgründen nicht überschrieben
-          - im System-Bereich erscheinen ein verständlicher Status und Ein-Klick-Aktionen statt technischer Installationsschritte
+          ### Neu gestaltet: Update-Fenster
+          - vollständig an Farben und Designsprache des Hof-Dashboards angepasst
+          - eigene rahmenlose Titelleiste mit Hof-Dashboard-Branding
+          - installierte und neue Version werden direkt gegenübergestellt
+          - eigener Statusbereich mit farbigem Zustandspunkt und Fortschrittsanzeige
+          - Download-, Prüf- und Fehlerzustände bleiben im selben Dialog
+          - Updatefehler werden ohne fremde Windows-MessageBox verständlich dargestellt
+          - Sicherheitsprüfung und Integritätskontrolle sind direkt im Update-Ablauf sichtbar
 
-          ### Update
-          Das Release enthält das Windows-Paket und das erweiterte update-manifest.json. Die aktuell passende Mod-Version ist im Manifest inklusive Download, Größe und SHA-256 hinterlegt.
+          ### Kompatibilität
+          Dashboard v$env:VERSION verwendet weiterhin die aktuelle Live-Mod v${{ steps.meta.outputs.minimum_mod_version }}. Ein separates Mod-Update ist für dieses Release nicht erforderlich.
           "@
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8
           gh release create $env:TAG $package "dist/update-manifest.json" --repo $env:GITHUB_REPOSITORY --title "LS25 Hof-Dashboard v$env:VERSION" --notes-file release-notes.md
