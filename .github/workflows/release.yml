@@ -48,12 +48,16 @@ jobs:
             "publish=true" >> $env:GITHUB_OUTPUT
           }
 
-      - name: Validate JavaScript syntax
+      - name: Validate frontend assets
         if: steps.meta.outputs.publish == 'true'
         shell: pwsh
         run: |
           node --check assets/js/app-state.js
+          node --check assets/js/app-init-savegame.js
           node --check assets/js/mod-manager.js
+          if (-not (Test-Path -LiteralPath "assets/css/start-screen.css" -PathType Leaf)) {
+            throw "Missing redesigned start-screen stylesheet."
+          }
 
       - name: Verify matching mod release
         if: steps.meta.outputs.publish == 'true'
@@ -113,14 +117,16 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Neu gestaltet: Update-Fenster
-          - vollständig an Farben und Designsprache des Hof-Dashboards angepasst
-          - eigene rahmenlose Titelleiste mit Hof-Dashboard-Branding
-          - installierte und neue Version werden direkt gegenübergestellt
-          - eigener Statusbereich mit farbigem Zustandspunkt und Fortschrittsanzeige
-          - Download-, Prüf- und Fehlerzustände bleiben im selben Dialog
-          - Updatefehler werden ohne fremde Windows-MessageBox verständlich dargestellt
-          - Sicherheitsprüfung und Integritätskontrolle sind direkt im Update-Ablauf sichtbar
+          ### Neuer Startscreen
+          - komplett neue Startansicht im visuellen Stil des Hof-Dashboards
+          - permanente Seitenleiste mit klarer Orientierung bereits vor der Spielstandauswahl
+          - große Spielstandkarten mit Karte, Hofname, Manager, Speicherdatum und eindeutiger Öffnen-Aktion
+          - Schnellzugriff zeigt Mod-Status, Dashboard-Version, letzten Scan und Anzahl gefundener Spielstände
+          - System ist ab dem ersten App-Start vollständig erreichbar, auch ohne ausgewählten Spielstand
+          - LS25-Integration und Mod-Verwaltung lassen sich direkt vom Startscreen installieren, aktualisieren oder reparieren
+          - spielstandsabhängige Bereiche bleiben sichtbar, sind vor der Auswahl aber bewusst deaktiviert
+          - eigener Start-Systemscreen verbindet Systemcheck und Mod-Verwaltung
+          - responsive Darstellung für kleinere Fensterbreiten
 
           ### Kompatibilität
           Dashboard v$env:VERSION verwendet weiterhin die aktuelle Live-Mod v${{ steps.meta.outputs.minimum_mod_version }}. Ein separates Mod-Update ist für dieses Release nicht erforderlich.
