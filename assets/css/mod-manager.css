@@ -191,6 +191,43 @@
     transition: width 180ms ease;
 }
 
+/* Update/Reparatur ist die primäre Aktion des Warn-Banners. Der Hover muss
+   deshalb stärker und nicht kontrastärmer werden. Die hohe Spezifität hält
+   die globale Button-Hover-Regel des Dashboards bewusst draußen. */
+.mod-manager-banner.is-warn button.primary:not(:disabled),
+.mod-manager-card.is-warn .mod-manager-primary:not(:disabled) {
+    border-color: rgba(218, 178, 47, 0.9);
+    background: rgba(201, 162, 39, 0.12);
+    color: #e3bf45;
+    box-shadow: inset 0 0 0 1px rgba(201, 162, 39, 0.04);
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease,
+        box-shadow 150ms ease, transform 120ms ease;
+}
+
+.mod-manager-banner.is-warn button.primary:not(:disabled):hover,
+.mod-manager-card.is-warn .mod-manager-primary:not(:disabled):hover {
+    border-color: #e4bd3d;
+    background: #d8ad2d;
+    color: #12160d;
+    box-shadow: 0 8px 22px rgba(201, 162, 39, 0.22), 0 0 0 1px rgba(228, 189, 61, 0.15);
+    transform: translateY(-1px);
+}
+
+.mod-manager-banner.is-warn button.primary:not(:disabled):active,
+.mod-manager-card.is-warn .mod-manager-primary:not(:disabled):active {
+    background: #c59c24;
+    border-color: #c59c24;
+    color: #10130b;
+    box-shadow: 0 3px 10px rgba(201, 162, 39, 0.16);
+    transform: translateY(0);
+}
+
+.mod-manager-banner.is-warn button.primary:focus-visible,
+.mod-manager-card.is-warn .mod-manager-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(228, 189, 61, 0.35), 0 0 0 5px rgba(201, 162, 39, 0.12);
+}
+
 @media (max-width: 760px) {
     .mod-manager-card-head,
     .mod-manager-banner {
