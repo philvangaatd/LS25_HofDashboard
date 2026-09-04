@@ -1,5 +1,16 @@
 # Changelog
 
+## 5.3.1 - 2026-09-05
+
+### Verbesserungen
+- Update-Fenster vollständig an das visuelle Design des Hof-Dashboards angepasst.
+- Eigene rahmenlose Titelleiste mit Hof-Dashboard-Branding statt klassischem Windows-Dialog.
+- Versionsvergleich zeigt installierte und neue Version direkt nebeneinander.
+- Statusbereich mit farbigem Zustandspunkt und eigener Fortschrittsanzeige für Download und Prüfung.
+- Primär-, Sekundär- und Release-Notes-Aktionen verwenden jetzt dieselbe Farbwelt wie das Dashboard.
+- Fehler werden direkt im Update-Fenster dargestellt; die bisherige Windows-MessageBox entfällt für Updatefehler.
+- Sicherheits- und Integritätsprüfung werden verständlich im Dialog kommuniziert.
+
 ## 5.3.0 - 2026-09-04
 
 ### Neu
