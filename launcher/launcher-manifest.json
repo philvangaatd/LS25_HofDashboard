@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "component": "launcher",
   "name": "LS25 Hof-Dashboard Launcher",
-  "version": "5.3.1",
+  "version": "5.4.0",
   "architecture": "win-x64",
-  "dashboardVersion": "5.3.1",
+  "dashboardVersion": "5.4.0",
   "phpVersion": "8.5.9",
   "webView2SdkVersion": "1.0.4129.50"
 }
