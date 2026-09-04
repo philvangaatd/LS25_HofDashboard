@@ -58,11 +58,13 @@ jobs:
           node --check assets/js/app-shell.js
           node --check assets/js/app-shell-sync.js
           node --check assets/js/sidebar-collapse.js
+          node --check assets/js/near-live.js
           foreach ($file in @(
             "assets/css/start-screen.css",
             "assets/css/start-screen-icon-fix.css",
             "assets/css/app-shell.css",
-            "assets/css/sidebar-collapse.css"
+            "assets/css/sidebar-collapse.css",
+            "assets/css/header-cleanup.css"
           )) {
             if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing UI asset: $file" }
           }
@@ -125,17 +127,21 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Einklappbare Navigation
-          - linke Navigation kann auf eine platzsparende reine Icon-Ansicht reduziert werden
-          - Einstellung gilt für Startscreen und Haupt-App gemeinsam
-          - gewählter Zustand wird lokal gespeichert und beim nächsten Start wiederhergestellt
-          - Icons zeigen im kompakten Zustand verständliche Hover-Hinweise
-          - aktiver Bereich, AutoDrive-Verfügbarkeit und System-Statuspunkt bleiben vollständig erhalten
-          - Fußbereich bleibt sichtbar: kompakt als © LS25 plus Versionsnummer
-          - auf kleinen Fenstern greift weiterhin automatisch die platzsparende Icon-Navigation
+          ### Schlankere Hauptansichten
+          - redundanter Hof-Header mit Hofname, Backup, Spielstandwechsel und Live-Status aus den einzelnen Ansichten entfernt
+          - Spielstandwechsel bleibt über Start erreichbar
+          - Backups bleiben über den festen Navigationspunkt Backups erreichbar
+          - Live-/Mod-Status bleibt über den Statuspunkt am Navigationspunkt System sichtbar
+          - kompakte Spielstand-Kontextzeile mit Kartenname bleibt erhalten
+
+          ### Near-Live-Aktualisierung
+          - Dashboard prüft neue Live-Daten im Vordergrund jede Sekunde statt alle 15 Sekunden
+          - passende Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} exportiert den vollständigen Hofzustand alle 2 Sekunden
+          - im Hintergrund wird das Polling automatisch auf 5 Sekunden reduziert
+          - parallele Poll-Anfragen werden verhindert, damit bei langsamen Antworten keine Request-Schlange entsteht
 
           ### Kompatibilität
-          Dashboard v$env:VERSION verwendet weiterhin die aktuelle Live-Mod v${{ steps.meta.outputs.minimum_mod_version }}. Ein separates Mod-Update ist für dieses Release nicht erforderlich.
+          Für den Near-Live-Modus wird die Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} benötigt. Sie kann direkt unter System im Dashboard aktualisiert werden.
           "@
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8
           gh release create $env:TAG $package "dist/update-manifest.json" --repo $env:GITHUB_REPOSITORY --title "LS25 Hof-Dashboard v$env:VERSION" --notes-file release-notes.md
