@@ -199,7 +199,7 @@ internal sealed class MainForm : Form
 
                 const style = document.createElement('link');
                 style.rel = 'stylesheet';
-                style.href = 'assets/css/start-screen-icon-fix.css?v=5.5.0';
+                style.href = 'assets/css/start-screen-icon-fix.css?v=5.5.1';
                 document.head.appendChild(style);
 
                 const load = (src) => {
@@ -209,9 +209,9 @@ internal sealed class MainForm : Form
                     document.head.appendChild(script);
                 };
 
-                load('assets/js/mod-manager.js?v=5.5.0');
-                load('assets/js/app-shell.js?v=5.5.0');
-                load('assets/js/app-shell-sync.js?v=5.5.0');
+                load('assets/js/mod-manager.js?v=5.5.1');
+                load('assets/js/app-shell.js?v=5.5.1');
+                load('assets/js/app-shell-sync.js?v=5.5.1');
             })();
             """;
         await _webView.CoreWebView2.ExecuteScriptAsync(script);
