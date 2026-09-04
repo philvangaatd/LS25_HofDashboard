@@ -204,9 +204,10 @@ internal sealed class MainForm : Form
                     document.head.appendChild(style);
                 };
 
-                loadStyle('assets/css/start-screen-icon-fix.css?v=5.6.0');
-                loadStyle('assets/css/sidebar-collapse.css?v=5.6.0');
-                loadStyle('assets/css/header-cleanup.css?v=5.6.0');
+                loadStyle('assets/css/start-screen-icon-fix.css?v=5.6.1');
+                loadStyle('assets/css/sidebar-collapse.css?v=5.6.1');
+                loadStyle('assets/css/header-cleanup.css?v=5.6.1');
+                loadStyle('assets/css/mod-manager.css?v=5.6.1');
 
                 const load = (src) => {
                     const script = document.createElement('script');
@@ -215,11 +216,12 @@ internal sealed class MainForm : Form
                     document.head.appendChild(script);
                 };
 
-                load('assets/js/mod-manager.js?v=5.6.0');
-                load('assets/js/app-shell.js?v=5.6.0');
-                load('assets/js/app-shell-sync.js?v=5.6.0');
-                load('assets/js/sidebar-collapse.js?v=5.6.0');
-                load('assets/js/near-live.js?v=5.6.0');
+                load('assets/js/mod-manager.js?v=5.6.1');
+                load('assets/js/app-shell.js?v=5.6.1');
+                load('assets/js/app-shell-sync.js?v=5.6.1');
+                load('assets/js/sidebar-collapse.js?v=5.6.1');
+                load('assets/js/near-live.js?v=5.6.1');
+                load('assets/js/live-refresh-ux.js?v=5.6.1');
             })();
             """;
         await _webView.CoreWebView2.ExecuteScriptAsync(script);
