@@ -20,6 +20,8 @@ internal sealed record ApplicationRelease(
 internal sealed record ModRelease(
     [property: JsonPropertyName("version")] string Version,
     [property: JsonPropertyName("downloadUrl")] string DownloadUrl,
+    [property: JsonPropertyName("sha256")] string Sha256,
+    [property: JsonPropertyName("sizeBytes")] long SizeBytes,
     [property: JsonPropertyName("releaseNotesUrl")] string ReleaseNotesUrl);
 
 internal sealed record UpdateCompatibility(
@@ -34,7 +36,10 @@ internal sealed record UpdateAvailability(
     long SizeBytes,
     Uri ReleaseNotesUri,
     SemanticVersion ModVersion,
-    Uri ModDownloadUri);
+    Uri ModDownloadUri,
+    string ModSha256,
+    long ModSizeBytes,
+    Uri ModReleaseNotesUri);
 
 internal sealed record PreparedUpdate(
     SemanticVersion Version,
