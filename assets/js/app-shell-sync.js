@@ -17,6 +17,13 @@
         tabBtnSystem: 'system',
     };
 
+    function syncBodyMode() {
+        const main = document.getElementById('mainScreen');
+        if (!main) return;
+        const visible = main.style.display !== 'none';
+        document.body.classList.toggle('dashboard-mode', visible);
+    }
+
     function syncActiveTab() {
         for (const [id, tab] of Object.entries(tabMap)) {
             const button = document.getElementById(id);
@@ -39,10 +46,18 @@
             if (!button) return;
             new MutationObserver(syncActiveTab).observe(button, { attributes: true, attributeFilter: ['class'] });
         });
+
         const markerButton = document.getElementById('tabBtnMarkers');
         if (markerButton) {
             new MutationObserver(syncAutoDrive).observe(markerButton, { attributes: true, attributeFilter: ['style'] });
         }
+
+        const main = document.getElementById('mainScreen');
+        if (main) {
+            new MutationObserver(syncBodyMode).observe(main, { attributes: true, attributeFilter: ['style'] });
+        }
+
+        syncBodyMode();
         syncActiveTab();
         syncAutoDrive();
     }
