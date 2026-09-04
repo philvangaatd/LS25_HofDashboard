@@ -4,13 +4,13 @@ Lokales Windows-Dashboard für Landwirtschafts-Simulator 25. Es zeigt Live-Daten
 
 ## Aktuelle Version
 
-- Dashboard: `5.3.0`
+- Dashboard: `5.3.1`
 - kompatible Mod: `FS25_HofDashboard` ab `5.2.0`
 - Protokollversion: `1`
 
 ## Installation
 
-1. Den aktuellen Windows-Release `HofDashboard-win-x64-v5.3.0.zip` herunterladen.
+1. Den aktuellen Windows-Release `HofDashboard-win-x64-v5.3.1.zip` herunterladen.
 2. ZIP vollständig entpacken.
 3. `HofDashboard.exe` starten.
 4. Falls die LS25-Mod noch fehlt, im Dashboard auf **Jetzt automatisch einrichten** klicken.
@@ -31,6 +31,10 @@ Das Dashboard kann die zugehörige FS25-Mod direkt verwalten:
 - Mod-Ordner öffnen oder manuell auswählen
 
 Vor jeder Installation werden Dateigröße und SHA-256 des veröffentlichten Mod-Pakets geprüft. Läuft Landwirtschafts-Simulator 25 gerade, wird die Mod nicht überschrieben.
+
+## Updates
+
+Verfügbare Dashboard-Updates werden beim Start automatisch angeboten. Seit v5.3.1 verwendet auch das Update-Fenster die Designsprache des Dashboards und zeigt installierte sowie neue Version, Downloadstatus und Integritätsprüfung direkt im Dialog.
 
 ## Releases
 
