@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.5.2 - 2026-09-05
+
+### Verbesserungen
+- Linke Navigation kann manuell auf eine kompakte reine Icon-Ansicht reduziert und wieder aufgeklappt werden.
+- Der gewählte Sidebar-Zustand wird lokal gespeichert und gilt gemeinsam für Startscreen und Haupt-App.
+- Im kompakten Modus zeigen die Icons Hover-Hinweise, während aktiver Bereich, AutoDrive-Verfügbarkeit und System-Statuspunkt erhalten bleiben.
+- Der Fußbereich der Sidebar bleibt auch kompakt sichtbar und zeigt `© LS25` sowie die aktuelle Versionsnummer.
+- Auf kleinen Fenstern bleibt die bereits vorhandene automatische Icon-Navigation erhalten.
+
 ## 5.5.1 - 2026-09-05
 
 ### Fehlerbehebungen
