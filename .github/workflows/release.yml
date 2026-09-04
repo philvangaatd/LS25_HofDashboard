@@ -51,7 +51,9 @@ jobs:
       - name: Validate JavaScript syntax
         if: steps.meta.outputs.publish == 'true'
         shell: pwsh
-        run: node --check assets/js/app-state.js
+        run: |
+          node --check assets/js/app-state.js
+          node --check assets/js/mod-manager.js
 
       - name: Verify matching mod release
         if: steps.meta.outputs.publish == 'true'
@@ -72,6 +74,11 @@ jobs:
         shell: pwsh
         run: ./launcher/scripts/build-prototype.ps1 -ArtifactDirectory dist
 
+      - name: Add verified mod metadata
+        if: steps.meta.outputs.publish == 'true'
+        shell: pwsh
+        run: ./launcher/scripts/enrich-update-manifest.ps1 -ManifestPath dist/update-manifest.json
+
       - name: Verify release assets
         if: steps.meta.outputs.publish == 'true'
         shell: pwsh
@@ -83,7 +90,16 @@ jobs:
             if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing release asset: $file" }
           }
           $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $package).Hash.ToLowerInvariant()
-          Write-Host "SHA-256: $hash"
+          Write-Host "Dashboard SHA-256: $hash"
+
+          $manifest = Get-Content -Raw -LiteralPath "dist/update-manifest.json" | ConvertFrom-Json
+          if ([string]::IsNullOrWhiteSpace([string]$manifest.mod.sha256) -or
+              [string]$manifest.mod.sha256 -notmatch '^[0-9a-f]{64}$' -or
+              [long]$manifest.mod.sizeBytes -le 0) {
+            throw "Update manifest is missing verified mod package metadata."
+          }
+          Write-Host "Mod SHA-256: $($manifest.mod.sha256)"
+          Write-Host "Mod size: $($manifest.mod.sizeBytes) bytes"
 
       - name: Publish GitHub release
         if: steps.meta.outputs.publish == 'true'
@@ -97,15 +113,19 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Neu: Vorräte
-          - eigener Live-Tab für Silos, Silo-Erweiterungen, Güllebehälter, Misthaufen sowie Ballen-/Palettenlager
-          - Ansicht **Nach Lager** mit Produkt, Menge, Kapazität und Auslastung
-          - Ansicht **Nach Produkt** mit hofweiter Gesamtsumme und Aufteilung auf die einzelnen Lager
-          - ObjectStorage zeigt zusätzlich Ballen-/Palettenanzahl, soweit LS25 diese Daten liefert
-          - Mod-Lager werden automatisch unterstützt, wenn sie die standardisierten GIANTS-Storage-Spezialisierungen verwenden
+          ### Neu: Mod direkt im Dashboard verwalten
+          - Benutzer müssen künftig nur noch das Windows-Dashboard herunterladen
+          - die benötigte LS25-Mod kann direkt aus dem Dashboard automatisch installiert, aktualisiert oder repariert werden
+          - der Mod-Ordner wird über den Windows-Dokumente-Pfad erkannt, einschließlich umgeleiteter Dokumente und OneDrive
+          - falls nötig kann der Mod-Ordner manuell ausgewählt und dauerhaft gespeichert werden
+          - das Dashboard erkennt die installierte Mod-Version direkt aus modDesc.xml
+          - Downloadgröße und SHA-256 der Mod werden vor jeder Installation geprüft
+          - die vorhandene Mod wird atomar ersetzt; bei einem Fehler bleibt die bisherige Datei erhalten
+          - während Landwirtschafts-Simulator 25 läuft, wird die Mod aus Sicherheitsgründen nicht überschrieben
+          - im System-Bereich erscheinen ein verständlicher Status und Ein-Klick-Aktionen statt technischer Installationsschritte
 
           ### Update
-          Dieses Release enthält das Windows-Paket und das update-manifest.json für den bereits vorhandenen automatischen Update-Checker.
+          Das Release enthält das Windows-Paket und das erweiterte update-manifest.json. Die aktuell passende Mod-Version ist im Manifest inklusive Download, Größe und SHA-256 hinterlegt.
           "@
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8
           gh release create $env:TAG $package "dist/update-manifest.json" --repo $env:GITHUB_REPOSITORY --title "LS25 Hof-Dashboard v$env:VERSION" --notes-file release-notes.md
