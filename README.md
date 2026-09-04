@@ -4,13 +4,13 @@ Lokales Windows-Dashboard für Landwirtschafts-Simulator 25. Es zeigt Live-Daten
 
 ## Aktuelle Version
 
-- Dashboard: `5.5.1`
+- Dashboard: `5.5.2`
 - kompatible Mod: `FS25_HofDashboard` ab `5.2.0`
 - Protokollversion: `1`
 
 ## Installation
 
-1. Den aktuellen Windows-Release `HofDashboard-win-x64-v5.5.1.zip` herunterladen.
+1. Den aktuellen Windows-Release `HofDashboard-win-x64-v5.5.2.zip` herunterladen.
 2. ZIP vollständig entpacken.
 3. `HofDashboard.exe` starten.
 4. Falls die LS25-Mod noch fehlt, direkt auf dem Startscreen **System** öffnen und die LS25-Integration automatisch einrichten.
@@ -23,9 +23,9 @@ Falls der Modordner nicht automatisch gefunden wird, kann er unter **System → 
 
 Seit v5.5.0 verwendet die gesamte Anwendung dieselbe Designsprache wie der mit v5.4.0 eingeführte Startscreen. Nach der Spielstandauswahl bleibt eine permanente linke Navigation sichtbar. Darüber sind Übersicht, Felder, Fuhrpark, Tiere, Vorräte, Produktionen, Markt, Verträge, AutoDrive, Backups und System direkt erreichbar.
 
-Header, Toolbars, Eingabefelder, Statistikkarten, Listen, Modals und Systemkarten wurden visuell vereinheitlicht. Auf schmaleren Fenstern reduziert sich die Seitenleiste automatisch auf eine kompakte Icon-Navigation. AutoDrive-Bereiche werden ohne aktives AutoDrive sichtbar, aber sinnvoll deaktiviert.
+Header, Toolbars, Eingabefelder, Statistikkarten, Listen, Modals und Systemkarten wurden visuell vereinheitlicht. AutoDrive-Bereiche werden ohne aktives AutoDrive sichtbar, aber sinnvoll deaktiviert.
 
-v5.5.1 behebt die Startscreen-Sichtbarkeit der neuen App-Shell und erzwingt per Cache-Busting das Laden der korrigierten UI-Ressourcen.
+Seit v5.5.2 kann die linke Navigation manuell auf eine kompakte reine Icon-Ansicht reduziert werden. Die Auswahl wird lokal gespeichert und gilt für Startscreen und Haupt-App. Im kompakten Zustand bleiben aktive Bereiche, Systemstatus und die Fußzeile mit `© LS25` und Versionsnummer sichtbar.
 
 ## Startscreen
 
