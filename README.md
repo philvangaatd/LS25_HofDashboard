@@ -4,26 +4,34 @@ Lokales Windows-Dashboard für Landwirtschafts-Simulator 25. Es zeigt Live-Daten
 
 ## Aktuelle Version
 
-- Dashboard: `5.5.2`
-- kompatible Mod: `FS25_HofDashboard` ab `5.2.0`
+- Dashboard: `5.6.0`
+- kompatible Mod: `FS25_HofDashboard` ab `5.3.0`
 - Protokollversion: `1`
+- Dashboard-Polling: `1 Sekunde` im Vordergrund
+- Mod-Export: `2 Sekunden`
 
 ## Installation
 
-1. Den aktuellen Windows-Release `HofDashboard-win-x64-v5.5.2.zip` herunterladen.
+1. Den aktuellen Windows-Release `HofDashboard-win-x64-v5.6.0.zip` herunterladen.
 2. ZIP vollständig entpacken.
 3. `HofDashboard.exe` starten.
-4. Falls die LS25-Mod noch fehlt, direkt auf dem Startscreen **System** öffnen und die LS25-Integration automatisch einrichten.
+4. Falls die LS25-Mod fehlt oder veraltet ist, direkt unter **System** die LS25-Integration automatisch installieren bzw. aktualisieren.
 
 Das Dashboard erkennt den normalen LS25-Modordner automatisch und lädt die passende Mod selbst herunter. Ein separater manueller Mod-Download ist normalerweise nicht mehr nötig.
 
 Falls der Modordner nicht automatisch gefunden wird, kann er unter **System → LS25-Integration → Technische Details** einmalig ausgewählt werden. Der Systembereich ist bereits verfügbar, bevor ein Spielstand ausgewählt wurde.
 
+## Near-Live-Daten
+
+Seit v5.6.0 prüft die App im Vordergrund einmal pro Sekunde, ob ein neuer Live-Export vorliegt. Die passende Live-Mod v5.3.0 schreibt den vollständigen Hofzustand alle zwei Sekunden. Dadurch erscheinen Änderungen praktisch unmittelbar im Dashboard, ohne den kompletten Datenbestand auf jedem Spiel-Frame neu zu sammeln und zu serialisieren.
+
+Wenn das Dashboard-Fenster nicht sichtbar ist, wird das Polling automatisch auf fünf Sekunden reduziert. Parallele Poll-Anfragen werden verhindert.
+
 ## Einheitliches App-Design
 
 Seit v5.5.0 verwendet die gesamte Anwendung dieselbe Designsprache wie der mit v5.4.0 eingeführte Startscreen. Nach der Spielstandauswahl bleibt eine permanente linke Navigation sichtbar. Darüber sind Übersicht, Felder, Fuhrpark, Tiere, Vorräte, Produktionen, Markt, Verträge, AutoDrive, Backups und System direkt erreichbar.
 
-Header, Toolbars, Eingabefelder, Statistikkarten, Listen, Modals und Systemkarten wurden visuell vereinheitlicht. AutoDrive-Bereiche werden ohne aktives AutoDrive sichtbar, aber sinnvoll deaktiviert.
+Seit v5.6.0 entfällt der große, redundante Hof-Header innerhalb der einzelnen Ansichten. Spielstandwechsel erfolgt über **Start**, Backups über **Backups** und der Live-/Mod-Status über **System**. Die kompakte Kontextzeile mit Kartenname bleibt erhalten.
 
 Seit v5.5.2 kann die linke Navigation manuell auf eine kompakte reine Icon-Ansicht reduziert werden. Die Auswahl wird lokal gespeichert und gilt für Startscreen und Haupt-App. Im kompakten Zustand bleiben aktive Bereiche, Systemstatus und die Fußzeile mit `© LS25` und Versionsnummer sichtbar.
 
