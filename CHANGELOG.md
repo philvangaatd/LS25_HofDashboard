@@ -1,5 +1,17 @@
 # Changelog
 
+## 5.3.0 - 2026-09-04
+
+### Neu
+- Integrierte Mod-Verwaltung direkt im Windows-Dashboard: installieren, aktualisieren, reparieren und neu installieren ohne manuellen ZIP-Download.
+- Automatische Erkennung des LS25-Modordners über den Windows-Dokumente-Pfad, inklusive umgeleiteter Dokumente und OneDrive; manueller Ordner als Fallback speicherbar.
+- Installierte Mod-Version wird direkt aus `modDesc.xml` gelesen und mit der im Update-Manifest veröffentlichten Version verglichen.
+- Mod-Downloads werden vor der Installation anhand von Dateigröße und SHA-256 geprüft.
+- Atomarer Austausch der Mod-Datei mit Rückfall auf die bisherige Installation, falls die Nachprüfung fehlschlägt.
+- Schutz vor Änderungen, solange Landwirtschafts-Simulator 25 läuft.
+- Benutzerfreundlicher Status im System-Bereich sowie Hinweisbanner, wenn die Live-Verbindung fehlt, veraltet oder beschädigt ist.
+- Release-Pipeline erweitert das Update-Manifest automatisch um verifizierte Metadaten des passenden Mod-Releases.
+
 ## 5.2.0 - 2026-09-04
 
 ### Neu
