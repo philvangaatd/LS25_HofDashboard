@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -6,12 +7,16 @@ namespace HofDashboard.Launcher;
 
 internal sealed class MainForm : Form
 {
+    private static readonly JsonSerializerOptions WebMessageJsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly CancellationTokenSource _shutdown = new();
     private readonly WebView2 _webView;
     private readonly LoadingView _loadingPanel;
     private readonly Icon? _applicationIcon;
     private PhpServer? _phpServer;
     private LauncherLog? _log;
+    private AppPaths? _paths;
+    private ModManager? _modManager;
 
     public MainForm()
     {
@@ -81,7 +86,9 @@ internal sealed class MainForm : Form
     private async Task StartDashboardAsync(CancellationToken cancellationToken)
     {
         var paths = AppPaths.Create();
+        _paths = paths;
         _log = new LauncherLog(paths.LauncherLog);
+        _modManager = new ModManager(paths, _log);
         _log.Info($"HofDashboard Launcher {Application.ProductVersion} startet.");
         _log.Info($"Installationsordner: {paths.InstallDirectory}");
         _log.Info($"App-Datenordner: {paths.UserDataRoot}");
@@ -157,11 +164,190 @@ internal sealed class MainForm : Form
             OpenExternalUri(args.Uri);
         };
 
+        core.NavigationCompleted += async (_, args) =>
+        {
+            if (!args.IsSuccess)
+            {
+                return;
+            }
+
+            try
+            {
+                await InjectModManagerClientAsync();
+            }
+            catch (Exception exception)
+            {
+                _log?.Warning($"Mod-Verwaltung konnte nicht in die Oberfläche eingebunden werden: {exception.Message}");
+            }
+        };
+
+        core.WebMessageReceived += HandleWebMessageReceived;
+
         core.NewWindowRequested += (_, args) =>
         {
             args.Handled = true;
             OpenExternalUri(args.Uri);
         };
+    }
+
+    private async Task InjectModManagerClientAsync()
+    {
+        const string script = """
+            (() => {
+                if (window.__hofDashboardModManagerScriptRequested) return;
+                window.__hofDashboardModManagerScriptRequested = true;
+                const script = document.createElement('script');
+                script.src = 'assets/js/mod-manager.js?v=5.3.0';
+                script.async = true;
+                document.head.appendChild(script);
+            })();
+            """;
+        await _webView.CoreWebView2.ExecuteScriptAsync(script);
+    }
+
+    private async void HandleWebMessageReceived(
+        object? sender,
+        CoreWebView2WebMessageReceivedEventArgs args)
+    {
+        if (_modManager is null || _paths is null || _log is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(args.WebMessageAsJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("action", out var actionElement))
+            {
+                return;
+            }
+
+            var action = actionElement.GetString();
+            switch (action)
+            {
+                case "mod-status":
+                    await SendModStatusAsync();
+                    break;
+
+                case "mod-install":
+                    await InstallModAsync();
+                    break;
+
+                case "mod-select-folder":
+                    SelectModDirectory();
+                    await SendModStatusAsync();
+                    break;
+
+                case "mod-open-folder":
+                    OpenModDirectory();
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        {
+            // Normal application shutdown.
+        }
+        catch (Exception exception)
+        {
+            _log.Error("Aktion der integrierten Mod-Verwaltung fehlgeschlagen.", exception);
+            PostWebMessage(new
+            {
+                type = "mod-manager-error",
+                message = exception.Message,
+            });
+        }
+    }
+
+    private async Task SendModStatusAsync(string? notice = null)
+    {
+        if (_modManager is null)
+        {
+            return;
+        }
+
+        var status = await _modManager.GetStatusAsync(_shutdown.Token);
+        PostWebMessage(new
+        {
+            type = "mod-manager-status",
+            status,
+            notice,
+        });
+    }
+
+    private async Task InstallModAsync()
+    {
+        if (_modManager is null)
+        {
+            return;
+        }
+
+        var progress = new Progress<ModInstallProgress>(value =>
+        {
+            PostWebMessage(new
+            {
+                type = "mod-manager-progress",
+                progress = value,
+            });
+        });
+
+        await _modManager.InstallOrUpdateAsync(progress, _shutdown.Token);
+        await SendModStatusAsync("Die LS25-Mod wurde erfolgreich installiert und geprüft.");
+    }
+
+    private void SelectModDirectory()
+    {
+        if (_modManager is null)
+        {
+            return;
+        }
+
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = "Wähle den Mod-Ordner von Landwirtschafts-Simulator 25 aus.",
+            UseDescriptionForTitle = true,
+            ShowNewFolderButton = true,
+            InitialDirectory = _modManager.GetPreferredModDirectory(),
+        };
+
+        if (dialog.ShowDialog(this) == DialogResult.OK
+            && !string.IsNullOrWhiteSpace(dialog.SelectedPath))
+        {
+            _modManager.SetCustomModDirectory(dialog.SelectedPath);
+        }
+    }
+
+    private void OpenModDirectory()
+    {
+        if (_modManager is null)
+        {
+            return;
+        }
+
+        var directory = _modManager.GetPreferredModDirectory();
+        Directory.CreateDirectory(directory);
+        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{directory}\"")
+        {
+            UseShellExecute = true,
+        });
+    }
+
+    private void PostWebMessage(object message)
+    {
+        try
+        {
+            if (_webView.IsDisposed || _webView.CoreWebView2 is null)
+            {
+                return;
+            }
+
+            var json = JsonSerializer.Serialize(message, WebMessageJsonOptions);
+            _webView.CoreWebView2.PostWebMessageAsJson(json);
+        }
+        catch (Exception exception)
+        {
+            _log?.Warning($"Status konnte nicht an die Dashboard-Oberfläche gesendet werden: {exception.Message}");
+        }
     }
 
     private static bool IsLocalDashboardUri(string rawUri, PhpServer server)
