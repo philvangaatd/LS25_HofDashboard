@@ -1,5 +1,17 @@
 # Changelog
 
+## 5.5.0 - 2026-09-05
+
+### Neu
+- Komplette Haupt-App auf die Designsprache des neuen Startscreens umgestellt.
+- Permanente linke Navigation für Übersicht, Felder, Fuhrpark, Tiere, Vorräte, Produktionen, Markt, Verträge, AutoDrive, Backups und System.
+- Aktiver Bereich wird in der Sidebar deutlich hervorgehoben; AutoDrive-Bereiche bleiben ohne AutoDrive sichtbar, aber deaktiviert.
+- Header, Toolbars, Eingabefelder, Statistikkarten, Listen, Tabellen, Modals und Systemkarten visuell vereinheitlicht.
+- Responsive Sidebar reduziert sich bei kleineren Fenstern automatisch auf eine kompakte Icon-Navigation.
+- Systemstatus bleibt dauerhaft sichtbar und System jederzeit erreichbar.
+- Fehlendes/überdimensioniertes System-Icon im Schnellzugriff des Startscreens behoben.
+- WebView2 lädt die neuen UI-Skripte mit Versions-Cache-Busting.
+
 ## 5.4.0 - 2026-09-05
 
 ### Neu
