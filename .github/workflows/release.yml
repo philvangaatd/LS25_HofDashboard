@@ -105,7 +105,7 @@ jobs:
           - Mod-Lager werden automatisch unterstützt, wenn sie die standardisierten GIANTS-Storage-Spezialisierungen verwenden
 
           ### Update
-          Dieses Release enthält das Windows-Paket und das `update-manifest.json` für den bereits vorhandenen automatischen Update-Checker.
+          Dieses Release enthält das Windows-Paket und das update-manifest.json für den bereits vorhandenen automatischen Update-Checker.
           "@
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8
           gh release create $env:TAG $package "dist/update-manifest.json" --repo $env:GITHUB_REPOSITORY --title "LS25 Hof-Dashboard v$env:VERSION" --notes-file release-notes.md
