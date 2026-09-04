@@ -197,7 +197,7 @@ internal sealed class MainForm : Form
                 if (window.__hofDashboardModManagerScriptRequested) return;
                 window.__hofDashboardModManagerScriptRequested = true;
                 const script = document.createElement('script');
-                script.src = 'assets/js/mod-manager.js?v=5.3.0';
+                script.src = 'assets/js/mod-manager.js?v=5.4.0';
                 script.async = true;
                 document.head.appendChild(script);
             })();
