@@ -26,6 +26,7 @@ internal sealed class UpdateDialog : Form
     private readonly CancellationTokenSource _cancellation = new();
     private readonly Label _statusLabel;
     private readonly Label _statusDetailLabel;
+    private readonly StatusDot _statusDot;
     private readonly DashboardProgressBar _progressBar;
     private readonly Button _updateButton;
     private readonly Button _laterButton;
@@ -48,8 +49,6 @@ internal sealed class UpdateDialog : Form
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         ClientSize = new Size(700, 500);
-        MinimumSize = ClientSize;
-        MaximumSize = ClientSize;
         BackColor = BackgroundColor;
         ForeColor = TextColor;
         AutoScaleMode = AutoScaleMode.Dpi;
@@ -149,7 +148,7 @@ internal sealed class UpdateDialog : Form
             Size = new Size(620, 47),
             Font = new Font("Segoe UI", 10F),
             ForeColor = MutedColor,
-            Text = "Das Update wird geprüft heruntergeladen und anschließend automatisch installiert. "
+            Text = "Das Update wird sicher heruntergeladen, geprüft und anschließend automatisch installiert. "
                 + "Deine Karten, Backups und Einstellungen bleiben erhalten.",
         };
 
@@ -192,7 +191,7 @@ internal sealed class UpdateDialog : Form
             CornerRadius = 8,
         };
 
-        var statusDot = new StatusDot
+        _statusDot = new StatusDot
         {
             Location = new Point(22, 23),
             Size = new Size(12, 12),
@@ -228,7 +227,7 @@ internal sealed class UpdateDialog : Form
             Visible = false,
         };
 
-        statusCard.Controls.Add(statusDot);
+        statusCard.Controls.Add(_statusDot);
         statusCard.Controls.Add(_statusLabel);
         statusCard.Controls.Add(_statusDetailLabel);
         statusCard.Controls.Add(_progressBar);
@@ -307,7 +306,8 @@ internal sealed class UpdateDialog : Form
         SetStatus(
             "Update wird heruntergeladen …",
             "Bitte das Hof-Dashboard geöffnet lassen, bis der Download abgeschlossen ist.",
-            TextColor);
+            TextColor,
+            AccentColor);
         _progressBar.Visible = true;
         _progressBar.Value = 0;
 
@@ -322,14 +322,16 @@ internal sealed class UpdateDialog : Form
                     SetStatus(
                         $"Update wird heruntergeladen … {safeValue} %",
                         "Download und Paketintegrität werden automatisch geprüft.",
-                        TextColor);
+                        TextColor,
+                        AccentColor);
                 }
                 else
                 {
                     SetStatus(
                         "Download abgeschlossen · Paket wird geprüft …",
                         "SHA-256 und Paketmanifest werden validiert.",
-                        TextColor);
+                        TextColor,
+                        AccentColor);
                 }
             });
 
@@ -342,7 +344,8 @@ internal sealed class UpdateDialog : Form
             SetStatus(
                 "Update ist bereit",
                 "Die App wird jetzt neu gestartet und das Update sicher angewendet.",
-                TextColor);
+                TextColor,
+                SecondaryColor);
             DialogResult = DialogResult.OK;
             Close();
         }
@@ -359,6 +362,7 @@ internal sealed class UpdateDialog : Form
             SetStatus(
                 "Update konnte nicht installiert werden",
                 $"Die aktuelle App bleibt unverändert. {exception.Message}",
+                DangerColor,
                 DangerColor);
             _updateButton.Text = "Erneut versuchen";
         }
@@ -373,11 +377,13 @@ internal sealed class UpdateDialog : Form
         UseWaitCursor = busy;
     }
 
-    private void SetStatus(string title, string detail, Color titleColor)
+    private void SetStatus(string title, string detail, Color titleColor, Color indicatorColor)
     {
         _statusLabel.ForeColor = titleColor;
         _statusLabel.Text = title;
         _statusDetailLabel.Text = detail;
+        _statusDot.DotColor = indicatorColor;
+        _statusDot.Invalidate();
     }
 
     private void OpenReleaseNotes()
@@ -395,6 +401,7 @@ internal sealed class UpdateDialog : Form
             SetStatus(
                 "Änderungen konnten nicht geöffnet werden",
                 exception.Message,
+                DangerColor,
                 DangerColor);
         }
     }
@@ -457,7 +464,7 @@ internal sealed class UpdateDialog : Form
             }
 
             ReleaseCapture();
-            SendMessage(Handle, WmNclButtonDown, HtCaption, 0);
+            SendMessage(Handle, WmNclButtonDown, (nint)HtCaption, 0);
         };
     }
 
@@ -512,7 +519,7 @@ internal sealed class UpdateDialog : Form
 
     private sealed class RoundedPanel : Panel
     {
-        public Color BorderColor { get; set; } = BorderColor;
+        public Color BorderColor { get; set; } = UpdateDialog.BorderColor;
         public int CornerRadius { get; set; } = 8;
 
         public RoundedPanel()
