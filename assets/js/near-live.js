@@ -40,9 +40,10 @@
     }
 
     function startNearLivePolling() {
+        if (timer !== null) return;
+
         // Remove the legacy 15-second timer before installing the faster loop.
         originalStopLivePolling?.();
-        if (timer !== null) return;
         tick();
         schedule();
     }
