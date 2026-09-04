@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.6.0 - 2026-09-05
+
+### Verbesserungen
+- Redundanter Hof-Header in den einzelnen Hauptansichten entfernt; Navigation, Backup, Spielstandwechsel und Live-Status liegen jetzt vollständig in der permanenten Seitenleiste bzw. unter Start/System.
+- Die kompakte Spielstand-Kontextzeile mit Kartenname bleibt erhalten.
+- Dashboard prüft neue Live-Daten im Vordergrund jede Sekunde statt alle 15 Sekunden.
+- Im Hintergrund wird das Polling automatisch auf fünf Sekunden reduziert.
+- Parallele Live-Abfragen werden verhindert, damit sich bei langsamen Antworten keine Request-Schlange aufbaut.
+- Passende Live-Mod v5.3.0 exportiert den vollständigen Hofzustand alle zwei Sekunden und veröffentlicht das Intervall zusätzlich als `updateIntervalMs`.
+
 ## 5.5.2 - 2026-09-05
 
 ### Verbesserungen
