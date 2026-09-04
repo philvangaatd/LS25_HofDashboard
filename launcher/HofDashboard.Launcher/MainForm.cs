@@ -177,7 +177,7 @@ internal sealed class MainForm : Form
             }
             catch (Exception exception)
             {
-                _log?.Warning($"Mod-Verwaltung konnte nicht in die Oberfläche eingebunden werden: {exception.Message}");
+                _log?.Warning($"Dashboard-Erweiterungen konnten nicht in die Oberfläche eingebunden werden: {exception.Message}");
             }
         };
 
@@ -194,12 +194,24 @@ internal sealed class MainForm : Form
     {
         const string script = """
             (() => {
-                if (window.__hofDashboardModManagerScriptRequested) return;
-                window.__hofDashboardModManagerScriptRequested = true;
-                const script = document.createElement('script');
-                script.src = 'assets/js/mod-manager.js?v=5.4.0';
-                script.async = true;
-                document.head.appendChild(script);
+                if (window.__hofDashboardClientScriptsRequested) return;
+                window.__hofDashboardClientScriptsRequested = true;
+
+                const style = document.createElement('link');
+                style.rel = 'stylesheet';
+                style.href = 'assets/css/start-screen-icon-fix.css?v=5.5.0';
+                document.head.appendChild(style);
+
+                const load = (src) => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.async = false;
+                    document.head.appendChild(script);
+                };
+
+                load('assets/js/mod-manager.js?v=5.5.0');
+                load('assets/js/app-shell.js?v=5.5.0');
+                load('assets/js/app-shell-sync.js?v=5.5.0');
             })();
             """;
         await _webView.CoreWebView2.ExecuteScriptAsync(script);
