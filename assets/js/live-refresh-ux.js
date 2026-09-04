@@ -15,6 +15,17 @@
         missions: 'loadMissionsData',
     };
 
+    function getActiveTab() {
+        const activeNav = document.querySelector('.app-nav-item.is-active[data-app-tab]');
+        if (activeNav?.dataset?.appTab) return activeNav.dataset.appTab;
+
+        for (const tab of Object.keys(loaderByTab)) {
+            const host = document.getElementById(`tab${tab.charAt(0).toUpperCase()}${tab.slice(1)}`);
+            if (host && getComputedStyle(host).display !== 'none') return tab;
+        }
+        return null;
+    }
+
     function isUserEditing() {
         const active = document.activeElement;
         if (!active) return false;
@@ -63,9 +74,9 @@
             window.innerHeight
         );
 
-        // Several existing loaders briefly replace their content with a loading
+        // Existing loaders briefly replace parts of a view with a loading
         // placeholder. Keeping the document height locked prevents the browser
-        // from clamping scrollY to the top while that placeholder is visible.
+        // from clamping the scroll position while the live view is rebuilt.
         body.style.minHeight = `${lockedHeight}px`;
         body.classList.add('hd-live-refreshing');
 
@@ -83,11 +94,11 @@
 
     window.autoRefreshActiveTab = async function autoRefreshActiveTabSmooth() {
         // Do not rebuild the view while the user is typing/selecting. The next
-        // live export will refresh the page after the interaction is finished.
+        // live export refreshes it after that interaction is finished.
         if (isUserEditing()) return;
 
-        const tab = window.activeTab;
-        const loaderName = loaderByTab[tab];
+        const tab = getActiveTab();
+        const loaderName = tab ? loaderByTab[tab] : null;
         const loader = loaderName ? window[loaderName] : null;
         if (typeof loader !== 'function') return;
 
