@@ -1,0 +1,12 @@
+/* v5.5.0 hotfix: prevent the System quick-access SVG from using the browser default 300x150 size. */
+.start-system-button svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    margin-right: 9px;
+    stroke: #c6cc9f;
+    stroke-width: 1.8;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
