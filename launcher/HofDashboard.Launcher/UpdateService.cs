@@ -29,21 +29,7 @@ internal sealed class UpdateService : IDisposable
 
     public async Task<UpdateAvailability?> CheckAsync(CancellationToken cancellationToken)
     {
-        _log.Info("Prüfe öffentliches GitHub-Release auf Updates.");
-        using var checkTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        checkTimeout.CancelAfter(TimeSpan.FromSeconds(20));
-        using var response = await _client.GetAsync(ManifestUri, checkTimeout.Token);
-        if (!response.IsSuccessStatusCode)
-        {
-            _log.Warning($"Update-Manifest ist nicht verfügbar (HTTP {(int)response.StatusCode}).");
-            return null;
-        }
-
-        var manifest = await response.Content.ReadFromJsonAsync<UpdateManifest>(
-            cancellationToken: checkTimeout.Token)
-            ?? throw new InvalidDataException("Das Update-Manifest ist leer.");
-
-        var update = Validate(manifest);
+        var update = await GetLatestAsync(cancellationToken);
         var currentVersion = SemanticVersion.Current;
         if (update.Version.CompareTo(currentVersion) <= 0)
         {
@@ -52,6 +38,25 @@ internal sealed class UpdateService : IDisposable
         }
 
         return update;
+    }
+
+    public async Task<UpdateAvailability> GetLatestAsync(CancellationToken cancellationToken)
+    {
+        _log.Info("Prüfe öffentliches GitHub-Release auf Updates.");
+        using var checkTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        checkTimeout.CancelAfter(TimeSpan.FromSeconds(20));
+        using var response = await _client.GetAsync(ManifestUri, checkTimeout.Token);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidDataException(
+                $"Update-Manifest ist nicht verfügbar (HTTP {(int)response.StatusCode}).");
+        }
+
+        var manifest = await response.Content.ReadFromJsonAsync<UpdateManifest>(
+            cancellationToken: checkTimeout.Token)
+            ?? throw new InvalidDataException("Das Update-Manifest ist leer.");
+
+        return Validate(manifest);
     }
 
     public async Task<PreparedUpdate> DownloadAndPrepareAsync(
@@ -66,15 +71,66 @@ internal sealed class UpdateService : IDisposable
         ResetDirectoryWithin(paths.UpdateStagingDirectory, stagingDirectory);
 
         _log.Info($"Lade Update {update.Version} herunter.");
-        using (var response = await _client.GetAsync(
+        await DownloadVerifiedFileAsync(
             update.DownloadUri,
+            archivePath,
+            update.SizeBytes,
+            update.Sha256,
+            progress,
+            "Dashboard-Update",
+            cancellationToken);
+
+        ExtractArchiveSafely(archivePath, stagingDirectory, cancellationToken);
+        await PackageManifest.LoadAndValidateAsync(stagingDirectory, update.Version, cancellationToken);
+        progress.Report(100);
+        _log.Info($"Update {update.Version} wurde vollständig geprüft und vorbereitet.");
+        return new PreparedUpdate(update.Version, stagingDirectory);
+    }
+
+    public async Task<string> DownloadModPackageAsync(
+        UpdateAvailability release,
+        AppPaths paths,
+        IProgress<int> progress,
+        CancellationToken cancellationToken)
+    {
+        var targetPath = Path.Combine(
+            paths.TempDirectory,
+            $"FS25_HofDashboard-{release.ModVersion}-{Guid.NewGuid():N}.zip");
+
+        _log.Info($"Lade FS25-Mod {release.ModVersion} herunter.");
+        await DownloadVerifiedFileAsync(
+            release.ModDownloadUri,
+            targetPath,
+            release.ModSizeBytes,
+            release.ModSha256,
+            progress,
+            "FS25-Mod",
+            cancellationToken);
+        _log.Info($"FS25-Mod {release.ModVersion} wurde anhand von Größe und SHA-256 geprüft.");
+        return targetPath;
+    }
+
+    public void Dispose() => _client.Dispose();
+
+    private async Task DownloadVerifiedFileAsync(
+        Uri sourceUri,
+        string targetPath,
+        long expectedSize,
+        string expectedSha256,
+        IProgress<int> progress,
+        string packageLabel,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+        using (var response = await _client.GetAsync(
+            sourceUri,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken))
         {
             response.EnsureSuccessStatusCode();
             await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
             await using var destination = new FileStream(
-                archivePath,
+                targetPath,
                 FileMode.Create,
                 FileAccess.Write,
                 FileShare.None,
@@ -88,35 +144,28 @@ internal sealed class UpdateService : IDisposable
             {
                 await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
                 totalBytes += bytesRead;
-                progress.Report((int)Math.Clamp(totalBytes * 100 / update.SizeBytes, 0, 100));
+                progress.Report((int)Math.Clamp(totalBytes * 100 / expectedSize, 0, 100));
             }
         }
 
-        var archiveInfo = new FileInfo(archivePath);
-        if (archiveInfo.Length != update.SizeBytes)
+        var fileInfo = new FileInfo(targetPath);
+        if (fileInfo.Length != expectedSize)
         {
+            TryDelete(targetPath);
             throw new InvalidDataException(
-                $"Der Download ist unvollständig ({archiveInfo.Length} statt {update.SizeBytes} Bytes).");
+                $"{packageLabel}: Download ist unvollständig ({fileInfo.Length} statt {expectedSize} Bytes).");
         }
 
-        await using (var archiveStream = File.OpenRead(archivePath))
+        await using var fileStream = File.OpenRead(targetPath);
+        var actualHash = Convert.ToHexString(
+            await SHA256.HashDataAsync(fileStream, cancellationToken)).ToLowerInvariant();
+        if (!actualHash.Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
         {
-            var actualHash = Convert.ToHexString(
-                await SHA256.HashDataAsync(archiveStream, cancellationToken)).ToLowerInvariant();
-            if (!actualHash.Equals(update.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException("Die SHA-256-Prüfsumme des Updates stimmt nicht.");
-            }
+            TryDelete(targetPath);
+            throw new InvalidDataException(
+                $"{packageLabel}: Die SHA-256-Prüfsumme stimmt nicht.");
         }
-
-        ExtractArchiveSafely(archivePath, stagingDirectory, cancellationToken);
-        await PackageManifest.LoadAndValidateAsync(stagingDirectory, update.Version, cancellationToken);
-        progress.Report(100);
-        _log.Info($"Update {update.Version} wurde vollständig geprüft und vorbereitet.");
-        return new PreparedUpdate(update.Version, stagingDirectory);
     }
-
-    public void Dispose() => _client.Dispose();
 
     private static UpdateAvailability Validate(UpdateManifest manifest)
     {
@@ -135,12 +184,16 @@ internal sealed class UpdateService : IDisposable
         var downloadUri = ValidateReleaseUri(manifest.Application.DownloadUrl, ApplicationReleaseBaseUri);
         var releaseNotesUri = ValidateHttpsUri(manifest.Application.ReleaseNotesUrl, "github.com");
         var modDownloadUri = ValidateReleaseUri(manifest.Mod.DownloadUrl, ModReleaseBaseUri);
-        if (manifest.Application.SizeBytes <= 0
-            || manifest.Application.Sha256.Length != 64
-            || manifest.Application.Sha256.Any(character => !Uri.IsHexDigit(character)))
-        {
-            throw new InvalidDataException("Das Update-Manifest enthält ungültige Paketdaten.");
-        }
+        var modReleaseNotesUri = ValidateHttpsUri(manifest.Mod.ReleaseNotesUrl, "github.com");
+
+        ValidatePackageMetadata(
+            manifest.Application.SizeBytes,
+            manifest.Application.Sha256,
+            "Dashboard");
+        ValidatePackageMetadata(
+            manifest.Mod.SizeBytes,
+            manifest.Mod.Sha256,
+            "Mod");
 
         return new UpdateAvailability(
             version,
@@ -149,7 +202,22 @@ internal sealed class UpdateService : IDisposable
             manifest.Application.SizeBytes,
             releaseNotesUri,
             modVersion,
-            modDownloadUri);
+            modDownloadUri,
+            manifest.Mod.Sha256.ToLowerInvariant(),
+            manifest.Mod.SizeBytes,
+            modReleaseNotesUri);
+    }
+
+    private static void ValidatePackageMetadata(long sizeBytes, string sha256, string label)
+    {
+        if (sizeBytes <= 0
+            || string.IsNullOrWhiteSpace(sha256)
+            || sha256.Length != 64
+            || sha256.Any(character => !Uri.IsHexDigit(character)))
+        {
+            throw new InvalidDataException(
+                $"Das Update-Manifest enthält ungültige Paketdaten für {label}.");
+        }
     }
 
     private static Uri ValidateReleaseUri(string rawUri, Uri requiredBaseUri)
@@ -217,6 +285,21 @@ internal sealed class UpdateService : IDisposable
 
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             entry.ExtractToFile(destination, overwrite: true);
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // A failed cleanup must not replace the useful verification error.
         }
     }
 }
