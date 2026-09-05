@@ -6,6 +6,15 @@
 
     const STORAGE_KEY = 'hofDashboard.sidebarCollapsed';
 
+    function loadStartNavSync() {
+        if (window.__hofDashboardStartNavSyncRequested) return;
+        window.__hofDashboardStartNavSyncRequested = true;
+        const script = document.createElement('script');
+        script.src = 'assets/js/start-nav-sync.js?v=5.6.2';
+        script.async = false;
+        document.head.appendChild(script);
+    }
+
     function isCollapsed() {
         try {
             return localStorage.getItem(STORAGE_KEY) === '1';
@@ -105,6 +114,7 @@
     }
 
     function install() {
+        loadStartNavSync();
         document.querySelectorAll('#mainScreen.app-shell, #pickerScreen.start-shell').forEach(prepareRoot);
         setCollapsed(isCollapsed(), false);
 
