@@ -4,7 +4,7 @@
     if (window.__hofDashboardStartNavSyncLoaded) return;
     window.__hofDashboardStartNavSyncLoaded = true;
 
-    const VERSION = '5.6.2';
+    const VERSION = '5.8.0';
     const disabledTitle = 'Nach Auswahl eines Spielstands verfügbar';
     const autoDriveTitle = 'Nach Auswahl eines Spielstands mit AutoDrive verfügbar';
 
@@ -18,9 +18,7 @@
     }
 
     function icon(name) {
-        if (typeof window.startIcon === 'function') {
-            return window.startIcon(name, 'start-nav-icon');
-        }
+        if (typeof window.startIcon === 'function') return window.startIcon(name, 'start-nav-icon');
         return '';
     }
 
@@ -41,7 +39,6 @@
             ${disabledItem('fields', 'Felder')}
             ${disabledItem('vehicles', 'Fuhrpark')}
             ${disabledItem('animals', 'Tiere')}
-            ${disabledItem('storage', 'Vorräte')}
 
             <div class="start-nav-label">Planung</div>
             ${disabledItem('production', 'Produktionen')}
@@ -58,19 +55,9 @@
 
         nav.dataset.synced = '1';
 
-        document.getElementById('startNavHome')?.addEventListener('click', () => {
-            if (typeof window.openStartHome === 'function') window.openStartHome();
-        });
-        document.getElementById('startNavSystem')?.addEventListener('click', () => {
-            if (typeof window.openStartSystem === 'function') window.openStartSystem();
-        });
-
-        // Das alte Status-Dot wurde durch das neue Markup ersetzt. Deshalb den
-        // aktuellen Mod-Status direkt noch einmal über die WebView anfordern.
-        if (typeof window.requestHofModStatus === 'function') {
-            window.requestHofModStatus();
-        }
-
+        document.getElementById('startNavHome')?.addEventListener('click', () => window.openStartHome?.());
+        document.getElementById('startNavSystem')?.addEventListener('click', () => window.openStartSystem?.());
+        window.requestHofModStatus?.();
         return true;
     }
 
@@ -83,9 +70,6 @@
         setTimeout(() => observer.disconnect(), 10000);
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', install, { once: true });
-    } else {
-        install();
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
+    else install();
 })();
