@@ -132,6 +132,11 @@ jobs:
             $replacement = 'assets/js/' + $asset + '.js?v=' + $env:VERSION
             $mainForm = [regex]::Replace($mainForm, $assetPattern, $replacement)
           }
+          foreach ($asset in @('start-screen-icon-fix','sidebar-collapse','header-cleanup','mod-manager')) {
+            $assetPattern = 'assets/css/' + [regex]::Escape($asset) + '\.css\?v=[0-9.]+'
+            $replacement = 'assets/css/' + $asset + '.css?v=' + $env:VERSION
+            $mainForm = [regex]::Replace($mainForm, $assetPattern, $replacement)
+          }
           Set-Content -LiteralPath $mainFormPath -Value $mainForm -Encoding utf8
 
       - name: Verify matching mod release
@@ -205,6 +210,7 @@ jobs:
           - reine Fahrzeugpositionsänderungen aktualisieren die Live-Karte, ohne den gesamten Fuhrpark neu aufzubauen
           - im Hintergrund wird die Polling-Frequenz auf 10 Sekunden reduziert
           - dauerhaft laufende DOM-Observer wurden reduziert bzw. nach der Initialisierung getrennt
+          - alle ausgelieferten lokalen UI-Assets erhalten einen Versionsparameter, damit WebView2 nach Updates keine alten Dateien aus dem Cache verwendet
 
           ### Live-Mod
           - Mod v${{ steps.meta.outputs.minimum_mod_version }} nutzt abgestufte Collector-Intervalle und Caches, damit teure Hofanalysen nicht mehr alle zwei Sekunden vollständig laufen
