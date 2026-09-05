@@ -8,7 +8,6 @@
         tabBtnFields: 'fields',
         tabBtnVehicles: 'vehicles',
         tabBtnAnimals: 'animals',
-        tabBtnStorage: 'storage',
         tabBtnProduction: 'production',
         tabBtnMarket: 'market',
         tabBtnMissions: 'missions',
@@ -20,8 +19,7 @@
     function syncBodyMode() {
         const main = document.getElementById('mainScreen');
         if (!main) return;
-        const visible = main.style.display !== 'none';
-        document.body.classList.toggle('dashboard-mode', visible);
+        document.body.classList.toggle('dashboard-mode', main.style.display !== 'none');
     }
 
     function syncActiveTab() {
