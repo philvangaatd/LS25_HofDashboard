@@ -1,0 +1,24 @@
+.start-nav-label {
+    margin: 7px 14px 2px;
+    color: rgba(169, 164, 140, .62);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: .24em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.start-nav-divider {
+    height: 1px;
+    margin: 9px 12px 7px;
+    background: rgba(123, 153, 112, .18);
+}
+
+.start-nav:has(.start-nav-label) {
+    gap: 4px;
+}
+
+.start-nav:has(.start-nav-label) .start-nav-item {
+    min-height: 46px;
+}
