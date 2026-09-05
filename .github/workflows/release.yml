@@ -61,6 +61,7 @@ jobs:
           node --check assets/js/start-nav-sync.js
           node --check assets/js/near-live.js
           node --check assets/js/live-refresh-ux.js
+          node --check assets/js/live-map.js
           foreach ($file in @(
             "assets/css/start-screen.css",
             "assets/css/start-screen-icon-fix.css",
@@ -68,10 +69,32 @@ jobs:
             "assets/css/app-shell.css",
             "assets/css/sidebar-collapse.css",
             "assets/css/header-cleanup.css",
-            "assets/css/mod-manager.css"
+            "assets/css/mod-manager.css",
+            "assets/css/live-map.css"
           )) {
             if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing UI asset: $file" }
           }
+
+      - name: Wire live map assets
+        if: steps.meta.outputs.publish == 'true'
+        shell: pwsh
+        run: |
+          $indexPath = "index.html"
+          $index = Get-Content -Raw -LiteralPath $indexPath
+          if ($index -notmatch 'assets/css/live-map\.css') {
+            $index = $index.Replace(
+              '<link rel="stylesheet" href="assets/css/app.css">',
+              '<link rel="stylesheet" href="assets/css/app.css">' + [Environment]::NewLine + '<link rel="stylesheet" href="assets/css/live-map.css?v=5.7.0">'
+            )
+          }
+          if ($index -notmatch 'assets/js/live-map\.js') {
+            $index = $index.Replace(
+              '<script src="assets/js/ui-utils.js"></script>',
+              '<script src="assets/js/ui-utils.js"></script>' + [Environment]::NewLine + '<script src="assets/js/live-map.js?v=5.7.0"></script>'
+            )
+          }
+          Set-Content -LiteralPath $indexPath -Value $index -Encoding utf8
+          if ((Get-Content -Raw -LiteralPath $indexPath) -notmatch 'assets/js/live-map\.js') { throw "live-map.js was not wired into index.html" }
 
       - name: Verify matching mod release
         if: steps.meta.outputs.publish == 'true'
@@ -131,21 +154,23 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Einheitliche Navigation
-          - Startscreen und geöffneter Spielstand verwenden jetzt dieselben Menüpunkte, Bezeichnungen und dieselbe Reihenfolge
-          - Dashboard heißt auf beiden Seiten einheitlich Übersicht
-          - Fahrzeuge heißt auf beiden Seiten einheitlich Fuhrpark
-          - Markt, Verträge, Marker und Karte sind jetzt auch im Startscreen sichtbar
-          - der nicht mehr vorhandene Navigationspunkt Einstellungen wurde aus dem Startscreen entfernt
-          - die Bereiche Hof, Planung und AutoDrive entsprechen jetzt der Hauptnavigation
+          ### Live-Karte
+          - Fahrzeuge und Maschinen werden mit ihrer Near-Live-Position direkt auf der AutoDrive-Karte angezeigt
+          - Fahrtrichtung und aktuelle Geschwindigkeit werden aus der laufenden Spielwelt übernommen
+          - der aktuell gesteuerte Wagen wird deutlich hervorgehoben
+          - Spieler werden als eigene Live-Marker dargestellt
+          - Spieler, Fahrzeuge sowie Anhänger/Anbaugeräte lassen sich getrennt ein- und ausblenden
+          - Klick auf einen Live-Marker öffnet eine kompakte Detailkarte
 
-          ### Verhalten im Startscreen
-          - spielstandsabhängige Punkte bleiben bis zur Auswahl eines Spielstands deaktiviert
-          - Start und System bleiben direkt bedienbar
-          - der Mod-/Systemstatus bleibt nach dem Neuaufbau der Navigation erhalten
+          ### Fuhrpark-Verknüpfung
+          - Fahrzeuge mit verfügbarer Position erhalten die Aktion Auf Karte anzeigen
+          - die Karte springt direkt zum betreffenden Fahrzeug und öffnet dessen Live-Details
+
+          ### Datenquelle
+          - passende Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} liefert Weltposition, Richtung und Spielerpositionen über die bestehende lokale Near-Live-Telemetrie
 
           ### Kompatibilität
-          Die Live-Mod bleibt unverändert bei mindestens v${{ steps.meta.outputs.minimum_mod_version }}.
+          Für die Live-Karte wird die Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} benötigt. Sie kann direkt unter System im Dashboard aktualisiert werden.
           "@
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8
           gh release create $env:TAG $package "dist/update-manifest.json" --repo $env:GITHUB_REPOSITORY --title "LS25 Hof-Dashboard v$env:VERSION" --notes-file release-notes.md
