@@ -52,20 +52,24 @@ jobs:
         if: steps.meta.outputs.publish == 'true'
         shell: pwsh
         run: |
-          node --check assets/js/app-state.js
-          node --check assets/js/app-init-savegame.js
-          node --check assets/js/mod-manager.js
-          node --check assets/js/app-shell.js
-          node --check assets/js/app-shell-sync.js
-          node --check assets/js/sidebar-collapse.js
-          node --check assets/js/start-nav-sync.js
-          node --check assets/js/near-live.js
-          node --check assets/js/live-refresh-ux.js
-          node --check assets/js/live-map.js
+          foreach ($file in @(
+            "assets/js/app-state.js",
+            "assets/js/app-init-savegame.js",
+            "assets/js/mod-manager.js",
+            "assets/js/app-shell.js",
+            "assets/js/app-shell-sync.js",
+            "assets/js/sidebar-collapse.js",
+            "assets/js/near-live.js",
+            "assets/js/live-refresh-ux.js",
+            "assets/js/live-map.js"
+          )) {
+            node --check $file
+            if ($LASTEXITCODE -ne 0) { throw "JavaScript validation failed: $file" }
+          }
+
           foreach ($file in @(
             "assets/css/start-screen.css",
             "assets/css/start-screen-icon-fix.css",
-            "assets/css/start-nav-sync.css",
             "assets/css/app-shell.css",
             "assets/css/sidebar-collapse.css",
             "assets/css/header-cleanup.css",
@@ -73,6 +77,19 @@ jobs:
             "assets/css/live-map.css"
           )) {
             if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing UI asset: $file" }
+          }
+
+          foreach ($retired in @(
+            "assets/css/storage.css",
+            "assets/js/start-nav-sync.js",
+            "assets/css/start-nav-sync.css"
+          )) {
+            if (Test-Path -LiteralPath $retired) { throw "Retired asset still exists: $retired" }
+          }
+
+          $appState = Get-Content -Raw -LiteralPath "assets/js/app-state.js"
+          if ($appState -match 'installStorageTab|tabStorage|loadStorageData') {
+            throw "Retired Vorräte implementation is still present in app-state.js"
           }
 
       - name: Wire release assets and cache busters
@@ -86,24 +103,34 @@ jobs:
           if ($index -notmatch 'assets/css/live-map\.css') {
             $index = $index.Replace(
               '<link rel="stylesheet" href="assets/css/app.css">',
-              '<link rel="stylesheet" href="assets/css/app.css">' + [Environment]::NewLine + '<link rel="stylesheet" href="assets/css/live-map.css?v=' + $env:VERSION + '">'
+              '<link rel="stylesheet" href="assets/css/app.css">' + [Environment]::NewLine + '<link rel="stylesheet" href="assets/css/live-map.css">'
             )
           }
           if ($index -notmatch 'assets/js/live-map\.js') {
             $index = $index.Replace(
               '<script src="assets/js/ui-utils.js"></script>',
-              '<script src="assets/js/ui-utils.js"></script>' + [Environment]::NewLine + '<script src="assets/js/live-map.js?v=' + $env:VERSION + '"></script>'
+              '<script src="assets/js/ui-utils.js"></script>' + [Environment]::NewLine + '<script src="assets/js/live-map.js"></script>'
             )
           }
+
+          # Version every local JS/CSS asset in the shipped HTML. This avoids stale
+          # WebView2 resources after in-place application updates.
+          $pattern = '(src|href)="(assets/(?:js|css)/[^"?]+)(?:\?v=[^"]*)?"'
+          $index = [regex]::Replace($index, $pattern, {
+            param($match)
+            return $match.Groups[1].Value + '="' + $match.Groups[2].Value + '?v=' + $env:VERSION + '"'
+          })
           Set-Content -LiteralPath $indexPath -Value $index -Encoding utf8
-          if ((Get-Content -Raw -LiteralPath $indexPath) -notmatch 'assets/js/live-map\.js') { throw "live-map.js was not wired into index.html" }
+          if ((Get-Content -Raw -LiteralPath $indexPath) -notmatch 'assets/js/live-map\.js\?v=') {
+            throw "live-map.js was not wired/versioned in index.html"
+          }
 
           $mainFormPath = "launcher/HofDashboard.Launcher/MainForm.cs"
           $mainForm = Get-Content -Raw -LiteralPath $mainFormPath
           foreach ($asset in @('app-shell','app-shell-sync','sidebar-collapse','near-live','live-refresh-ux')) {
-            $pattern = 'assets/js/' + [regex]::Escape($asset) + '\.js\?v=[0-9.]+'
+            $assetPattern = 'assets/js/' + [regex]::Escape($asset) + '\.js\?v=[0-9.]+'
             $replacement = 'assets/js/' + $asset + '.js?v=' + $env:VERSION
-            $mainForm = [regex]::Replace($mainForm, $pattern, $replacement)
+            $mainForm = [regex]::Replace($mainForm, $assetPattern, $replacement)
           }
           Set-Content -LiteralPath $mainFormPath -Value $mainForm -Encoding utf8
 
@@ -165,22 +192,26 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Live-Aktualisierung
-          - der sichtbare Viewport wird während automatischer Near-Live-Neuzeichnungen stabil gehalten
-          - Scrollpositionen verschachtelter Bereiche und Fokus werden wiederhergestellt
-          - der Vorräte-Tab aktualisiert im Hintergrund ohne sichtbaren Lade-Platzhalter
+          ### Aufgeräumt
+          - die experimentelle Vorräte-Funktion wurde vollständig aus Navigation, UI, JavaScript, Styles und Live-Daten entfernt
+          - die frühere Start-Navigation-Synchronisierung wurde entfernt; Startscreen und App verwenden wieder direkt ihre finale Navigation
+          - überholte Storage-Workarounds und zugehörige Assets werden nicht mehr ausgeliefert
 
-          ### Vorräte
-          - leere Phantom-/Zombie-Lager ohne Inhalt oder bekannte Kapazität werden nicht mehr angezeigt
-          - Stall- und Produktionslager erhalten passendere Typbezeichnungen
-          - Ballen und Paletten werden als solche bezeichnet statt als generische Objekte
-          - technische FillType-Bezeichner werden durch verständliche deutsche Namen ersetzt
+          ### Performance
+          - nur noch eine zentrale Live-Daten-Abfrage versorgt Dashboard und Live-Karte
+          - der bisher parallel laufende 30-Sekunden-Refresh der Übersicht wurde entfernt
+          - die Live-Karte besitzt keinen eigenen 1-Sekunden-Poller mehr
+          - automatische Ansichten werden nur neu gerendert, wenn sich für den offenen Bereich relevante Daten geändert haben
+          - reine Fahrzeugpositionsänderungen aktualisieren die Live-Karte, ohne den gesamten Fuhrpark neu aufzubauen
+          - im Hintergrund wird die Polling-Frequenz auf 10 Sekunden reduziert
+          - dauerhaft laufende DOM-Observer wurden reduziert bzw. nach der Initialisierung getrennt
 
-          ### Datenquelle
-          - passende Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} verbessert die Erkennung gültiger Placeables, Mod-Tanks und Storage-Verknüpfungen
+          ### Live-Mod
+          - Mod v${{ steps.meta.outputs.minimum_mod_version }} nutzt abgestufte Collector-Intervalle und Caches, damit teure Hofanalysen nicht mehr alle zwei Sekunden vollständig laufen
+          - der 2-Sekunden-Near-Live-Export für schnelle Daten bleibt erhalten
 
           ### Kompatibilität
-          Für die korrigierte Vorratsansicht wird die Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} benötigt. Sie kann direkt unter System im Dashboard aktualisiert werden.
+          Für die optimierte Live-Anbindung wird die Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} benötigt. Sie kann direkt unter System im Dashboard aktualisiert werden.
           "@
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8
           gh release create $env:TAG $package "dist/update-manifest.json" --repo $env:GITHUB_REPOSITORY --title "LS25 Hof-Dashboard v$env:VERSION" --notes-file release-notes.md
