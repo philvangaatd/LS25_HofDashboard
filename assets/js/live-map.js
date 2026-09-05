@@ -10,35 +10,36 @@
         showVehicles: true,
         showImplements: false,
         lastHitTargets: [],
-        selected: null,
     };
 
     function escapeText(value) {
         return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     }
 
-    function getVehicleCategory(v) {
-        return String(v.vehicleCategory || v.vehicleType || 'IMPLEMENT').toUpperCase();
+    function getVehicleCategory(vehicle) {
+        return String(vehicle?.vehicleCategory || vehicle?.vehicleType || 'IMPLEMENT').toUpperCase();
     }
 
     function normalizeLive(data) {
-        state.players = Array.isArray(data?.farm?.players) ? data.farm.players.filter(p => Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.z))) : [];
-        state.vehicles = Array.isArray(data?.vehicles) ? data.vehicles.filter(v => Number.isFinite(Number(v.mapX)) && Number.isFinite(Number(v.mapZ))) : [];
+        state.players = Array.isArray(data?.farm?.players)
+            ? data.farm.players.filter(player => Number.isFinite(Number(player.x)) && Number.isFinite(Number(player.z)))
+            : [];
+        state.vehicles = Array.isArray(data?.vehicles)
+            ? data.vehicles.filter(vehicle => Number.isFinite(Number(vehicle.mapX)) && Number.isFinite(Number(vehicle.mapZ)))
+            : [];
     }
 
-    async function refresh() {
-        try {
-            const res = await fetch(`api.php?action=live_data&t=${Date.now()}`, { cache: 'no-store' });
-            if (!res.ok) return;
-            normalizeLive(await res.json());
-            if (typeof window.mapRedraw === 'function') window.mapRedraw();
-        } catch (_) {}
+    function applySnapshot(data) {
+        if (!data || data.status === 'error' || data.status === 'no_mod') return;
+        normalizeLive(data);
+        if (typeof activeTab !== 'undefined' && activeTab === 'map') window.mapRedraw?.();
+        if (typeof activeTab !== 'undefined' && activeTab === 'vehicles') installVehicleMapButtons();
     }
 
     function installControls() {
-        const mapTab = document.getElementById('tabMap');
-        const toolbar = mapTab?.querySelector('.toolbar');
+        const toolbar = document.querySelector('#tabMap .toolbar');
         if (!toolbar || document.getElementById('liveMapControls')) return;
+
         const wrap = document.createElement('div');
         wrap.id = 'liveMapControls';
         wrap.className = 'live-map-controls';
@@ -47,14 +48,17 @@
             <button type="button" class="live-map-toggle is-active" data-live-layer="vehicles">Fahrzeuge</button>
             <button type="button" class="live-map-toggle" data-live-layer="implements">Geräte</button>`;
         toolbar.insertBefore(wrap, toolbar.firstChild?.nextSibling || null);
+
         wrap.addEventListener('click', event => {
-            const btn = event.target.closest('[data-live-layer]');
-            if (!btn) return;
-            const key = btn.dataset.liveLayer;
+            const button = event.target.closest('[data-live-layer]');
+            if (!button) return;
+            const key = button.dataset.liveLayer;
             if (key === 'players') state.showPlayers = !state.showPlayers;
             if (key === 'vehicles') state.showVehicles = !state.showVehicles;
             if (key === 'implements') state.showImplements = !state.showImplements;
-            btn.classList.toggle('is-active', key === 'players' ? state.showPlayers : key === 'vehicles' ? state.showVehicles : state.showImplements);
+            button.classList.toggle('is-active', key === 'players'
+                ? state.showPlayers
+                : key === 'vehicles' ? state.showVehicles : state.showImplements);
             window.mapRedraw?.();
         });
     }
@@ -75,17 +79,22 @@
 
     function drawLiveLayers() {
         try {
-            if (typeof mapCtx === 'undefined' || !mapCtx || typeof mapCanvasEl === 'undefined' || !mapCanvasEl || typeof worldToCanvas !== 'function' || typeof activeTab === 'undefined' || activeTab !== 'map') return;
+            if (typeof mapCtx === 'undefined' || !mapCtx
+                || typeof mapCanvasEl === 'undefined' || !mapCanvasEl
+                || typeof worldToCanvas !== 'function'
+                || typeof activeTab === 'undefined' || activeTab !== 'map') return;
+
             const rect = mapCanvasEl.getBoundingClientRect();
             state.lastHitTargets = [];
 
             if (state.showVehicles) {
-                for (const v of state.vehicles) {
-                    const category = getVehicleCategory(v);
+                for (const vehicle of state.vehicles) {
+                    const category = getVehicleCategory(vehicle);
                     if ((category === 'IMPLEMENT' || category === 'TRAILER') && !state.showImplements) continue;
-                    const [cx, cy] = worldToCanvas(Number(v.mapX), Number(v.mapZ));
+                    const [cx, cy] = worldToCanvas(Number(vehicle.mapX), Number(vehicle.mapZ));
                     if (cx < -20 || cx > rect.width + 20 || cy < -20 || cy > rect.height + 20) continue;
-                    const controlled = !!v.isControlled;
+
+                    const controlled = !!vehicle.isControlled;
                     const radius = controlled ? 8 : 6;
                     const color = controlled ? '#F2C230' : (category === 'VEHICLE' ? '#E7E5D8' : '#9DB48E');
                     mapCtx.beginPath();
@@ -95,34 +104,36 @@
                     mapCtx.strokeStyle = color;
                     mapCtx.lineWidth = controlled ? 3 : 2;
                     mapCtx.stroke();
-                    drawDirection(mapCtx, cx, cy, Number(v.mapYaw || 0), radius, color);
-                    state.lastHitTargets.push({ type: 'vehicle', entity: v, cx, cy, radius: 13 });
+                    drawDirection(mapCtx, cx, cy, Number(vehicle.mapYaw || 0), radius, color);
+                    state.lastHitTargets.push({ type: 'vehicle', entity: vehicle, cx, cy, radius: 13 });
+
                     if (typeof mapView !== 'undefined' && mapView.scale > 1.6) {
                         mapCtx.font = '11px "IBM Plex Mono", monospace';
                         mapCtx.fillStyle = '#ECE7D8';
-                        mapCtx.fillText(String(v.name || v.model || 'Fahrzeug'), cx + 10, cy - 8);
+                        mapCtx.fillText(String(vehicle.name || vehicle.model || 'Fahrzeug'), cx + 10, cy - 8);
                     }
                 }
             }
 
             if (state.showPlayers) {
-                for (const p of state.players) {
-                    const [cx, cy] = worldToCanvas(Number(p.x), Number(p.z));
+                for (const player of state.players) {
+                    const [cx, cy] = worldToCanvas(Number(player.x), Number(player.z));
                     if (cx < -20 || cx > rect.width + 20 || cy < -20 || cy > rect.height + 20) continue;
-                    const color = p.isLocal ? '#6EDC5F' : '#74B8FF';
+                    const color = player.isLocal ? '#6EDC5F' : '#74B8FF';
                     mapCtx.beginPath();
-                    mapCtx.arc(cx, cy, p.isLocal ? 7 : 6, 0, Math.PI * 2);
+                    mapCtx.arc(cx, cy, player.isLocal ? 7 : 6, 0, Math.PI * 2);
                     mapCtx.fillStyle = color;
                     mapCtx.fill();
                     mapCtx.strokeStyle = '#11140d';
                     mapCtx.lineWidth = 2;
                     mapCtx.stroke();
-                    drawDirection(mapCtx, cx, cy, Number(p.yaw || 0), 6, color);
-                    state.lastHitTargets.push({ type: 'player', entity: p, cx, cy, radius: 13 });
+                    drawDirection(mapCtx, cx, cy, Number(player.yaw || 0), 6, color);
+                    state.lastHitTargets.push({ type: 'player', entity: player, cx, cy, radius: 13 });
+
                     if (typeof mapView !== 'undefined' && mapView.scale > 1.2) {
                         mapCtx.font = '11px "IBM Plex Mono", monospace';
                         mapCtx.fillStyle = '#ECE7D8';
-                        mapCtx.fillText(String(p.name || 'Spieler'), cx + 10, cy - 8);
+                        mapCtx.fillText(String(player.name || 'Spieler'), cx + 10, cy - 8);
                     }
                 }
             }
@@ -139,11 +150,12 @@
             panel.className = 'live-map-detail';
             wrap.appendChild(panel);
         }
-        const e = target.entity;
+
+        const entity = target.entity;
         if (target.type === 'player') {
-            panel.innerHTML = `<button class="live-map-close">×</button><div class="live-map-kicker">Spieler</div><strong>${escapeText(e.name || 'Spieler')}</strong><div>${e.isLocal ? 'Lokaler Spieler' : 'Mitspieler'}</div>`;
+            panel.innerHTML = `<button class="live-map-close">×</button><div class="live-map-kicker">Spieler</div><strong>${escapeText(entity.name || 'Spieler')}</strong><div>${entity.isLocal ? 'Lokaler Spieler' : 'Mitspieler'}</div>`;
         } else {
-            panel.innerHTML = `<button class="live-map-close">×</button><div class="live-map-kicker">${escapeText(getVehicleCategory(e) === 'VEHICLE' ? 'Fahrzeug' : 'Gerät')}</div><strong>${escapeText(e.name || e.model || 'Fahrzeug')}</strong><div>${Number(e.speedKph || 0).toLocaleString('de-DE', {maximumFractionDigits:1})} km/h${e.isWorking ? ' · KI aktiv' : ''}${e.isControlled ? ' · gesteuert' : ''}</div>`;
+            panel.innerHTML = `<button class="live-map-close">×</button><div class="live-map-kicker">${escapeText(getVehicleCategory(entity) === 'VEHICLE' ? 'Fahrzeug' : 'Gerät')}</div><strong>${escapeText(entity.name || entity.model || 'Fahrzeug')}</strong><div>${Number(entity.speedKph || 0).toLocaleString('de-DE', { maximumFractionDigits: 1 })} km/h${entity.isWorking ? ' · KI aktiv' : ''}${entity.isControlled ? ' · gesteuert' : ''}</div>`;
         }
         panel.querySelector('.live-map-close')?.addEventListener('click', () => panel.remove());
     }
@@ -157,7 +169,7 @@
             const rect = canvas.getBoundingClientRect();
             const x = event.clientX - rect.left;
             const y = event.clientY - rect.top;
-            const target = state.lastHitTargets.slice().reverse().find(t => Math.hypot(t.cx - x, t.cy - y) <= t.radius);
+            const target = state.lastHitTargets.slice().reverse().find(item => Math.hypot(item.cx - x, item.cy - y) <= item.radius);
             if (target) showDetail(target);
         });
     }
@@ -167,21 +179,27 @@
             if (card.querySelector('.vehicle-map-button')) return;
             const name = card.querySelector('.vehicle-name')?.textContent?.trim();
             if (!name) return;
-            const vehicle = state.vehicles.find(v => String(v.name || v.model || '').trim() === name);
+            const vehicle = state.vehicles.find(item => String(item.name || item.model || '').trim() === name);
             if (!vehicle) return;
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'vehicle-map-button';
-            btn.textContent = 'Auf Karte anzeigen';
-            btn.addEventListener('click', () => window.showVehicleOnMap(vehicle.id || vehicle.uniqueId || name));
-            card.querySelector('.vehicle-card-header')?.appendChild(btn);
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'vehicle-map-button';
+            button.textContent = 'Auf Karte anzeigen';
+            button.addEventListener('click', () => window.showVehicleOnMap(vehicle.id || vehicle.uniqueId || name));
+            card.querySelector('.vehicle-card-header')?.appendChild(button);
         });
     }
 
     window.showVehicleOnMap = function(identifier) {
-        const vehicle = state.vehicles.find(v => String(v.id || v.uniqueId || v.name) === String(identifier)) || state.vehicles.find(v => String(v.name) === String(identifier));
-        if (!vehicle) { window.showToast?.('Fahrzeugposition noch nicht verfügbar.', 'err'); return; }
-        if (typeof window.switchTab === 'function') window.switchTab('map');
+        const vehicle = state.vehicles.find(item => String(item.id || item.uniqueId || item.name) === String(identifier))
+            || state.vehicles.find(item => String(item.name) === String(identifier));
+        if (!vehicle) {
+            window.showToast?.('Fahrzeugposition noch nicht verfügbar.', 'err');
+            return;
+        }
+
+        window.switchTab?.('map');
         setTimeout(() => {
             try {
                 if (typeof mapView !== 'undefined') {
@@ -189,7 +207,7 @@
                     mapView.centerZ = Number(vehicle.mapZ);
                     mapView.scale = Math.max(Number(mapView.scale || 1), 2.5);
                     window.mapRedraw?.();
-                    const target = state.lastHitTargets.find(t => t.type === 'vehicle' && t.entity === vehicle);
+                    const target = state.lastHitTargets.find(item => item.type === 'vehicle' && item.entity === vehicle);
                     if (target) showDetail(target);
                 }
             } catch (_) {}
@@ -209,19 +227,23 @@
         return true;
     }
 
+    function hookMapRedrawWhenReady(attempt = 0) {
+        if (hookMapRedraw() || attempt >= 20) return;
+        setTimeout(() => hookMapRedrawWhenReady(attempt + 1), 250);
+    }
+
     function install() {
         installControls();
         installCanvasInteraction();
-        hookMapRedraw();
-        refresh();
-        setInterval(refresh, 1000);
-        const observer = new MutationObserver(() => {
-            installControls();
-            installCanvasInteraction();
-            installVehicleMapButtons();
-            hookMapRedraw();
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
+        hookMapRedrawWhenReady();
+
+        const vehicleContainer = document.getElementById('vehiclesContainer');
+        if (vehicleContainer) {
+            new MutationObserver(installVehicleMapButtons).observe(vehicleContainer, { childList: true, subtree: true });
+        }
+
+        document.addEventListener('hofdashboard:live-data', event => applySnapshot(event.detail));
+        if (window.__hofLiveSnapshot) applySnapshot(window.__hofLiveSnapshot);
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true });
