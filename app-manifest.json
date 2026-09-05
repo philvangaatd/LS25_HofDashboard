@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "component": "dashboard",
   "name": "LS25 Hof-Dashboard",
-  "version": "5.8.0",
+  "version": "5.9.0",
   "dataLayoutVersion": 1,
   "apiProtocol": {
     "min": 1,
