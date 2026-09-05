@@ -1,5 +1,23 @@
 # Changelog
 
+## 5.8.0 - 2026-09-05
+
+### Aufräumen
+- Experimentelle **Vorräte**-Funktion vollständig aus Navigation, UI, JavaScript, Styles und Live-Daten entfernt.
+- Storage-Collector und zugehörige Kompatibilitäts-Fixes aus der Live-Mod entfernt.
+- Alte Start-Navigation-Synchronisierung entfernt; der Startscreen erzeugt jetzt direkt die finale Navigation.
+- Redundanten 30-Sekunden-Refresh der Übersicht entfernt.
+
+### Performance
+- Nur noch eine zentrale Live-Daten-Abfrage versorgt Dashboard und Live-Karte.
+- Eigener 1-Sekunden-Poller der Live-Karte entfernt.
+- Automatische Ansichten werden nur neu gerendert, wenn sich für den geöffneten Bereich relevante Daten geändert haben.
+- Fahrzeugpositionen aktualisieren die Live-Karte, ohne den gesamten Fuhrpark neu aufzubauen.
+- Hintergrund-Polling auf 10 Sekunden reduziert.
+- Dauerhafte DOM-Observer reduziert und nach der Initialisierung getrennt.
+- Lokale UI-Ressourcen erhalten beim Release konsistente Versionsparameter gegen veraltete WebView2-Caches.
+- Passende Live-Mod v5.5.0 nutzt abgestufte Collector-Intervalle und Caches; teure Feld-, Tier-, Produktions-, Vertrags- und Marktanalysen laufen nicht mehr bei jedem 2-Sekunden-Export vollständig.
+
 ## 5.6.0 - 2026-09-05
 
 ### Verbesserungen
