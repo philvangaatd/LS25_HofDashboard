@@ -4,8 +4,18 @@
     if (window.__hofDashboardStartNavSyncLoaded) return;
     window.__hofDashboardStartNavSyncLoaded = true;
 
+    const VERSION = '5.6.2';
     const disabledTitle = 'Nach Auswahl eines Spielstands verfügbar';
     const autoDriveTitle = 'Nach Auswahl eines Spielstands mit AutoDrive verfügbar';
+
+    function ensureStyles() {
+        if (document.getElementById('startNavSyncStyles')) return;
+        const link = document.createElement('link');
+        link.id = 'startNavSyncStyles';
+        link.rel = 'stylesheet';
+        link.href = `assets/css/start-nav-sync.css?v=${VERSION}`;
+        document.head.appendChild(link);
+    }
 
     function icon(name) {
         if (typeof window.startIcon === 'function') {
@@ -22,6 +32,7 @@
         const nav = document.querySelector('#pickerScreen .start-nav');
         if (!nav || nav.dataset.synced === '1') return false;
 
+        ensureStyles();
         nav.innerHTML = `
             <button class="start-nav-item is-active" id="startNavHome" type="button" data-start-view="home">${icon('home')}<span>Start</span></button>
 
@@ -54,8 +65,10 @@
             if (typeof window.openStartSystem === 'function') window.openStartSystem();
         });
 
-        if (window.startModStatus && typeof window.updateStartModStatus === 'function') {
-            window.updateStartModStatus(window.startModStatus);
+        // Das alte Status-Dot wurde durch das neue Markup ersetzt. Deshalb den
+        // aktuellen Mod-Status direkt noch einmal über die WebView anfordern.
+        if (typeof window.requestHofModStatus === 'function') {
+            window.requestHofModStatus();
         }
 
         return true;
