@@ -4,7 +4,7 @@
     if (window.__hofDashboardAppShellLoaded) return;
     window.__hofDashboardAppShellLoaded = true;
 
-    const VERSION = '5.5.2';
+    const VERSION = '5.8.0';
 
     function ensureStyles() {
         if (document.getElementById('appShellStyles')) return;
@@ -31,7 +31,6 @@
         { tab: 'fields', label: 'Felder', icon: 'fields' },
         { tab: 'vehicles', label: 'Fuhrpark', icon: 'vehicles' },
         { tab: 'animals', label: 'Tiere', icon: 'animals' },
-        { tab: 'storage', label: 'Vorräte', icon: 'storage' },
         { tab: 'production', label: 'Produktionen', icon: 'production', group: 'Planung' },
         { tab: 'market', label: 'Markt', icon: 'database' },
         { tab: 'missions', label: 'Verträge', icon: 'calendar' },
@@ -44,7 +43,6 @@
         fields: ['Live', 'Felder', 'Eigene Flächen, Kulturen, Wachstum und Pflegezustände.'],
         vehicles: ['Live', 'Fuhrpark', 'Fahrzeuge, Geräte, Betriebsstunden, Verschleiß und Füllstände.'],
         animals: ['Live', 'Tiere', 'Tierbestand, Versorgung, Gesundheit und Erzeugnisse.'],
-        storage: ['Live', 'Vorräte', 'Silos, Ballenlager, Gülle, Mist und kompatible Mod-Lager.'],
         production: ['Planung', 'Produktionen', 'Aktive Produktionsketten, Rohstoffe und Ausstoß.'],
         market: ['Planung', 'Markt', 'Aktuelle Verkaufspreise und die besten Verkaufschancen.'],
         missions: ['Planung', 'Verträge', 'Aktive und verfügbare Aufträge mit Fortschritt.'],
