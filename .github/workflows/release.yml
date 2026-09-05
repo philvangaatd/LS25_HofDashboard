@@ -75,7 +75,7 @@ jobs:
             if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing UI asset: $file" }
           }
 
-      - name: Wire live map assets
+      - name: Wire release assets and cache busters
         if: steps.meta.outputs.publish == 'true'
         shell: pwsh
         env:
@@ -97,6 +97,15 @@ jobs:
           }
           Set-Content -LiteralPath $indexPath -Value $index -Encoding utf8
           if ((Get-Content -Raw -LiteralPath $indexPath) -notmatch 'assets/js/live-map\.js') { throw "live-map.js was not wired into index.html" }
+
+          $mainFormPath = "launcher/HofDashboard.Launcher/MainForm.cs"
+          $mainForm = Get-Content -Raw -LiteralPath $mainFormPath
+          foreach ($asset in @('app-shell','app-shell-sync','sidebar-collapse','near-live','live-refresh-ux')) {
+            $pattern = 'assets/js/' + [regex]::Escape($asset) + '\.js\?v=[0-9.]+'
+            $replacement = 'assets/js/' + $asset + '.js?v=' + $env:VERSION
+            $mainForm = [regex]::Replace($mainForm, $pattern, $replacement)
+          }
+          Set-Content -LiteralPath $mainFormPath -Value $mainForm -Encoding utf8
 
       - name: Verify matching mod release
         if: steps.meta.outputs.publish == 'true'
@@ -156,23 +165,22 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Live-Karte
-          - Fahrzeuge und Maschinen werden mit ihrer Near-Live-Position direkt auf der AutoDrive-Karte angezeigt
-          - Fahrtrichtung und aktuelle Geschwindigkeit werden aus der laufenden Spielwelt übernommen
-          - der aktuell gesteuerte Wagen wird deutlich hervorgehoben
-          - Spieler werden als eigene Live-Marker dargestellt
-          - Spieler, Fahrzeuge sowie Anhänger/Anbaugeräte lassen sich getrennt ein- und ausblenden
-          - Klick auf einen Live-Marker öffnet eine kompakte Detailkarte
+          ### Live-Aktualisierung
+          - der sichtbare Viewport wird während automatischer Near-Live-Neuzeichnungen stabil gehalten
+          - Scrollpositionen verschachtelter Bereiche und Fokus werden wiederhergestellt
+          - der Vorräte-Tab aktualisiert im Hintergrund ohne sichtbaren Lade-Platzhalter
 
-          ### Fuhrpark-Verknüpfung
-          - Fahrzeuge mit verfügbarer Position erhalten die Aktion Auf Karte anzeigen
-          - die Karte springt direkt zum betreffenden Fahrzeug und öffnet dessen Live-Details
+          ### Vorräte
+          - leere Phantom-/Zombie-Lager ohne Inhalt oder bekannte Kapazität werden nicht mehr angezeigt
+          - Stall- und Produktionslager erhalten passendere Typbezeichnungen
+          - Ballen und Paletten werden als solche bezeichnet statt als generische Objekte
+          - technische FillType-Bezeichner werden durch verständliche deutsche Namen ersetzt
 
           ### Datenquelle
-          - passende Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} liefert Weltposition, Richtung und Spielerpositionen über die bestehende lokale Near-Live-Telemetrie
+          - passende Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} verbessert die Erkennung gültiger Placeables, Mod-Tanks und Storage-Verknüpfungen
 
           ### Kompatibilität
-          Für die Live-Karte wird die Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} benötigt. Sie kann direkt unter System im Dashboard aktualisiert werden.
+          Für die korrigierte Vorratsansicht wird die Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} benötigt. Sie kann direkt unter System im Dashboard aktualisiert werden.
           "@
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8
           gh release create $env:TAG $package "dist/update-manifest.json" --repo $env:GITHUB_REPOSITORY --title "LS25 Hof-Dashboard v$env:VERSION" --notes-file release-notes.md
