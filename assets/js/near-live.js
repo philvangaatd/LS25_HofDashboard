@@ -5,69 +5,86 @@
     window.__hofDashboardNearLiveLoaded = true;
 
     const FOREGROUND_POLL_MS = 1000;
-    const BACKGROUND_POLL_MS = 5000;
+    const BACKGROUND_POLL_MS = 10000;
 
     const originalStopLivePolling = typeof window.stopLivePolling === 'function'
         ? window.stopLivePolling.bind(window)
         : null;
 
     let timer = null;
-    let requestInFlight = false;
+    let running = false;
+    let enabled = false;
 
-    async function tick() {
-        if (requestInFlight || typeof window.pollLiveData !== 'function') return;
-
-        requestInFlight = true;
-        try {
-            await window.pollLiveData();
-        } catch (_) {
-            // pollLiveData handles the visible connection state itself.
-        } finally {
-            requestInFlight = false;
-        }
+    function intervalForState() {
+        return document.hidden ? BACKGROUND_POLL_MS : FOREGROUND_POLL_MS;
     }
 
     function clearTimer() {
         if (timer === null) return;
-        clearInterval(timer);
+        clearTimeout(timer);
         timer = null;
     }
 
-    function schedule() {
+    function schedule(delay = intervalForState()) {
         clearTimer();
-        const interval = document.hidden ? BACKGROUND_POLL_MS : FOREGROUND_POLL_MS;
-        timer = setInterval(tick, interval);
+        if (!enabled) return;
+        timer = setTimeout(tick, delay);
+    }
+
+    async function tick() {
+        timer = null;
+        if (!enabled || running || typeof window.pollLiveData !== 'function') {
+            schedule();
+            return;
+        }
+
+        running = true;
+        try {
+            await window.pollLiveData();
+        } catch (_) {
+            // pollLiveData pflegt den sichtbaren Verbindungsstatus selbst.
+        } finally {
+            running = false;
+            schedule();
+        }
+    }
+
+    function disableLegacyOverviewRefresh() {
+        if (typeof window.stopFarmOverviewAutoRefresh === 'function') {
+            window.stopFarmOverviewAutoRefresh();
+        }
+        // Der alte 30-Sekunden-Timer ist seit Near-Live redundant. Spätere Aufrufe
+        // aus älterem Initialisierungscode werden absichtlich zu einem No-op.
+        if (typeof window.startFarmOverviewAutoRefresh === 'function') {
+            window.startFarmOverviewAutoRefresh = () => {};
+        }
     }
 
     function startNearLivePolling() {
-        if (timer !== null) return;
-
-        // Remove the legacy 15-second timer before installing the faster loop.
+        if (enabled) return;
+        enabled = true;
         originalStopLivePolling?.();
-        tick();
-        schedule();
+        disableLegacyOverviewRefresh();
+        schedule(0);
     }
 
     function stopNearLivePolling() {
+        enabled = false;
         clearTimer();
         originalStopLivePolling?.();
+        disableLegacyOverviewRefresh();
     }
 
-    // Existing application code continues to call the familiar functions,
-    // but from v5.6.0 they use the near-live cadence.
     window.startLivePolling = startNearLivePolling;
     window.stopLivePolling = stopNearLivePolling;
 
     function syncWithAppState() {
-        if (document.body.classList.contains('dashboard-mode')) {
-            startNearLivePolling();
-        } else {
-            stopNearLivePolling();
-        }
+        if (document.body.classList.contains('dashboard-mode')) startNearLivePolling();
+        else stopNearLivePolling();
     }
 
     document.addEventListener('visibilitychange', () => {
-        if (timer !== null) schedule();
+        if (enabled) schedule(0);
     });
 
     new MutationObserver(syncWithAppState).observe(document.body, {
