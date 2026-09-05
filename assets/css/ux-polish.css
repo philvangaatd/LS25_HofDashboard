@@ -1,0 +1,134 @@
+/* v5.9.0 — focused UX refinements */
+
+/* Übersicht: navigierbare Statistik-Card */
+body.dashboard-mode .stat-card.stat-card-link {
+    cursor: pointer;
+    transition: border-color .14s ease, background .14s ease, transform .14s ease, box-shadow .14s ease;
+}
+body.dashboard-mode .stat-card.stat-card-link:hover,
+body.dashboard-mode .stat-card.stat-card-link:focus-visible {
+    border-color: rgba(201,162,39,.72) !important;
+    background: linear-gradient(145deg, rgba(35,41,24,.94), rgba(23,28,18,.96));
+    box-shadow: 0 16px 36px rgba(0,0,0,.18), inset 0 0 0 1px rgba(201,162,39,.08);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+/* Tiere: kompakter Filter statt eines manuellen Refresh-Buttons */
+.animal-type-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 260px;
+}
+.animal-type-filter > span {
+    color: var(--muted);
+    font: 500 10px/1 var(--font-mono);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.animal-type-filter select {
+    min-width: 190px;
+}
+
+/* Fuhrpark: Wartungsplan getrennt vom gleich hohen Kartenraster. */
+body.dashboard-mode #vehiclesContainer {
+    display: block;
+    margin-top: 18px;
+}
+.vehicle-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    grid-auto-rows: 1fr;
+    gap: 14px;
+    align-items: stretch;
+}
+body.dashboard-mode #vehiclesContainer > .vehicle-maintenance-plan {
+    margin-bottom: 14px;
+}
+.vehicle-card-grid > .vehicle-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Die globale App-Shell überschreibt Card-Rahmen mit !important. Warnkarten
+   bekommen daher bewusst einen spezifischeren vollständigen roten Rahmen. */
+body.dashboard-mode .vehicle-card.needs-attention {
+    border-color: rgba(168,85,57,.78) !important;
+    box-shadow: 0 14px 34px rgba(0,0,0,.13), inset 0 0 0 1px rgba(168,85,57,.12) !important;
+}
+body.dashboard-mode .vehicle-card.needs-attention:hover {
+    border-color: rgba(188,96,65,.94) !important;
+}
+
+/* Hinweise stehen am Ende des Views statt vor den eigentlichen Daten. */
+body.dashboard-mode .view-footnote,
+body.dashboard-mode .legend-line.view-footnote,
+body.dashboard-mode .map-size-hint.view-footnote {
+    display: block;
+    margin: 20px 0 0;
+    padding: 10px 2px 0;
+    border: 0;
+    border-top: 1px solid rgba(123,153,112,.14);
+    border-radius: 0;
+    background: transparent;
+    color: rgba(169,164,140,.70);
+    font: 400 9.5px/1.55 var(--font-mono);
+    box-shadow: none;
+}
+body.dashboard-mode .view-footnote .legend-swatch {
+    width: 7px;
+    height: 7px;
+    opacity: .82;
+}
+body.dashboard-mode .map-image-footnote {
+    margin-top: 8px;
+}
+
+/* Marker-/Karten-Menüs: identische Zeilenhöhe und Icon-Ausrichtung. */
+body.dashboard-mode .more-menu button {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 11px;
+    text-align: left;
+}
+body.dashboard-mode .more-menu button .app-icon,
+body.dashboard-mode .more-menu button .ui-icon {
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+    margin-right: 9px;
+    flex: 0 0 16px;
+}
+body.dashboard-mode .more-menu button .ui-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Leere Toolbars werden nach Entfernen redundanter Refresh-Aktionen nicht als
+   dekorative Platzhalter stehen gelassen. */
+body.dashboard-mode .toolbar[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 700px) {
+    .vehicle-card-grid {
+        grid-template-columns: 1fr;
+        grid-auto-rows: auto;
+    }
+    .animal-type-filter {
+        width: 100%;
+        min-width: 0;
+    }
+    .animal-type-filter select {
+        flex: 1;
+        min-width: 0;
+    }
+}
