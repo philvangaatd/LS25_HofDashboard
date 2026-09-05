@@ -1,5 +1,24 @@
 # Changelog
 
+## 5.9.0 - 2026-09-05
+
+### Tiere
+- Neuer Tierart-Filter mit automatisch erkannten Tierarten und Bienenhaltung.
+- Gefilterte Tieransichten zeigen ausschließlich die passende Tierhaltung; die hofweite Futterprognose wird bei aktivem Filter ausgeblendet, damit keine Daten anderer Tierarten vermischt werden.
+
+### Übersicht & Fuhrpark
+- Die Fuhrpark-Card auf der Übersicht öffnet jetzt direkt den Fuhrpark-Tab und ist auch per Tastatur bedienbar.
+- Fuhrpark-Cards werden in einem eigenen gleich hohen, responsiven Kartenraster dargestellt.
+- Wartungs- oder Waschbedarf über 50 % erhält wieder einen vollständigen roten Warnrahmen; die neue App-Shell hatte diese Rahmenfarbe zuvor überschrieben.
+
+### Hinweise & Bedienung
+- Legenden und erklärende Hinweise wurden an das Ende der jeweiligen Tabs verschoben und deutlich dezenter gestaltet.
+- Der Kartenbild-Hinweis steht jetzt unter der Karte statt im Mehr-Menü.
+- Marker-/Karten-Menüs verwenden einheitliche Zeilenhöhen sowie konsistente Icon-Ausrichtung.
+- Redundante Aktualisieren-Buttons wurden aus Live-, Planungs- und Systemansichten entfernt.
+- Marker behält „Neu laden“; die Karte erhält ebenfalls einen sicheren AutoDrive-Neuladen-Button mit Dirty-Check vor dem Verwerfen ungespeicherter Änderungen.
+- Live-Mod v5.5.0 bleibt unverändert kompatibel; für dieses reine UI-/UX-Release ist kein neues Mod-Paket nötig.
+
 ## 5.8.0 - 2026-09-05
 
 ### Aufräumen
