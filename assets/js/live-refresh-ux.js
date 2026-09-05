@@ -15,6 +15,8 @@
         missions: 'loadMissionsData',
     };
 
+    let lastSmoothTimestamp = null;
+
     function getActiveTab() {
         const activeNav = document.querySelector('.app-nav-item.is-active[data-app-tab]');
         if (activeNav?.dataset?.appTab) return activeNav.dataset.appTab;
@@ -30,16 +32,12 @@
         const active = document.activeElement;
         if (!active) return false;
         const tag = String(active.tagName || '').toLowerCase();
-        return tag === 'input'
-            || tag === 'textarea'
-            || tag === 'select'
-            || active.isContentEditable === true;
+        return tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable === true;
     }
 
     function captureFocus() {
         const active = document.activeElement;
         if (!active || !active.id) return null;
-
         const snapshot = { id: active.id };
         if (typeof active.selectionStart === 'number') snapshot.selectionStart = active.selectionStart;
         if (typeof active.selectionEnd === 'number') snapshot.selectionEnd = active.selectionEnd;
@@ -57,9 +55,7 @@
                 && typeof snapshot.selectionEnd === 'number') {
                 target.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
             }
-        } catch (_) {
-            // Focus restoration is best-effort only.
-        }
+        } catch (_) {}
     }
 
     async function refreshWithoutViewportJump(loader) {
@@ -68,18 +64,10 @@
         const focus = captureFocus();
         const body = document.body;
         const previousMinHeight = body.style.minHeight;
-        const lockedHeight = Math.max(
-            document.documentElement.scrollHeight,
-            body.scrollHeight,
-            window.innerHeight
-        );
+        const lockedHeight = Math.max(document.documentElement.scrollHeight, body.scrollHeight, window.innerHeight);
 
-        // Existing loaders briefly replace parts of a view with a loading
-        // placeholder. Keeping the document height locked prevents the browser
-        // from clamping the scroll position while the live view is rebuilt.
         body.style.minHeight = `${lockedHeight}px`;
         body.classList.add('hd-live-refreshing');
-
         try {
             await loader();
         } finally {
@@ -93,15 +81,32 @@
     }
 
     window.autoRefreshActiveTab = async function autoRefreshActiveTabSmooth() {
-        // Do not rebuild the view while the user is typing/selecting. The next
-        // live export refreshes it after that interaction is finished.
         if (isUserEditing()) return;
-
         const tab = getActiveTab();
         const loaderName = tab ? loaderByTab[tab] : null;
         const loader = loaderName ? window[loaderName] : null;
         if (typeof loader !== 'function') return;
-
         await refreshWithoutViewportJump(() => loader());
+    };
+
+    // views-overview-fields.js ruft innerhalb seiner lokalen pollLiveData-Funktion
+    // die dort lexikalisch gebundene alte autoRefreshActiveTab-Funktion auf. Dadurch
+    // konnte das bisherige Smooth-Refresh-Override nie greifen. Wir ersetzen deshalb
+    // den globalen Poll-Einstieg, den near-live.js tatsächlich jede Sekunde aufruft.
+    window.pollLiveData = async function pollLiveDataSmooth() {
+        try {
+            const res = await fetch(`api.php?action=live_data&t=${Date.now()}`, { cache: 'no-store' });
+            const data = await res.json();
+            if (typeof window.updateLiveStatusBadge === 'function') window.updateLiveStatusBadge(data);
+
+            if (data.status === 'ok' && data.timestamp && data.timestamp !== lastSmoothTimestamp) {
+                lastSmoothTimestamp = data.timestamp;
+                await window.autoRefreshActiveTab();
+            }
+        } catch (error) {
+            if (typeof window.updateLiveStatusBadge === 'function') {
+                window.updateLiveStatusBadge({ status: 'error', message: String(error) });
+            }
+        }
     };
 })();
