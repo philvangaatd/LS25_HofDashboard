@@ -61,7 +61,8 @@ jobs:
             "assets/js/sidebar-collapse.js",
             "assets/js/near-live.js",
             "assets/js/live-refresh-ux.js",
-            "assets/js/live-map.js"
+            "assets/js/live-map.js",
+            "assets/js/ux-polish.js"
           )) {
             node --check $file
             if ($LASTEXITCODE -ne 0) { throw "JavaScript validation failed: $file" }
@@ -74,7 +75,8 @@ jobs:
             "assets/css/sidebar-collapse.css",
             "assets/css/header-cleanup.css",
             "assets/css/mod-manager.css",
-            "assets/css/live-map.css"
+            "assets/css/live-map.css",
+            "assets/css/ux-polish.css"
           )) {
             if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing UI asset: $file" }
           }
@@ -106,10 +108,22 @@ jobs:
               '<link rel="stylesheet" href="assets/css/app.css">' + [Environment]::NewLine + '<link rel="stylesheet" href="assets/css/live-map.css">'
             )
           }
+          if ($index -notmatch 'assets/css/ux-polish\.css') {
+            $index = $index.Replace(
+              '<link rel="stylesheet" href="assets/css/live-map.css">',
+              '<link rel="stylesheet" href="assets/css/live-map.css">' + [Environment]::NewLine + '<link rel="stylesheet" href="assets/css/ux-polish.css">'
+            )
+          }
           if ($index -notmatch 'assets/js/live-map\.js') {
             $index = $index.Replace(
               '<script src="assets/js/ui-utils.js"></script>',
               '<script src="assets/js/ui-utils.js"></script>' + [Environment]::NewLine + '<script src="assets/js/live-map.js"></script>'
+            )
+          }
+          if ($index -notmatch 'assets/js/ux-polish\.js') {
+            $index = $index.Replace(
+              '<script src="assets/js/live-map.js"></script>',
+              '<script src="assets/js/live-map.js"></script>' + [Environment]::NewLine + '<script src="assets/js/ux-polish.js"></script>'
             )
           }
 
@@ -121,8 +135,16 @@ jobs:
             return $match.Groups[1].Value + '="' + $match.Groups[2].Value + '?v=' + $env:VERSION + '"'
           })
           Set-Content -LiteralPath $indexPath -Value $index -Encoding utf8
-          if ((Get-Content -Raw -LiteralPath $indexPath) -notmatch 'assets/js/live-map\.js\?v=') {
-            throw "live-map.js was not wired/versioned in index.html"
+          $wiredIndex = Get-Content -Raw -LiteralPath $indexPath
+          foreach ($asset in @('live-map','ux-polish')) {
+            if ($wiredIndex -notmatch ('assets/js/' + [regex]::Escape($asset) + '\.js\?v=')) {
+              throw "$asset.js was not wired/versioned in index.html"
+            }
+          }
+          foreach ($asset in @('live-map','ux-polish')) {
+            if ($wiredIndex -notmatch ('assets/css/' + [regex]::Escape($asset) + '\.css\?v=')) {
+              throw "$asset.css was not wired/versioned in index.html"
+            }
           }
 
           $mainFormPath = "launcher/HofDashboard.Launcher/MainForm.cs"
@@ -197,27 +219,24 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Aufgeräumt
-          - die experimentelle Vorräte-Funktion wurde vollständig aus Navigation, UI, JavaScript, Styles und Live-Daten entfernt
-          - die frühere Start-Navigation-Synchronisierung wurde entfernt; Startscreen und App verwenden wieder direkt ihre finale Navigation
-          - überholte Storage-Workarounds und zugehörige Assets werden nicht mehr ausgeliefert
+          ### Tiere
+          - neuer Tierart-Filter mit automatisch erkannten Tierarten und Bienenhaltung
+          - gefilterte Ansichten blenden die hofweite Futterprognose aus, damit keine Daten anderer Tierarten vermischt werden
 
-          ### Performance
-          - nur noch eine zentrale Live-Daten-Abfrage versorgt Dashboard und Live-Karte
-          - der bisher parallel laufende 30-Sekunden-Refresh der Übersicht wurde entfernt
-          - die Live-Karte besitzt keinen eigenen 1-Sekunden-Poller mehr
-          - automatische Ansichten werden nur neu gerendert, wenn sich für den offenen Bereich relevante Daten geändert haben
-          - reine Fahrzeugpositionsänderungen aktualisieren die Live-Karte, ohne den gesamten Fuhrpark neu aufzubauen
-          - im Hintergrund wird die Polling-Frequenz auf 10 Sekunden reduziert
-          - dauerhaft laufende DOM-Observer wurden reduziert bzw. nach der Initialisierung getrennt
-          - alle ausgelieferten lokalen UI-Assets erhalten einen Versionsparameter, damit WebView2 nach Updates keine alten Dateien aus dem Cache verwendet
+          ### Übersicht & Fuhrpark
+          - Fuhrpark-Card auf der Übersicht öffnet jetzt direkt den Fuhrpark
+          - Fuhrpark-Cards werden in einem eigenen gleich hohen Kartenraster dargestellt
+          - Wartungs-/Waschbedarf über 50 Prozent erhält wieder einen vollständigen roten Warnrahmen
 
-          ### Live-Mod
-          - Mod v${{ steps.meta.outputs.minimum_mod_version }} nutzt abgestufte Collector-Intervalle und Caches, damit teure Hofanalysen nicht mehr alle zwei Sekunden vollständig laufen
-          - der 2-Sekunden-Near-Live-Export für schnelle Daten bleibt erhalten
+          ### Hinweise & Navigation
+          - Legenden und erklärende Hinweise wurden an das Ende der jeweiligen Tabs verschoben und deutlich dezenter gestaltet
+          - der Kartenbild-Hinweis steht jetzt unter der Karte statt im Mehr-Menü
+          - Marker-/Karten-Menüs verwenden einheitliche Zeilenhöhen und Icon-Ausrichtung
+          - redundante Aktualisieren-Buttons wurden aus Live-, Planungs- und Systemansichten entfernt
+          - Marker behält Neu laden; die Karte erhält ebenfalls einen sicheren AutoDrive-Neuladen-Button mit Dirty-Check
 
           ### Kompatibilität
-          Für die optimierte Live-Anbindung wird die Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} benötigt. Sie kann direkt unter System im Dashboard aktualisiert werden.
+          - Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} bleibt unverändert kompatibel; für dieses UI-Release ist kein neues Mod-Paket nötig
           "@
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8
           gh release create $env:TAG $package "dist/update-manifest.json" --repo $env:GITHUB_REPOSITORY --title "LS25 Hof-Dashboard v$env:VERSION" --notes-file release-notes.md
