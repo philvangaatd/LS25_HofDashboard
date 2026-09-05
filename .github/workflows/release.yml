@@ -78,19 +78,21 @@ jobs:
       - name: Wire live map assets
         if: steps.meta.outputs.publish == 'true'
         shell: pwsh
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
         run: |
           $indexPath = "index.html"
           $index = Get-Content -Raw -LiteralPath $indexPath
           if ($index -notmatch 'assets/css/live-map\.css') {
             $index = $index.Replace(
               '<link rel="stylesheet" href="assets/css/app.css">',
-              '<link rel="stylesheet" href="assets/css/app.css">' + [Environment]::NewLine + '<link rel="stylesheet" href="assets/css/live-map.css?v=5.7.0">'
+              '<link rel="stylesheet" href="assets/css/app.css">' + [Environment]::NewLine + '<link rel="stylesheet" href="assets/css/live-map.css?v=' + $env:VERSION + '">'
             )
           }
           if ($index -notmatch 'assets/js/live-map\.js') {
             $index = $index.Replace(
               '<script src="assets/js/ui-utils.js"></script>',
-              '<script src="assets/js/ui-utils.js"></script>' + [Environment]::NewLine + '<script src="assets/js/live-map.js?v=5.7.0"></script>'
+              '<script src="assets/js/ui-utils.js"></script>' + [Environment]::NewLine + '<script src="assets/js/live-map.js?v=' + $env:VERSION + '"></script>'
             )
           }
           Set-Content -LiteralPath $indexPath -Value $index -Encoding utf8
