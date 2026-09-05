@@ -58,11 +58,13 @@ jobs:
           node --check assets/js/app-shell.js
           node --check assets/js/app-shell-sync.js
           node --check assets/js/sidebar-collapse.js
+          node --check assets/js/start-nav-sync.js
           node --check assets/js/near-live.js
           node --check assets/js/live-refresh-ux.js
           foreach ($file in @(
             "assets/css/start-screen.css",
             "assets/css/start-screen-icon-fix.css",
+            "assets/css/start-nav-sync.css",
             "assets/css/app-shell.css",
             "assets/css/sidebar-collapse.css",
             "assets/css/header-cleanup.css",
@@ -129,21 +131,21 @@ jobs:
           $notes = @"
           ## LS25 Hof-Dashboard v$env:VERSION
 
-          ### Ruhige Live-Aktualisierung
-          - automatische Near-Live-Updates behalten die aktuelle Scrollposition bei
-          - die Dokumenthöhe wird während eines Re-Renders kurz stabilisiert, damit der Browser nicht nach oben springt
-          - fokussierte Eingabe-, Such- und Auswahlfelder werden während der Bedienung nicht automatisch neu aufgebaut
-          - der Vorräte-Tab wird nun ebenfalls in den automatischen Live-Refresh einbezogen
+          ### Einheitliche Navigation
+          - Startscreen und geöffneter Spielstand verwenden jetzt dieselben Menüpunkte, Bezeichnungen und dieselbe Reihenfolge
+          - Dashboard heißt auf beiden Seiten einheitlich Übersicht
+          - Fahrzeuge heißt auf beiden Seiten einheitlich Fuhrpark
+          - Markt, Verträge, Marker und Karte sind jetzt auch im Startscreen sichtbar
+          - der nicht mehr vorhandene Navigationspunkt Einstellungen wurde aus dem Startscreen entfernt
+          - die Bereiche Hof, Planung und AutoDrive entsprechen jetzt der Hauptnavigation
 
-          ### Mod-Update-UX
-          - Hover-, Fokus- und Klickzustand des Mod-Update-Buttons mit deutlich besserem Gold/Dunkel-Kontrast überarbeitet
-          - wichtige Mod-Aktionen bleiben als klare primäre CTA erkennbar
-
-          ### Lager-Kompatibilität
-          - passende Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} erweitert die Erkennung von Standalone-Güllebehältern und anderen GIANTS-StorageSystem-Lagern
+          ### Verhalten im Startscreen
+          - spielstandsabhängige Punkte bleiben bis zur Auswahl eines Spielstands deaktiviert
+          - Start und System bleiben direkt bedienbar
+          - der Mod-/Systemstatus bleibt nach dem Neuaufbau der Navigation erhalten
 
           ### Kompatibilität
-          Für die erweiterte Lager-Erkennung wird die Live-Mod v${{ steps.meta.outputs.minimum_mod_version }} benötigt. Sie kann direkt unter System im Dashboard aktualisiert werden.
+          Die Live-Mod bleibt unverändert bei mindestens v${{ steps.meta.outputs.minimum_mod_version }}.
           "@
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8
           gh release create $env:TAG $package "dist/update-manifest.json" --repo $env:GITHUB_REPOSITORY --title "LS25 Hof-Dashboard v$env:VERSION" --notes-file release-notes.md
